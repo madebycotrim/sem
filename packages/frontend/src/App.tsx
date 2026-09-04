@@ -227,8 +227,23 @@ export function App() {
               seletor={{
                 valor: filtroEscola,
                 aoMudar: setFiltroEscola,
-                placeholder: 'Todas as Escolas / Polos',
-                opcoes: ESCOLAS_PADRAO,
+                placeholder: 'Todos os Avisos',
+                opcoes: [
+                  { id: '', nome: 'Todos os Avisos' },
+                  { id: 'sem_termo', nome: 'Sem Termo de Pais' },
+                  { id: 'retorno_pendente', nome: 'Retorno Clínico Pendente' },
+                  ...ESCOLAS_PADRAO,
+                ],
+              }}
+              sincronizacao={{
+                aoSincronizar: () => {
+                  setToastNotificacao({
+                    texto: 'Sincronização com Catraki efetuada com sucesso!',
+                    tipo: 'sucesso',
+                  });
+                  setTimeout(() => setToastNotificacao(null), 3000);
+                },
+                rotulo: 'Sincronizar Catraki',
               }}
               aoExportar={() => alert(`Exportando ${pacientesFiltrados.length} registros em formato CSV.`)}
               acaoPrimaria={{
