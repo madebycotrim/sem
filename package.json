@@ -1,0 +1,31 @@
+{
+  "name": "saude-em-movimento",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sistema de triagem e registro de atendimentos — Escola Cidadã: Saúde em Movimento (UnB / Sesi-DF / Finatec)",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "workspaces": [
+    "packages/shared",
+    "packages/backend",
+    "packages/frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:backend": "npm run dev -w packages/backend",
+    "dev:frontend": "npm run dev -w packages/frontend",
+    "build": "npm run build --workspaces --if-present",
+    "build:shared": "npm run build -w packages/shared",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:coverage": "npm run test:coverage --workspaces --if-present",
+    "audit:security": "npm audit --audit-level=high",
+    "prisma:generate": "npm run prisma:generate -w packages/backend",
+    "prisma:push": "npm run prisma:push -w packages/backend",
+    "prisma:seed": "npm run prisma:seed -w packages/backend",
+    "sbom": "npx @cyclonedx/cyclonedx-npm --output-file sbom.json"
+  }
+}
