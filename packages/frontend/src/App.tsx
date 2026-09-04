@@ -85,7 +85,6 @@ export function App() {
       profissionalNome: 'Dra. Camila Souza (Oftalmologia)',
       resumo: 'Avaliação de acuidade visual com tabela de Snellen e biomicroscopia.',
       criadoEm: new Date(Date.now() - 3600000 * 3).toISOString(),
-      statusSincronizacao: 'sincronizado',
     },
     {
       id: 'atend-002',
@@ -96,7 +95,6 @@ export function App() {
       profissionalNome: 'Dr. Lucas Prado (Dentista)',
       resumo: 'Profilaxia e aplicação tópica de flúor preventivo.',
       criadoEm: new Date(Date.now() - 3600000 * 1.5).toISOString(),
-      statusSincronizacao: 'sincronizado',
     },
   ]);
 
@@ -183,7 +181,7 @@ export function App() {
         {/* Toast Notificação de Ações */}
         {toastNotificacao && (
           <div
-            className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-xl shadow-lg border text-xs font-bold flex items-center gap-2 anim-surgir ${
+            className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-xl shadow-lg border text-xs font-bold flex items-center gap-2 animate-fade-in ${
               toastNotificacao.tipo === 'sucesso'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                 : toastNotificacao.tipo === 'erro'
@@ -210,7 +208,7 @@ export function App() {
           />
         ) : secaoAtiva === 'pacientes' ? (
           /* 1. Pacientes */
-          <div className="flex flex-col flex-1 anim-surgir">
+          <div className="flex flex-col flex-1 animate-fade-in">
             <CabecalhoPaginaSesi
               titulo="Pacientes"
               subtitulo="CADASTRO, IDENTIFICAÇÃO E SITUAÇÃO DOS PACIENTES"

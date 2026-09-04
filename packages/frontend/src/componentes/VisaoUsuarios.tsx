@@ -70,7 +70,7 @@ export const VisaoUsuarios: FC = () => {
   });
 
   return (
-    <div className="flex flex-col flex-1 anim-surgir font-sans">
+    <div className="flex flex-col flex-1 animate-fade-in font-sans">
       {/* ─── Cabeçalho Fixo Modular ───────────────────────────────────────── */}
       <CabecalhoPaginaSesi
         titulo="Usuários & Perfis de Acesso"
@@ -99,16 +99,16 @@ export const VisaoUsuarios: FC = () => {
       />
 
       {/* ─── Tabela de Usuários ───────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden flex flex-col flex-1 min-h-[420px]">
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-[460px]">
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider select-none">
-                <th scope="col" className="py-2.5 px-4 font-bold text-slate-600">USUÁRIO</th>
-                <th scope="col" className="py-2.5 px-3 font-bold text-slate-600">PERFIL DE ACESSO</th>
-                <th scope="col" className="py-2.5 px-3 font-bold text-slate-600">REGISTRO / ESPECIALIDADE</th>
-                <th scope="col" className="py-2.5 px-3 font-bold text-slate-600">ÚLTIMO ACESSO</th>
-                <th scope="col" className="py-2.5 px-4 font-bold text-slate-600 text-right">STATUS</th>
+                <th scope="col" className="py-3 px-4 font-bold text-slate-600">USUÁRIO</th>
+                <th scope="col" className="py-3 px-3 font-bold text-slate-600">PERFIL DE ACESSO</th>
+                <th scope="col" className="py-3 px-3 font-bold text-slate-600">REGISTRO / ESPECIALIDADE</th>
+                <th scope="col" className="py-3 px-3 font-bold text-slate-600">ÚLTIMO ACESSO</th>
+                <th scope="col" className="py-3 px-4 font-bold text-slate-600 text-right">STATUS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
@@ -116,27 +116,27 @@ export const VisaoUsuarios: FC = () => {
                 <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
                   <td className="py-3 px-4 font-semibold text-slate-900">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 font-bold flex items-center justify-center text-xs">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-800 font-bold flex items-center justify-center text-xs">
                         {u.nome.charAt(0)}
                       </div>
                       <div>
                         <p>{u.nome}</p>
-                        <p className="text-[11px] font-normal text-slate-400">{u.email}</p>
+                        <p className="text-[11px] font-normal text-slate-400 font-mono">{u.email}</p>
                       </div>
                     </div>
                   </td>
 
                   <td className="py-3 px-3">
                     {u.perfil === 'ADMINISTRADOR' ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
                         👑 Administrador
                       </span>
                     ) : u.perfil === 'PROFISSIONAL_SAUDE' ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
                         🩺 Profissional de Saúde
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
                         📋 Recepção & Triagem
                       </span>
                     )}
@@ -158,7 +158,7 @@ export const VisaoUsuarios: FC = () => {
                   </td>
 
                   <td className="py-3 px-4 text-right">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Ativo
                     </span>
@@ -168,7 +168,7 @@ export const VisaoUsuarios: FC = () => {
             </tbody>
           </table>
         </div>
-        <div className="py-2 px-4 border-t border-slate-200 bg-slate-50/50 flex items-center justify-between text-[11px] text-slate-400 select-none">
+        <div className="py-2.5 px-4 border-t border-slate-200 bg-slate-50/50 flex items-center justify-between text-[11px] text-slate-400 select-none">
           <span>{filtrados.length} usuário(s) cadastrado(s)</span>
           <span className="font-mono text-slate-400">Controle de Acesso RBAC • SESI / UnB</span>
         </div>

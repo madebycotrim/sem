@@ -225,7 +225,7 @@ export const CabecalhoPaginaSesi: FC<CabecalhoPaginaSesiProps> = ({
                 onClick={sincronizacao.aoSincronizar}
                 disabled={sincronizacao.estaSincronizando}
                 className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer shadow-2xs whitespace-nowrap"
-                title="Forçar sincronização da fila offline com o servidor"
+                title="Sincronizar dados com o Catraki"
               >
                 {sincronizacao.estaSincronizando ? (
                   <svg className="w-4 h-4 animate-spin text-emerald-600" viewBox="0 0 24 24" fill="none">

@@ -22,7 +22,7 @@ export interface IPrismaClient {
  */
 function criarPrismaInMemory(): IPrismaClient {
   logger.warn(
-    '⚠️  Usando repositório Prisma in-memory (modo offline/scaffolding).'
+    '⚠️  Usando repositório Prisma in-memory (modo in-memory/scaffolding).'
   );
 
   const dadosUsuarios = new Map<string, any>([

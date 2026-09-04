@@ -70,7 +70,7 @@ export const VisaoGovernancaAuditoria: FC = () => {
   );
 
   return (
-    <div className="flex flex-col flex-1 anim-surgir font-sans">
+    <div className="flex flex-col flex-1 animate-fade-in font-sans">
       {/* ─── Cabeçalho Fixo Modular ───────────────────────────────────────── */}
       <CabecalhoPaginaSesi
         titulo="Governança & Auditoria LGPD"
@@ -86,8 +86,8 @@ export const VisaoGovernancaAuditoria: FC = () => {
 
       {/* ─── Cards de Conformidade Regulatória ─────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-4">
-        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-2xs">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+        <div className="bg-white border border-slate-200/90 p-4.5 rounded-2xl shadow-xs">
+          <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
             <span>⚖️</span>
             <span>Marco Civil (Art. 15)</span>
           </div>
@@ -95,8 +95,8 @@ export const VisaoGovernancaAuditoria: FC = () => {
           <p className="text-[11px] text-slate-400 mt-1">IP, timestamp UTC e identidade preservados</p>
         </div>
 
-        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-2xs">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+        <div className="bg-white border border-slate-200/90 p-4.5 rounded-2xl shadow-xs">
+          <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
             <span>🛡️</span>
             <span>Criptografia de Envelope</span>
           </div>
@@ -104,8 +104,8 @@ export const VisaoGovernancaAuditoria: FC = () => {
           <p className="text-[11px] text-slate-400 mt-1">Dados sensíveis cifrados individualmente</p>
         </div>
 
-        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-2xs">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+        <div className="bg-white border border-slate-200/90 p-4.5 rounded-2xl shadow-xs">
+          <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
             <span>👶</span>
             <span>LGPD Menores (Art. 14)</span>
           </div>
@@ -115,17 +115,17 @@ export const VisaoGovernancaAuditoria: FC = () => {
       </div>
 
       {/* ─── Tabela de Trilha de Auditoria ─────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden flex flex-col flex-1 min-h-[420px]">
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-[440px]">
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider select-none">
-                <th scope="col" className="py-2.5 px-4 font-bold text-slate-600">TIMESTAMP (UTC)</th>
-                <th scope="col" className="py-2.5 px-3 font-bold text-slate-600">IP ORIGEM</th>
-                <th scope="col" className="py-2.5 px-3 font-bold text-slate-600">OPERADOR</th>
-                <th scope="col" className="py-2.5 px-3 font-bold text-slate-600">AÇÃO / ROTA</th>
-                <th scope="col" className="py-2.5 px-3 font-bold text-slate-600">BASE LEGAL & FINALIDADE</th>
-                <th scope="col" className="py-2.5 px-4 font-bold text-slate-600 text-right">STATUS</th>
+                <th scope="col" className="py-3 px-4 font-bold text-slate-600">TIMESTAMP (UTC)</th>
+                <th scope="col" className="py-3 px-3 font-bold text-slate-600">IP ORIGEM</th>
+                <th scope="col" className="py-3 px-3 font-bold text-slate-600">OPERADOR</th>
+                <th scope="col" className="py-3 px-3 font-bold text-slate-600">AÇÃO / ROTA</th>
+                <th scope="col" className="py-3 px-3 font-bold text-slate-600">BASE LEGAL & FINALIDADE</th>
+                <th scope="col" className="py-3 px-4 font-bold text-slate-600 text-right">STATUS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -142,16 +142,17 @@ export const VisaoGovernancaAuditoria: FC = () => {
                     <p className="text-[10px] text-slate-400 font-bold">{log.papel}</p>
                   </td>
                   <td className="py-3 px-3">
-                    <span className="font-mono text-[11px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                    <span className="font-mono text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
                       {log.metodo}
                     </span>
-                    <span className="ml-1.5 font-mono text-[11px] text-slate-700">{log.rotaAcessada}</span>
+                    <span className="ml-2 font-mono text-[11px] text-slate-700">{log.rotaAcessada}</span>
                   </td>
                   <td className="py-3 px-3 text-slate-600 text-[11px]">
                     {log.finalidadeLgpd}
                   </td>
                   <td className="py-3 px-4 text-right">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       {log.statusCodigo} OK
                     </span>
                   </td>
@@ -160,7 +161,7 @@ export const VisaoGovernancaAuditoria: FC = () => {
             </tbody>
           </table>
         </div>
-        <div className="py-2 px-4 border-t border-slate-200 bg-slate-50/50 flex items-center justify-between text-[11px] text-slate-400 select-none">
+        <div className="py-2.5 px-4 border-t border-slate-200 bg-slate-50/50 flex items-center justify-between text-[11px] text-slate-400 select-none">
           <span>{filtrados.length} evento(s) de auditoria registrados</span>
           <span className="font-mono text-slate-400">Auditoria Imutável • Marco Civil Art. 15 & LGPD</span>
         </div>

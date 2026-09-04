@@ -35,6 +35,4 @@ export type {
   VerificarMfa,
   RespostaPaginada,
   RespostaErro,
-  StatusSincronizacao,
-  ItemFilaOffline,
 } from './tipos/index.js';

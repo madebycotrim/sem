@@ -27,7 +27,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
   aoVerDetalhes,
 }) => {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden flex flex-col flex-1 min-h-[480px]">
+    <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-[460px]">
       {/* ─── Tabela de Registros ────────────────────────────────────────── */}
       <div className="overflow-x-auto flex-1">
         <table className="w-full text-left border-collapse">
@@ -192,7 +192,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                       <button
                         type="button"
                         onClick={() => aoIniciarAtendimento(paciente)}
-                        className="px-3 py-1.5 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-all active:scale-95 cursor-pointer shadow-2xs"
+                        className="px-3 py-1.5 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all active:scale-95 cursor-pointer shadow-2xs"
                         title="Abrir nova ficha de atendimento para este paciente"
                       >
                         + Atendimento

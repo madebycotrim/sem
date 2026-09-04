@@ -1,7 +1,7 @@
 /**
  * Declaração de tipos de fallback para @prisma/client.
  *
- * Em ambientes offline ou de scaffolding onde `prisma generate` ainda não
+ * Em ambientes de scaffolding onde `prisma generate` ainda não
  * pôde baixar os binários da engine via internet (binaries.prisma.sh),
  * este arquivo fornece a tipagem base para que o build e typecheck
  * do TypeScript ocorram sem bloqueios.

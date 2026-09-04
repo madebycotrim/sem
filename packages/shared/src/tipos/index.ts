@@ -57,18 +57,3 @@ export interface RespostaErro {
   detalhes?: Record<string, string[]>;
   requestId?: string;
 }
-
-/** Status de sincronização offline */
-export type StatusSincronizacao = 'pendente' | 'sincronizando' | 'sincronizado' | 'erro';
-
-/** Item da fila offline */
-export interface ItemFilaOffline {
-  id?: number;
-  idempotencyKey: string;
-  dados: FichaAtendimento;
-  status: StatusSincronizacao;
-  tentativas: number;
-  ultimoErro?: string;
-  criadoEm: string;
-  atualizadoEm: string;
-}

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Interface do sistema Saúde em Movimento — React + Vite + Tailwind + Dexie.js (offline-first)",
+  "description": "Interface do sistema Saúde em Movimento — React + Vite + Tailwind",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -20,8 +20,6 @@
     "react-hook-form": "^7.53.0",
     "@hookform/resolvers": "^5.9.0",
     "zod": "^3.23.0",
-    "dexie": "^4.4.0",
-    "dexie-react-hooks": "^1.1.0",
     "dompurify": "^3.1.0"
   },
   "devDependencies": {
