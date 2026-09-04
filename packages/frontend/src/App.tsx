@@ -1,36 +1,33 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { SidebarSesi, type AbaNavegacao } from './componentes/SidebarSesi.tsx';
-import { PageHeader } from './componentes/PageHeader.tsx';
-import { BarraFiltros } from './componentes/BarraFiltros.tsx';
+import { useState, useEffect } from 'react';
+import { SidebarSesi, type SecaoMenu } from './componentes/SidebarSesi.tsx';
+import { CabecalhoPaginaSesi } from './componentes/CabecalhoPaginaSesi.tsx';
 import { TabelaPacientes, type ItemPaciente } from './componentes/TabelaPacientes.tsx';
-import { ModalNovoPaciente } from './componentes/ModalNovoPaciente.tsx';
+import { ModalNovoPaciente, type FormNovoPaciente } from './componentes/ModalNovoPaciente.tsx';
+import { VisaoFilaDoDia } from './componentes/VisaoFilaDoDia.tsx';
 import { VisaoAtendimentos, type ItemAtendimentoLista } from './componentes/VisaoAtendimentos.tsx';
-import { VisaoFilaOffline } from './componentes/VisaoFilaOffline.tsx';
 import { VisaoPainelGeral } from './componentes/VisaoPainelGeral.tsx';
+import { VisaoEscolas } from './componentes/VisaoEscolas.tsx';
+import { VisaoUsuarios } from './componentes/VisaoUsuarios.tsx';
+import { VisaoRelatorios } from './componentes/VisaoRelatorios.tsx';
+import { VisaoGovernancaAuditoria } from './componentes/VisaoGovernancaAuditoria.tsx';
 import { FichaAtendimento } from './paginas/FichaAtendimento.tsx';
 import { TimeoutSessao } from './componentes/TimeoutSessao.tsx';
-import {
-  bancoOffline,
-  sincronizarFila,
-  limparSincronizadosAntigos,
-  inicializarSincronizacaoAutomatica,
-} from './servicos/filaOffline.ts';
 import { requisicaoApi } from './servicos/api.ts';
 import { Especialidade, Turno } from '@sistema/shared';
 
 const ESCOLAS_PADRAO = [
-  { id: 'seed-escola-001', nome: 'CEF 01 de Brasília (Asa Sul)' },
-  { id: 'seed-escola-002', nome: 'CED 03 de Taguatinga' },
-  { id: 'seed-escola-003', nome: 'EC 10 de Ceilândia' },
-  { id: 'seed-escola-004', nome: 'CEF 02 de Sobradinho' },
+  { id: 'seed-escola-001', nome: 'CEMEIT DE TAGUATINGA' },
+  { id: 'seed-escola-002', nome: 'CEF 01 DE BRASÍLIA' },
+  { id: 'seed-escola-003', nome: 'EC 10 DE CEILÂNDIA' },
+  { id: 'seed-escola-004', nome: 'CEF 02 DE SOBRADINHO' },
 ];
 
 export function App() {
   // Navegação
-  const [abaAtiva, setAbaAtiva] = useState<AbaNavegacao>('pacientes');
+  const [secaoAtiva, setSecaoAtiva] = useState<SecaoMenu>('pacientes');
   const [modoNovaFicha, setModoNovaFicha] = useState(false);
   const [pacienteSelecionadoParaFicha, setPacienteSelecionadoParaFicha] = useState<ItemPaciente | null>(null);
+  const [escolaAtivaId, setEscolaAtivaId] = useState('seed-escola-001');
 
   // Filtros da Visão de Pacientes
   const [buscaPaciente, setBuscaPaciente] = useState('');
@@ -40,68 +37,62 @@ export function App() {
   // Modais
   const [modalNovoPacienteAberto, setModalNovoPacienteAberto] = useState(false);
 
-  // Status de Conexão & Fila Offline
-  const [estaOnline, setEstaOnline] = useState(navigator.onLine);
-  const [estaSincronizando, setEstaSincronizando] = useState(false);
+  // Notificações Toast
   const [toastNotificacao, setToastNotificacao] = useState<{ texto: string; tipo: 'sucesso' | 'info' | 'erro' } | null>(null);
 
-  // Live query do IndexedDB para contagem e itens
-  const itensFila = useLiveQuery(() => bancoOffline.atendimentosPendentes.toArray()) ?? [];
-  const itensPendentes = itensFila.filter((item) => item.status === 'pendente').length;
-
-  // Lista Local de Pacientes em Memória (com fallback local imediato)
+  // Lista de Pacientes
   const [pacientes, setPacientes] = useState<ItemPaciente[]>([
     {
       id: '550e8400-e29b-41d4-a716-446655440001',
-      nome: 'Gabriel Henrique Santos',
+      nome: 'GABRIEL HENRIQUE SANTOS',
       cpf: '078.432.191-04',
       dataNascimento: '2012-05-14',
-      escolaNome: 'CEF 01 de Brasília (Asa Sul)',
+      escolaNome: 'CEMEIT DE TAGUATINGA',
       termoConsentimentoStatus: 'ACEITO',
       atendimentosCount: 2,
       criadoEm: new Date(Date.now() - 3600000 * 4).toISOString(),
     },
     {
       id: '550e8400-e29b-41d4-a716-446655440002',
-      nome: 'Beatriz Lima de Oliveira',
+      nome: 'BEATRIZ LIMA DE OLIVEIRA',
       cpf: '065.912.331-88',
       dataNascimento: '2014-09-20',
-      escolaNome: 'CEF 01 de Brasília (Asa Sul)',
+      escolaNome: 'CEF 01 DE BRASÍLIA',
       termoConsentimentoStatus: 'ACEITO',
       atendimentosCount: 1,
       criadoEm: new Date(Date.now() - 3600000 * 2).toISOString(),
     },
     {
       id: '550e8400-e29b-41d4-a716-446655440003',
-      nome: 'Matheus Costa Ribeiro',
-      cpf: undefined,
+      nome: 'MATHEUS COSTA RIBEIRO',
+      cpf: '088.231.990-11',
       dataNascimento: '2015-11-03',
-      escolaNome: 'CED 03 de Taguatinga',
-      termoConsentimentoStatus: 'DISPENSADO',
+      escolaNome: 'CEMEIT DE TAGUATINGA',
+      termoConsentimentoStatus: 'ACEITO',
       atendimentosCount: 0,
       criadoEm: new Date(Date.now() - 3600000).toISOString(),
     },
   ]);
 
   // Lista de Atendimentos
-  const [atendimentos, setAtendimentos] = useState<ItemAtendimentoLista[]>([
+  const [atendimentos] = useState<ItemAtendimentoLista[]>([
     {
       id: 'atend-001',
-      pacienteNome: 'Gabriel Henrique Santos',
-      especialidade: Especialidade.PEDIATRIA,
-      turno: Turno.MATUTINO,
-      escolaNome: 'CEF 01 de Brasília',
-      profissionalNome: 'Dra. Camila Souza (Pediatra)',
-      resumo: 'Avaliação de desenvolvimento pôndero-estatural e triagem auditiva.',
+      pacienteNome: 'GABRIEL HENRIQUE SANTOS',
+      especialidade: Especialidade.OFTALMOLOGIA,
+      turno: Turno.MANHA,
+      escolaNome: 'CEMEIT DE TAGUATINGA',
+      profissionalNome: 'Dra. Camila Souza (Oftalmologia)',
+      resumo: 'Avaliação de acuidade visual com tabela de Snellen e biomicroscopia.',
       criadoEm: new Date(Date.now() - 3600000 * 3).toISOString(),
       statusSincronizacao: 'sincronizado',
     },
     {
       id: 'atend-002',
-      pacienteNome: 'Beatriz Lima de Oliveira',
+      pacienteNome: 'BEATRIZ LIMA DE OLIVEIRA',
       especialidade: Especialidade.ODONTOLOGIA,
-      turno: Turno.MATUTINO,
-      escolaNome: 'CEF 01 de Brasília',
+      turno: Turno.MANHA,
+      escolaNome: 'CEF 01 DE BRASÍLIA',
       profissionalNome: 'Dr. Lucas Prado (Dentista)',
       resumo: 'Profilaxia e aplicação tópica de flúor preventivo.',
       criadoEm: new Date(Date.now() - 3600000 * 1.5).toISOString(),
@@ -109,96 +100,50 @@ export function App() {
     },
   ]);
 
-  // Listener de Online/Offline
-  useEffect(() => {
-    const handleOnline = () => setEstaOnline(true);
-    const handleOffline = () => setEstaOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    const cleanupSync = inicializarSincronizacaoAutomatica();
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      cleanupSync();
-    };
-  }, []);
-
-  // Atalhos Globais de Teclado (Alt+N para novo paciente, Alt+S para sincronizar)
+  // Atalho Global Alt+N para novo paciente
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         setModalNovoPacienteAberto(true);
       }
-      if (e.altKey && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        handleSincronizar();
-      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Função para sincronizar a fila
-  const handleSincronizar = useCallback(async () => {
-    if (estaSincronizando) return;
-    setEstaSincronizando(true);
-    try {
-      const resultado = await sincronizarFila();
-      setToastNotificacao({
-        texto: `Sincronização concluída: ${resultado.sincronizados} enviado(s)${resultado.erros > 0 ? `, ${resultado.erros} pendente(s)` : ''}`,
-        tipo: resultado.erros > 0 ? 'info' : 'sucesso',
-      });
-    } catch (err: any) {
-      setToastNotificacao({
-        texto: err?.message || 'Falha ao sincronizar com o servidor.',
-        tipo: 'erro',
-      });
-    } finally {
-      setEstaSincronizando(false);
-      setTimeout(() => setToastNotificacao(null), 4000);
-    }
-  }, [estaSincronizando]);
-
-  // Cadastro de Novo Paciente
-  const handleSalvarPaciente = async (dados: any) => {
+  // Cadastro de Novo Paciente via API Central
+  const handleSalvarPaciente = async (dados: FormNovoPaciente) => {
     const novoId = crypto.randomUUID();
-    const escolaObj = ESCOLAS_PADRAO.find((e) => e.id === dados.escolaLocalId) || ESCOLAS_PADRAO[0];
 
     const novoPaciente: ItemPaciente = {
       id: novoId,
-      nome: dados.nome,
-      cpf: dados.cpf || undefined,
+      nome: dados.nomeCompleto,
+      cpf: dados.cpf,
       dataNascimento: dados.dataNascimento,
-      escolaNome: escolaObj.nome,
-      termoConsentimentoStatus: dados.termoAceito ? 'ACEITO' : 'PENDENTE',
+      escolaNome: dados.instituicao,
+      termoConsentimentoStatus: 'ACEITO',
       atendimentosCount: 0,
       criadoEm: new Date().toISOString(),
     };
 
-    // Tenta persistir na API se online
-    if (navigator.onLine) {
-      try {
-        await requisicaoApi('/pacientes', {
-          metodo: 'POST',
-          corpo: {
-            nome: dados.nome,
-            cpf: dados.cpf,
-            dataNascimento: dados.dataNascimento,
-            sexo: dados.sexo,
-            escolaLocalId: dados.escolaLocalId,
-            responsavelNome: dados.responsavelNome,
-            responsavelParentesco: dados.responsavelParentesco,
-            responsavelTelefone: dados.responsavelTelefone,
-            termoAceito: dados.termoAceito,
-          },
-        });
-      } catch {
-        // Fallback local em memória e Dexie
-      }
+    try {
+      await requisicaoApi('/pacientes', {
+        metodo: 'POST',
+        corpo: {
+          nome: dados.nomeCompleto,
+          cpf: dados.cpf,
+          dataNascimento: dados.dataNascimento,
+          sexo: dados.sexo,
+          escolaLocalId: escolaAtivaId,
+          responsavelNome: dados.nomeCompleto,
+          responsavelParentesco: 'Responsável',
+          responsavelTelefone: dados.telefone,
+          termoAceito: true,
+        },
+      });
+    } catch {
+      // Fallback otimista em memória
     }
 
     setPacientes((prev) => [novoPaciente, ...prev]);
@@ -223,20 +168,14 @@ export function App() {
 
   return (
     <div className="flex min-h-screen bg-[#f4f7fb] text-slate-800 font-sans">
-      {/* ─── Sidebar Lateral Estilo SESI ──────────────────────────────────── */}
+      {/* ─── Sidebar Lateral Estilo SESI (8 Módulos Essenciais) ───────────── */}
       <SidebarSesi
-        abaAtiva={abaAtiva}
-        aoMudarAba={(aba) => {
-          setAbaAtiva(aba);
+        secaoAtiva={secaoAtiva}
+        aoMudarSecao={(secao) => {
+          setSecaoAtiva(secao);
           setModoNovaFicha(false);
           setPacienteSelecionadoParaFicha(null);
         }}
-        estaOnline={estaOnline}
-        itensPendentes={itensPendentes}
-        aoAbrirSincronizacao={() => setAbaAtiva('filaOffline')}
-        iniciaisUsuario="MC"
-        nomeUsuario="Maria Clara (Triagem Itinerante)"
-        perfilUsuario="Triador SESI-DF"
       />
 
       {/* ─── Área Principal de Conteúdo ───────────────────────────────────── */}
@@ -258,8 +197,9 @@ export function App() {
           </div>
         )}
 
-        {/* ─── Renderização por Abas ──────────────────────────────────────── */}
+        {/* ─── Renderização dos 8 Módulos Essenciais ────────────────────────── */}
         {modoNovaFicha ? (
+          /* 3. Ficha de Atendimento Clínico */
           <FichaAtendimento
             pacientePreSelecionado={pacienteSelecionadoParaFicha}
             escolas={ESCOLAS_PADRAO}
@@ -268,28 +208,34 @@ export function App() {
               setPacienteSelecionadoParaFicha(null);
             }}
           />
-        ) : abaAtiva === 'pacientes' ? (
-          /* ─── Tela Principal de Pacientes (Fiel à Imagem do Usuário) ── */
+        ) : secaoAtiva === 'pacientes' ? (
+          /* 1. Pacientes */
           <div className="flex flex-col flex-1 anim-surgir">
-            <PageHeader
+            <CabecalhoPaginaSesi
               titulo="Pacientes"
               subtitulo="CADASTRO, IDENTIFICAÇÃO E SITUAÇÃO DOS PACIENTES"
-            />
-
-            <BarraFiltros
-              termoBusca={buscaPaciente}
-              aoMudarBusca={setBuscaPaciente}
-              apenasPendentes={apenasAvisos}
-              aoAlternarApenasPendentes={() => setApenasAvisos(!apenasAvisos)}
-              filtroEscola={filtroEscola}
-              aoMudarFiltroEscola={setFiltroEscola}
-              opcoesEscola={ESCOLAS_PADRAO}
-              aoSincronizar={handleSincronizar}
-              estaSincronizando={estaSincronizando}
-              itensPendentes={itensPendentes}
-              aoNovoRegistro={() => setModalNovoPacienteAberto(true)}
-              rotuloNovoRegistro="+ Novo Paciente"
+              busca={{
+                valor: buscaPaciente,
+                aoMudar: setBuscaPaciente,
+                placeholder: 'Buscar por nome ou CPF...',
+              }}
+              filtroAvisos={{
+                ativo: apenasAvisos,
+                aoAlternar: () => setApenasAvisos(!apenasAvisos),
+                rotulo: 'Apenas com Avisos',
+              }}
+              seletor={{
+                valor: filtroEscola,
+                aoMudar: setFiltroEscola,
+                placeholder: 'Todas as Escolas / Polos',
+                opcoes: ESCOLAS_PADRAO,
+              }}
               aoExportar={() => alert(`Exportando ${pacientesFiltrados.length} registros em formato CSV.`)}
+              acaoPrimaria={{
+                rotulo: '+ Novo Paciente',
+                aoClicar: () => setModalNovoPacienteAberto(true),
+              }}
+              fixo={true}
             />
 
             <TabelaPacientes
@@ -306,20 +252,25 @@ export function App() {
               }}
             />
           </div>
-        ) : abaAtiva === 'dashboard' ? (
-          <VisaoPainelGeral
-            totalPacientes={pacientes.length}
-            totalAtendimentos={atendimentos.length}
-            totalPendentesSync={itensPendentes}
-            estaOnline={estaOnline}
-            aoNavegar={(aba) => setAbaAtiva(aba)}
-            aoNovoPaciente={() => setModalNovoPacienteAberto(true)}
-            aoNovoAtendimento={() => {
+        ) : secaoAtiva === 'filaDia' ? (
+          /* 2. Fila do Dia / Triagem */
+          <VisaoFilaDoDia
+            aoIniciarAtendimento={(aluno) => {
+              setPacienteSelecionadoParaFicha({
+                id: aluno.id,
+                nome: aluno.nome,
+                dataNascimento: '2012-05-14',
+                escolaNome: 'CEMEIT DE TAGUATINGA',
+                termoConsentimentoStatus: 'ACEITO',
+                atendimentosCount: 1,
+                criadoEm: new Date().toISOString(),
+              });
               setModoNovaFicha(true);
-              setPacienteSelecionadoParaFicha(null);
             }}
+            aoNovoPaciente={() => setModalNovoPacienteAberto(true)}
           />
-        ) : abaAtiva === 'atendimentos' || abaAtiva === 'triagem' ? (
+        ) : secaoAtiva === 'consultas' ? (
+          /* 3. Fichas de Atendimento (Histórico) */
           <VisaoAtendimentos
             atendimentos={atendimentos}
             aoNovoAtendimento={() => {
@@ -327,49 +278,39 @@ export function App() {
               setPacienteSelecionadoParaFicha(null);
             }}
           />
-        ) : abaAtiva === 'filaOffline' ? (
-          <VisaoFilaOffline
-            itensFila={itensFila}
-            estaOnline={estaOnline}
-            aoSincronizar={handleSincronizar}
-            estaSincronizando={estaSincronizando}
-            aoLimparSincronizados={async () => {
-              const removidos = await limparSincronizadosAntigos(0);
+        ) : secaoAtiva === 'dashboard' ? (
+          /* 8. Dashboard do Dia */
+          <VisaoPainelGeral
+            totalPacientes={pacientes.length}
+            totalAtendimentos={atendimentos.length}
+            aoNovoPaciente={() => setModalNovoPacienteAberto(true)}
+            aoNovoAtendimento={() => {
+              setModoNovaFicha(true);
+              setPacienteSelecionadoParaFicha(null);
+            }}
+          />
+        ) : secaoAtiva === 'escolas' ? (
+          /* 4. Escolas & Unidades Móveis */
+          <VisaoEscolas
+            escolaAtivaId={escolaAtivaId}
+            aoSelecionarEscolaAtiva={(id) => {
+              setEscolaAtivaId(id);
               setToastNotificacao({
-                texto: `${removidos} registro(s) sincronizado(s) limpo(s) do IndexedDB local.`,
-                tipo: 'info',
+                texto: 'Polo ativo atualizado com sucesso!',
+                tipo: 'sucesso',
               });
               setTimeout(() => setToastNotificacao(null), 3000);
             }}
           />
+        ) : secaoAtiva === 'relatorios' ? (
+          /* 6. Relatórios & Prestação de Contas */
+          <VisaoRelatorios />
+        ) : secaoAtiva === 'usuarios' ? (
+          /* 5. Usuários & Perfis */
+          <VisaoUsuarios />
         ) : (
-          /* Abas Secundárias (Escolas / Documentos) */
-          <div className="flex flex-col flex-1 anim-surgir">
-            <PageHeader
-              titulo={abaAtiva === 'escolas' ? 'Escolas & Polos Itinerantes' : 'Documentos & Termos LGPD'}
-              subtitulo={
-                abaAtiva === 'escolas'
-                  ? 'INSTITUIÇÕES DE ENSINO PÚBLICO ATENDIDAS PELO PROJETO ESCOLA CIDADÃ'
-                  : 'TERMOS DE CONSENTIMENTO E AUDITORIA DE DADOS SENSÍVEIS (LGPD ART. 14)'
-              }
-            />
-
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-2xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {ESCOLAS_PADRAO.map((esc) => (
-                  <div key={esc.id} className="p-4 rounded-lg border border-slate-100 bg-slate-50/60 flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-bold text-[#0b2545]">{esc.nome}</h4>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Distrito Federal • Polo Ativo</p>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                      Ativo
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          /* 7. Governança & Auditoria LGPD */
+          <VisaoGovernancaAuditoria />
         )}
       </main>
 
@@ -383,8 +324,8 @@ export function App() {
 
       {/* ─── Modal de Timeout de Sessão por Inatividade (LGPD) ───────────── */}
       <TimeoutSessao
-        minutosInatividade={13}
-        minutosAviso={2}
+        tempoLimiteMinutos={15}
+        tempoAvisoSegundos={120}
         aoExpirar={() => {
           alert('Sua sessão expirou por inatividade. O sistema foi bloqueado por segurança (LGPD).');
           window.location.reload();

@@ -1,43 +1,33 @@
 @import "tailwindcss";
 
-/* ─── Design Tokens Globais — Estilo SESI / Saúde em Movimento ───────────── */
+@theme {
+  --color-sesi-navy: #0b2545;
+  --color-sesi-blue: #004b87;
+  --color-sesi-blue-hover: #003866;
+  --color-sesi-sky: #0284c7;
+  --color-sesi-sky-light: #e0f2fe;
+  --color-sesi-action: #1d4ed8;
+  --color-sesi-action-hover: #1e40af;
+  --color-sesi-bg: #f4f7fb;
+  --color-sesi-card: #ffffff;
+  --color-sesi-border: #e2e8f0;
+  --color-sesi-border-subtle: #edf2f7;
+  --color-sesi-muted: #64748b;
+  --color-sesi-subtle: #94a3b8;
 
-:root {
-  --cor-sesi-navy: #0b2545;
-  --cor-sesi-blue: #004b87;
-  --cor-sesi-blue-hover: #003866;
-  --cor-acao-azul: #0d6efd;
-  --cor-acao-azul-hover: #0b5ed7;
-  --cor-acao-azul-claro: #e8f2ff;
+  --color-sync-green: #10b981;
+  --color-sync-green-bg: #ecfdf5;
+  --color-sync-green-border: #a7f3d0;
 
-  --cor-verde-sync: #10b981;
-  --cor-verde-sync-fundo: #ecfdf5;
-  --cor-verde-sync-borda: #a7f3d0;
+  --color-warning-amber: #f59e0b;
+  --color-warning-amber-bg: #fffbeb;
+  --color-warning-amber-border: #fde68a;
 
-  --cor-alerta-amarelo: #f59e0b;
-  --cor-alerta-fundo: #fffbeb;
-  --cor-alerta-borda: #fde68a;
-
-  --cor-perigo-vermelho: #ef4444;
-  --cor-perigo-fundo: #fef2f2;
-  --cor-perigo-borda: #fecaca;
-
-  --cor-fundo-app: #f4f7fb;
-  --cor-superficie: #ffffff;
-  --cor-superficie-hover: #f8fafc;
-  --cor-borda-tabela: #edf2f7;
-  --cor-borda-card: #e2e8f0;
-
-  --cor-texto-titulo: #0b2545;
-  --cor-texto-subtitulo: #64748b;
-  --cor-texto-corpo: #1e293b;
-  --cor-texto-mutado: #94a3b8;
-
-  --fonte-primaria: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --fonte-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-sans: 'SF Pro Display', 'SF Pro Text', 'SF Pro', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, Menlo, Monaco, 'JetBrains Mono', 'Fira Code', monospace;
 }
 
-/* ─── Reset e Base ─────────────────────────────────────────────────────────── */
+/* ─── Reset e Densidade para Telas de Campo (13"-15") ───────────────────────── */
 
 *,
 *::before,
@@ -46,27 +36,26 @@
 }
 
 html {
-  font-size: 13.5px; /* Densidade calibrada para notebooks 13"-15" */
+  font-size: 13.5px;
   -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
   padding: 0;
-  font-family: var(--fonte-primaria);
-  color: var(--cor-texto-corpo);
-  background-color: var(--cor-fundo-app);
+  font-family: var(--font-sans);
+  color: #1e293b;
+  background-color: #f4f7fb;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
 }
 
-/* ─── Scrollbar Customizada Discreta ───────────────────────────────────────── */
+/* ─── Scrollbars Modernas e Discretas ──────────────────────────────────────── */
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -82,27 +71,19 @@ body {
   background: #94a3b8;
 }
 
-/* ─── Foco Visível para Acessibilidade ─────────────────────────────────────── */
+/* ─── Foco Visível para Operação Rápida por Teclado (Acessibilidade) ───────── */
 
 :focus-visible {
-  outline: 2px solid var(--cor-acao-azul);
+  outline: 2px solid #1d4ed8;
   outline-offset: 1px;
 }
 
-button,
-input,
-select,
-textarea {
-  font-family: inherit;
-  font-size: inherit;
-}
-
-/* ─── Animações Suaves ─────────────────────────────────────────────────────── */
+/* ─── Animações Suaves Tailwind ────────────────────────────────────────────── */
 
 @keyframes surgirSuave {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(3px);
   }
   to {
     opacity: 1;
@@ -111,18 +92,5 @@ textarea {
 }
 
 .anim-surgir {
-  animation: surgirSuave 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes pulsarSuave {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-.anim-pulsar {
-  animation: pulsarSuave 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: surgirSuave 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

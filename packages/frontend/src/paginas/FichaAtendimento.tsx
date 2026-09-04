@@ -10,9 +10,8 @@ import {
   Turno,
   type FichaAtendimento as TipoFichaAtendimento,
 } from '@sistema/shared';
-import { enfileirarAtendimento } from '../servicos/filaOffline.ts';
 import { requisicaoApi, ErroApi } from '../servicos/api.ts';
-import { PageHeader } from '../componentes/PageHeader.tsx';
+import { CabecalhoPaginaSesi } from '../componentes/CabecalhoPaginaSesi.tsx';
 
 interface FichaAtendimentoProps {
   pacientePreSelecionado?: { id: string; nome: string } | null;
@@ -38,8 +37,8 @@ export function FichaAtendimento({
       idempotencyKey: crypto.randomUUID(),
       pacienteId: pacientePreSelecionado?.id || '',
       escolaLocalId: escolas[0]?.id || 'seed-escola-001',
-      especialidade: Especialidade.CLINICA_GERAL,
-      turno: Turno.MATUTINO,
+      especialidade: Especialidade.ODONTOLOGIA,
+      turno: Turno.MANHA,
       resumo: '',
       procedimentos: '',
       insumosUtilizados: '',
@@ -87,29 +86,25 @@ export function FichaAtendimento({
       encaminhamentoExterno: dados.encaminhamentoExterno ? sanitizar(dados.encaminhamentoExterno) : undefined,
     };
 
-    if (navigator.onLine) {
-      try {
-        await requisicaoApi('/atendimentos', {
-          metodo: 'POST',
-          corpo: dadosSanitizados,
-        });
-      } catch (erro) {
-        if (erro instanceof ErroApi && erro.status === 409) {
-          // Idempotência
-        } else {
-          await enfileirarAtendimento(dadosSanitizados);
-        }
+    try {
+      await requisicaoApi('/atendimentos', {
+        metodo: 'POST',
+        corpo: dadosSanitizados,
+      });
+    } catch (erro) {
+      if (erro instanceof ErroApi && erro.status === 409) {
+        // Idempotência garantida: registro já processado com sucesso
+      } else {
+        throw erro;
       }
-    } else {
-      await enfileirarAtendimento(dadosSanitizados);
     }
 
     reset({
       idempotencyKey: crypto.randomUUID(),
       pacienteId: '',
       escolaLocalId: escolas[0]?.id || 'seed-escola-001',
-      especialidade: Especialidade.CLINICA_GERAL,
-      turno: Turno.MATUTINO,
+      especialidade: Especialidade.ODONTOLOGIA,
+      turno: Turno.MANHA,
       resumo: '',
       procedimentos: '',
       insumosUtilizados: '',
@@ -123,20 +118,21 @@ export function FichaAtendimento({
 
   return (
     <div className="flex flex-col flex-1 anim-surgir">
-      <PageHeader
-        titulo="Ficha de Atendimento Itinerante"
-        subtitulo="REGISTRO CLÍNICO, CONDUTAS E PROCEDIMENTOS EM CAMPO"
-        acoesDireitas={
+      <CabecalhoPaginaSesi
+        titulo="Ficha de Atendimento Clínico"
+        subtitulo="REGISTRO DE PROCEDIMENTOS EM FLUXO CONTÍNUO (SESI / UnB)"
+        acoesExtras={
           aoVoltar && (
             <button
               type="button"
               onClick={aoVoltar}
-              className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+              className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer shadow-2xs"
             >
               ← Voltar para Lista
             </button>
           )
         }
+        fixo={true}
       />
 
       {isSubmitSuccessful && (

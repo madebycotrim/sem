@@ -175,7 +175,7 @@ function criarPrismaInMemory(): IPrismaClient {
         }
         return this.create({ data: create });
       },
-      async count({ where }: any = {}) {
+      async count({ where: _where }: any = {}) {
         return mapa.size;
       },
     };
