@@ -1,24 +1,53 @@
 {
-  "name": "catraki",
+  "name": "saude-em-movimento",
   "version": "0.1.0",
   "private": true,
-  "description": "Sistema de triagem e registro de atendimentos — Catraki no Cloudflare Pages",
-  "license": "UNLICENSED",
-  "engines": {
-    "node": ">=20.0.0"
-  },
-  "workspaces": [
-    "packages/frontend"
-  ],
+  "type": "module",
+  "description": "Sistema Catraki — React + Vite + Tailwind + Cloudflare Pages Functions (Hono + D1)",
   "scripts": {
-    "dev": "npm run dev -w packages/frontend",
-    "dev:pages": "npm run dev:pages -w packages/frontend",
-    "build": "npm run build -w packages/frontend",
-    "lint": "npm run lint -w packages/frontend",
-    "typecheck": "npm run typecheck -w packages/frontend",
-    "test": "npm run test -w packages/frontend",
-    "test:coverage": "npm run test:coverage -w packages/frontend",
-    "prisma:generate": "npm run prisma:generate -w packages/frontend",
-    "prisma:seed": "npm run prisma:seed -w packages/frontend"
+    "dev": "vite",
+    "dev:pages": "wrangler pages dev dist --port 8787 --d1 DB=saude-em-movimento-db",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "test": "vitest run",
+    "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
+    "prisma:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.9.1",
+    "@hookform/resolvers": "^5.9.0",
+    "@prisma/adapter-d1": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "dompurify": "^3.1.0",
+    "hono": "^4.13.7",
+    "otpauth": "^9.5.0",
+    "pino": "^10.3.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.53.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260905.1",
+    "@eslint/js": "^9.39.5",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/dompurify": "^3.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.1.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^15.15.0",
+    "prisma": "^7.10.0",
+    "tailwindcss": "^4.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.69.0",
+    "vite": "^8.2.0",
+    "vitest": "^2.0.0",
+    "wrangler": "^4.129.0"
   }
 }
