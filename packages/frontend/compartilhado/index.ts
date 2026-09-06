@@ -20,6 +20,7 @@ export {
   usuarioSchema,
   loginSchema,
   verificarMfaSchema,
+  criarEscolaSchema,
 } from './schemas/index.js';
 
 // ─── Tipos TypeScript ────────────────────────────────────────────────────────

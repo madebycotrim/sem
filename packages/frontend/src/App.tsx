@@ -6,7 +6,7 @@ import { ModalNovoPaciente, type FormNovoPaciente } from './componentes/ModalNov
 import { FilaDoDia } from './componentes/FilaDoDia.tsx';
 import { Atendimentos, type ItemAtendimentoLista } from './componentes/Atendimentos.tsx';
 import { Dashboard } from './componentes/Dashboard.tsx';
-import { Escolas } from './componentes/Escolas.tsx';
+import { Escolas, type EscolaPolo } from './componentes/Escolas.tsx';
 import { Usuarios } from './componentes/Usuarios.tsx';
 import { Relatorios } from './componentes/Relatorios.tsx';
 import { GovernancaAuditoria } from './componentes/GovernancaAuditoria.tsx';
@@ -15,14 +15,6 @@ import { TimeoutSessao } from './componentes/TimeoutSessao.tsx';
 import { DrawerHistoricoPaciente } from './componentes/DrawerHistoricoPaciente.tsx';
 import { requisicaoApi } from './servicos/api.ts';
 import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCatraki.ts';
-import { Especialidade, Turno } from '../compartilhado/index.ts';
-
-const ESCOLAS_PADRAO = [
-  { id: '0a62d5b0-0d57-4f75-8969-8a0c2c5f7e01', nome: 'CEMEIT DE TAGUATINGA' },
-  { id: '34b4c13f-d88c-4321-9c32-2acb046a5402', nome: 'CEF 01 DE BRASÍLIA' },
-  { id: 'af51d4c9-9c67-4b4f-b524-8c985d90b403', nome: 'EC 10 DE CEILÂNDIA' },
-  { id: 'cd56f7b2-5801-4b9d-bf43-78c332a5f104', nome: 'CEF 02 DE SOBRADINHO' },
-];
 
 interface RespostaListaPacientes {
   dados: Array<{
@@ -45,9 +37,32 @@ const normalizarTexto = (valor?: string) =>
 
 const somenteDigitos = (valor?: string) => (valor || '').replace(/\D/g, '');
 
+const SECOES_VALIDAS: SecaoMenu[] = [
+  'pacientes',
+  'filaDia',
+  'consultas',
+  'dashboard',
+  'escolas',
+  'relatorios',
+  'usuarios',
+  'governanca',
+];
+
+const obterSecaoInicial = (): SecaoMenu => {
+  const hash = window.location.hash.replace(/^#/, '') as SecaoMenu;
+  if (SECOES_VALIDAS.includes(hash)) {
+    return hash;
+  }
+  const salva = localStorage.getItem('catraki_secao_ativa') as SecaoMenu;
+  if (SECOES_VALIDAS.includes(salva)) {
+    return salva;
+  }
+  return 'pacientes';
+};
+
 export function App() {
-  // Navegação
-  const [secaoAtiva, setSecaoAtiva] = useState<SecaoMenu>('pacientes');
+  // Navegação Persistente
+  const [secaoAtiva, setSecaoAtiva] = useState<SecaoMenu>(obterSecaoInicial);
   const [modoNovaFicha, setModoNovaFicha] = useState(false);
   const [pacienteSelecionadoParaFicha, setPacienteSelecionadoParaFicha] = useState<ItemPaciente | null>(null);
   const [pacienteHistoricoDrawer, setPacienteHistoricoDrawer] = useState<ItemPaciente | null>(null);
@@ -67,8 +82,6 @@ export function App() {
   const [carregandoPacientes, setCarregandoPacientes] = useState(true);
 
   // Modais
-
-  // Modais
   const [modalNovoPacienteAberto, setModalNovoPacienteAberto] = useState(false);
   const [pacienteParaEditar, setPacienteParaEditar] = useState<ItemPaciente | null>(null);
 
@@ -77,6 +90,52 @@ export function App() {
 
   // Lista de Pacientes
   const [pacientes, setPacientes] = useState<ItemPaciente[]>([]);
+
+  // Lista de Escolas Global
+  const [escolasGlobais, setEscolasGlobais] = useState<EscolaPolo[]>([]);
+
+  const navegarParaSecao = (secao: SecaoMenu) => {
+    setSecaoAtiva(secao);
+    setModoNovaFicha(false);
+    setPacienteSelecionadoParaFicha(null);
+    window.location.hash = secao;
+    localStorage.setItem('catraki_secao_ativa', secao);
+  };
+
+  useEffect(() => {
+    const secaoInicial = obterSecaoInicial();
+    if (window.location.hash !== `#${secaoInicial}`) {
+      window.history.replaceState(null, '', `#${secaoInicial}`);
+    }
+    localStorage.setItem('catraki_secao_ativa', secaoInicial);
+
+    const escutarHashChange = () => {
+      const hash = window.location.hash.replace(/^#/, '') as SecaoMenu;
+      if (SECOES_VALIDAS.includes(hash)) {
+        setSecaoAtiva(hash);
+        setModoNovaFicha(false);
+        setPacienteSelecionadoParaFicha(null);
+        localStorage.setItem('catraki_secao_ativa', hash);
+      }
+    };
+
+    window.addEventListener('hashchange', escutarHashChange);
+    return () => window.removeEventListener('hashchange', escutarHashChange);
+  }, []);
+
+  useEffect(() => {
+    let ativo = true;
+    const carregarEscolas = async () => {
+      try {
+        const resposta = await requisicaoApi<{ dados: EscolaPolo[] }>('/escolas');
+        if (ativo) setEscolasGlobais(resposta.dados);
+      } catch (erro) {
+        console.error('Erro ao carregar escolas:', erro);
+      }
+    };
+    carregarEscolas();
+    return () => { ativo = false; };
+  }, []);
 
   const mostrarToast = (texto: string, tipo: 'sucesso' | 'info' | 'erro') => {
     setToastNotificacao({ texto, tipo });
@@ -117,7 +176,6 @@ export function App() {
 
   // Lista de Atendimentos
   const [atendimentos, setAtendimentos] = useState<ItemAtendimentoLista[]>([]);
-  const [carregandoAtendimentos, setCarregandoAtendimentos] = useState(true);
 
   useEffect(() => {
     let ativo = true;
@@ -130,7 +188,6 @@ export function App() {
           mostrarToast(erro instanceof Error ? `Não foi possível carregar os atendimentos: ${erro.message}` : 'Não foi possível carregar os atendimentos.', 'erro');
         }
       } finally {
-        if (ativo) setCarregandoAtendimentos(false);
       }
     };
     carregarAtendimentos();
@@ -152,7 +209,7 @@ export function App() {
   // Cadastro ou Edição de Paciente
   const handleSalvarPaciente = async (dados: FormNovoPaciente) => {
     const turma = [dados.anoEscolar, dados.turma].filter(Boolean).join(' — ') || 'Não informada';
-    const escola = ESCOLAS_PADRAO.find((item) => item.nome === dados.instituicao);
+    const escola = escolasGlobais.find((item) => item.nome === dados.instituicao);
     if (!escola) {
       throw new Error('Selecione uma instituição cadastrada.');
     }
@@ -321,9 +378,7 @@ export function App() {
         emailUsuario="mateus.cotrim@catraki.com.br"
         cargoUsuario="Administrador Geral"
         aoMudarSecao={(secao) => {
-          setSecaoAtiva(secao);
-          setModoNovaFicha(false);
-          setPacienteSelecionadoParaFicha(null);
+          navegarParaSecao(secao);
         }}
         aoDeslogar={() => {
           setToastNotificacao({
@@ -373,7 +428,7 @@ export function App() {
           /* 3. Ficha de Atendimento Clínico */
           <FichaAtendimento
             pacientePreSelecionado={pacienteSelecionadoParaFicha}
-            escolas={ESCOLAS_PADRAO}
+            escolas={escolasGlobais}
             aoVoltar={() => {
               setModoNovaFicha(false);
               setPacienteSelecionadoParaFicha(null);
@@ -459,8 +514,9 @@ export function App() {
             }}
           />
         ) : secaoAtiva === 'escolas' ? (
-          /* 4. Escolas & Unidades Móveis */
+          /* 4. Escolas*/
           <Escolas
+            escolas={escolasGlobais}
             escolaAtivaId={escolaAtivaId}
             aoSelecionarEscolaAtiva={(id) => {
               setEscolaAtivaId(id);
@@ -469,6 +525,12 @@ export function App() {
                 tipo: 'sucesso',
               });
               setTimeout(() => setToastNotificacao(null), 3000);
+            }}
+            aoRecarregarEscolas={async () => {
+              try {
+                const resposta = await requisicaoApi<{ dados: EscolaPolo[] }>('/escolas');
+                setEscolasGlobais(resposta.dados);
+              } catch (erro) {}
             }}
           />
         ) : secaoAtiva === 'relatorios' ? (
@@ -509,7 +571,7 @@ export function App() {
           setPacienteParaEditar(null);
         }}
         aoSalvar={handleSalvarPaciente}
-        escolas={ESCOLAS_PADRAO}
+        escolas={escolasGlobais}
         pacienteParaEditar={pacienteParaEditar}
       />
 

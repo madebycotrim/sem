@@ -1,5 +1,6 @@
 import { useState, type FC } from 'react';
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
+import { ModalNovaEscola } from './ModalNovaEscola.tsx';
 
 export interface EscolaPolo {
   id: string;
@@ -13,58 +14,20 @@ export interface EscolaPolo {
 }
 
 export interface EscolasProps {
+  escolas: EscolaPolo[];
   escolaAtivaId: string;
   aoSelecionarEscolaAtiva: (escolaId: string) => void;
+  aoRecarregarEscolas: () => void;
 }
 
 export const Escolas: FC<EscolasProps> = ({
+  escolas,
   escolaAtivaId,
   aoSelecionarEscolaAtiva,
+  aoRecarregarEscolas,
 }) => {
   const [busca, setBusca] = useState('');
-
-  const [escolas] = useState<EscolaPolo[]>([
-    {
-      id: 'seed-escola-001',
-      nome: 'CEMEIT DE TAGUATINGA',
-      regiao: 'Taguatinga / DF',
-      endereco: 'QNF Área Especial 01, Taguatinga Norte',
-      diretoriaRegional: 'CRE Taguatinga',
-      alunosMatriculados: 1250,
-      unidadesMoveisEstacionadas: 2,
-      status: 'ESTACIONADA_HOJE',
-    },
-    {
-      id: 'seed-escola-002',
-      nome: 'CEF 01 DE BRASÍLIA',
-      regiao: 'Plano Piloto / DF',
-      endereco: 'EQS 106/306 Área Especial, Asa Sul',
-      diretoriaRegional: 'CRE Plano Piloto',
-      alunosMatriculados: 890,
-      unidadesMoveisEstacionadas: 0,
-      status: 'PROGRAMADA',
-    },
-    {
-      id: 'seed-escola-003',
-      nome: 'EC 10 DE CEILÂNDIA',
-      regiao: 'Ceilândia / DF',
-      endereco: 'QNM 15 Conjunto A, Ceilândia Sul',
-      diretoriaRegional: 'CRE Ceilândia',
-      alunosMatriculados: 940,
-      unidadesMoveisEstacionadas: 0,
-      status: 'PROGRAMADA',
-    },
-    {
-      id: 'seed-escola-004',
-      nome: 'CEF 02 DE SOBRADINHO',
-      regiao: 'Sobradinho / DF',
-      endereco: 'Quadra 04 Área Especial 02, Sobradinho',
-      diretoriaRegional: 'CRE Sobradinho',
-      alunosMatriculados: 760,
-      unidadesMoveisEstacionadas: 0,
-      status: 'CONCLUIDA',
-    },
-  ]);
+  const [modalAberto, setModalAberto] = useState(false);
 
   const filtradas = escolas.filter((e) =>
     e.nome.toLowerCase().includes(busca.toLowerCase()) ||
@@ -75,12 +38,16 @@ export const Escolas: FC<EscolasProps> = ({
     <div className="flex flex-col flex-1 animate-fade-in font-sans">
       {/* ─── Cabeçalho Fixo Modular ───────────────────────────────────────── */}
       <CabecalhoPagina
-        titulo="Escolas & Unidades Móveis"
+        titulo="Escolas"
         subtitulo="SELEÇÃO DO POLO ESCOLAR ONDE AS UNIDADES CATRAKI ESTÃO ESTACIONADAS NO DIA"
         busca={{
           valor: busca,
           aoMudar: setBusca,
           placeholder: 'Buscar escola ou região...',
+        }}
+        acaoPrimaria={{
+          rotulo: 'Nova Instituição',
+          aoClicar: () => setModalAberto(true),
         }}
         fixo={true}
       />
@@ -182,6 +149,16 @@ export const Escolas: FC<EscolasProps> = ({
           );
         })}
       </div>
+
+      {/* Modal Nova Instituição */}
+      <ModalNovaEscola
+        aberto={modalAberto}
+        aoFechar={() => setModalAberto(false)}
+        aoSucesso={() => {
+          setModalAberto(false);
+          aoRecarregarEscolas();
+        }}
+      />
     </div>
   );
 };

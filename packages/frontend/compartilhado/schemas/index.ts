@@ -16,3 +16,5 @@ export {
   loginSchema,
   verificarMfaSchema,
 } from './usuario.schema.js';
+
+export { criarEscolaSchema } from './escola.schema.js';

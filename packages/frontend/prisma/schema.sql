@@ -21,6 +21,13 @@ CREATE TABLE IF NOT EXISTS escolas_locais (
   endereco TEXT NOT NULL,
   cidade TEXT NOT NULL,
   uf TEXT NOT NULL,
+  cnpj TEXT UNIQUE,
+  telefone TEXT,
+  email TEXT,
+  diretoria_regional TEXT,
+  alunos_matriculados INTEGER NOT NULL DEFAULT 0,
+  unidades_moveis INTEGER NOT NULL DEFAULT 0,
+  status_operacao TEXT NOT NULL DEFAULT 'PROGRAMADA',
   ativo INTEGER DEFAULT 1,
   criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
 );

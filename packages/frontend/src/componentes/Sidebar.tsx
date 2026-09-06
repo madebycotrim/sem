@@ -102,7 +102,7 @@ export const Sidebar: FC<SidebarProps> = ({
             icone={<IconeDashboard />}
           />
           <ItemDock
-            rotulo="Escolas & Unidades"
+            rotulo="Escolas"
             categoria="Operação"
             descricao="Polos escolares e unidades móveis"
             ativo={secaoAtiva === 'escolas'}
@@ -110,7 +110,7 @@ export const Sidebar: FC<SidebarProps> = ({
             icone={<IconeEscolas />}
           />
           <ItemDock
-            rotulo="Relatórios & Contas"
+            rotulo="Relatórios"
             categoria="Operação"
             descricao="Consolidação e prestação de contas"
             ativo={secaoAtiva === 'relatorios'}

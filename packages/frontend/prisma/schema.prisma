@@ -13,7 +13,6 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
 }
 
 // ─── Usuário do Sistema ──────────────────────────────────────────────────────
@@ -43,6 +42,9 @@ model EscolaLocal {
   endereco            String
   cidade              String
   uf                  String
+  cnpj                String?  @unique
+  telefone            String?
+  email               String?
   diretoriaRegional   String?  @map("diretoria_regional")
   alunosMatriculados  Int      @default(0) @map("alunos_matriculados")
   unidadesMoveis      Int      @default(0) @map("unidades_moveis")
