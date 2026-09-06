@@ -3,6 +3,7 @@ node_modules/
 
 # Variáveis de ambiente (LGPD — segredos nunca versionados)
 .env
+.dev.vars
 .env.local
 .env.*.local
 

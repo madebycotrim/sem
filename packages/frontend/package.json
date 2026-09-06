@@ -6,7 +6,7 @@
   "description": "Sistema Catraki — React + Vite + Tailwind + Cloudflare Pages Functions (Hono + D1)",
   "scripts": {
     "dev": "vite",
-    "dev:pages": "wrangler pages dev dist --d1 DB=saude-em-movimento-db",
+    "dev:pages": "wrangler pages dev dist --port 8787 --d1 DB=saude-em-movimento-db",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
