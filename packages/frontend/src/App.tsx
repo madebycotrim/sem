@@ -580,7 +580,6 @@ export function App() {
         tempoLimiteMinutos={15}
         tempoAvisoSegundos={120}
         aoExpirar={() => {
-          alert('Sua sessão expirou por inatividade. O sistema foi bloqueado por segurança (LGPD).');
           window.location.reload();
         }}
       />

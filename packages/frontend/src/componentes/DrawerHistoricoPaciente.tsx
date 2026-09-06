@@ -164,42 +164,37 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
           </div>
 
           {/* ─── Conteúdo: Linha do Tempo de Atendimentos ──────────────────── */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div className={`flex-1 overflow-y-auto p-5 ${historico.length === 0 ? 'flex flex-col items-center justify-center' : ''}`}>
             {historico.length === 0 ? (
-              /* Estado Vazio */
-              <div className="py-12 px-4 text-center bg-white rounded-2xl border border-slate-200 shadow-2xs">
-                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3 border border-blue-100">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              /* Estado Vazio Minimalista */
+              <div className="text-center max-w-xs mx-auto -mt-10">
+                <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <circle cx="12" cy="12" r="10" />
                     <line x1="12" y1="8" x2="12" y2="12" />
                     <line x1="12" y1="16" x2="12.01" y2="16" />
                   </svg>
                 </div>
-                <h3 className="text-sm font-bold text-slate-800">Nenhum atendimento registrado</h3>
-                <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
-                    {carregando ? (
-                      <span>Buscando histórico na base...</span>
-                    ) : (
-                      <span>Nenhum atendimento registrado no histórico clínico deste paciente.</span>
-                    )}
-                  </p>
-                  {!carregando && aoNovoAtendimento && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        aoFechar();
-                        aoNovoAtendimento(paciente);
-                      }}
-                      className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold text-white rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer"
-                      style={{ background: 'linear-gradient(135deg, #034b7f 0%, #14438f 100%)' }}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                      <span>Iniciar Primeiro Atendimento</span>
-                    </button>
+                <h3 className="text-sm font-semibold text-slate-700">Nenhum atendimento registrado</h3>
+                <p className="text-[13px] text-slate-500 mt-1">
+                  {carregando ? (
+                    <span>Buscando histórico...</span>
+                  ) : (
+                    <span>Não há registros clínicos para este paciente.</span>
                   )}
+                </p>
+                {!carregando && aoNovoAtendimento && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      aoFechar();
+                      aoNovoAtendimento(paciente);
+                    }}
+                    className="mt-6 text-[13px] font-bold text-blue-600 hover:text-blue-700 hover:underline transition-all cursor-pointer"
+                  >
+                    + Iniciar Primeiro Atendimento
+                  </button>
+                )}
               </div>
             ) : (
               /* Linha do Tempo com Cards */
@@ -374,25 +369,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
             )}
           </div>
 
-          {/* ─── Rodapé com Ação Rápida: + Novo Atendimento ─────────────────── */}
-          <div className="p-4 bg-white border-t border-slate-200/90 shrink-0">
-            {aoNovoAtendimento && (
-              <button
-                type="button"
-                onClick={() => {
-                  aoFechar();
-                  aoNovoAtendimento(paciente);
-                }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-2xl text-xs font-bold shadow-xs hover:shadow-sm transition-all active:scale-[0.99] cursor-pointer"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                <span>Novo Atendimento para {paciente.nome.split(' ')[0]}</span>
-              </button>
-            )}
-          </div>
+
         </aside>
       </div>
     </div>,

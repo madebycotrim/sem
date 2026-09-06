@@ -28,4 +28,12 @@ app.get('/api/health', (c) =>
   c.json({ status: 'ok', runtime: 'Cloudflare Pages Functions', timestamp: new Date().toISOString() })
 );
 
+// Servir arquivos estáticos do dist quando a rota não for da API
+app.notFound(async (c) => {
+  if (c.env?.ASSETS) {
+    return c.env.ASSETS.fetch(c.req.raw);
+  }
+  return c.text('Not Found', 404);
+});
+
 export const onRequest = handle(app);

@@ -41,7 +41,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// ../.wrangler/tmp/bundle-2AksXc/checked-fetch.js
+// ../.wrangler/tmp/bundle-u8CjTo/checked-fetch.js
 function checkURL(request, init3) {
   const url = request instanceof URL ? request : new URL(
     (typeof request === "string" ? new Request(request, init3) : request).url
@@ -59,7 +59,7 @@ function checkURL(request, init3) {
 }
 var urls;
 var init_checked_fetch = __esm({
-  "../.wrangler/tmp/bundle-2AksXc/checked-fetch.js"() {
+  "../.wrangler/tmp/bundle-u8CjTo/checked-fetch.js"() {
     "use strict";
     urls = /* @__PURE__ */ new Set();
     __name(checkURL, "checkURL");
@@ -77,7 +77,7 @@ var init_checked_fetch = __esm({
 var compose;
 var init_compose = __esm({
   "../../../node_modules/hono/dist/compose.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     compose = /* @__PURE__ */ __name((middleware, onError3, onNotFound) => {
       return (context, next) => {
@@ -129,7 +129,7 @@ var init_compose = __esm({
 var HTTPException;
 var init_http_exception = __esm({
   "../../../node_modules/hono/dist/http-exception.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     HTTPException = class extends Error {
       static {
@@ -172,7 +172,7 @@ var init_http_exception = __esm({
 var GET_MATCH_RESULT;
 var init_constants = __esm({
   "../../../node_modules/hono/dist/request/constants.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     GET_MATCH_RESULT = /* @__PURE__ */ Symbol();
   }
@@ -181,7 +181,7 @@ var init_constants = __esm({
 // ../../../node_modules/hono/dist/utils/crypto.js
 var init_crypto = __esm({
   "../../../node_modules/hono/dist/utils/crypto.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
   }
 });
@@ -190,7 +190,7 @@ var init_crypto = __esm({
 var bufferToFormData;
 var init_buffer = __esm({
   "../../../node_modules/hono/dist/utils/buffer.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_crypto();
     bufferToFormData = /* @__PURE__ */ __name((arrayBuffer, contentType) => {
@@ -250,7 +250,7 @@ function convertFormDataToBodyData(formData, options) {
 var MAX_NESTING_DEPTH, MAX_NESTED_OBJECTS, isRawRequest, parseBody, handleParsingAllValues, handleParsingNestedValues, throwNestingLimitExceeded;
 var init_body = __esm({
   "../../../node_modules/hono/dist/utils/body.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_buffer();
     MAX_NESTING_DEPTH = 32;
@@ -317,7 +317,7 @@ var init_body = __esm({
 var splitPath, splitRoutingPath, extractGroupsFromPath, replaceGroupMarks, patternCache, getPattern, tryDecode, tryDecodeURI, getPath, getPathNoStrict, mergePath, checkOptionalParameter, tryDecodeURIComponent, _decodeURI, _getQueryParam, getQueryParam, getQueryParams, decodeURIComponent_;
 var init_url = __esm({
   "../../../node_modules/hono/dist/utils/url.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     splitPath = /* @__PURE__ */ __name((path) => {
       const paths = path.split("/");
@@ -530,7 +530,7 @@ var init_url = __esm({
 var HonoRequest;
 var init_request = __esm({
   "../../../node_modules/hono/dist/request.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_http_exception();
     init_constants();
@@ -825,7 +825,7 @@ var init_request = __esm({
 var HtmlEscapedCallbackPhase, raw2, resolveCallback;
 var init_html = __esm({
   "../../../node_modules/hono/dist/utils/html.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     HtmlEscapedCallbackPhase = {
       Stringify: 1,
@@ -874,7 +874,7 @@ var init_html = __esm({
 var TEXT_PLAIN, setDefaultContentType, createResponseInstance, Context;
 var init_context = __esm({
   "../../../node_modules/hono/dist/context.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_request();
     init_html();
@@ -1312,7 +1312,7 @@ var init_context = __esm({
 var METHOD_NAME_ALL, METHOD_NAME_ALL_LOWERCASE, METHODS, MESSAGE_MATCHER_IS_ALREADY_BUILT, UnsupportedPathError;
 var init_router = __esm({
   "../../../node_modules/hono/dist/router.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     METHOD_NAME_ALL = "ALL";
     METHOD_NAME_ALL_LOWERCASE = "all";
@@ -1330,7 +1330,7 @@ var init_router = __esm({
 var COMPOSED_HANDLER;
 var init_constants2 = __esm({
   "../../../node_modules/hono/dist/utils/constants.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     COMPOSED_HANDLER = "__COMPOSED_HANDLER";
   }
@@ -1340,7 +1340,7 @@ var init_constants2 = __esm({
 var notFoundHandler, errorHandler, Hono;
 var init_hono_base = __esm({
   "../../../node_modules/hono/dist/hono-base.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_compose();
     init_context();
@@ -1733,7 +1733,7 @@ var init_hono_base = __esm({
 var createNullObject;
 var init_utils = __esm({
   "../../../node_modules/hono/dist/router/utils.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     createNullObject = /* @__PURE__ */ __name(() => /* @__PURE__ */ Object.create(null), "createNullObject");
   }
@@ -1761,7 +1761,7 @@ function match(method, path) {
 var emptyParam;
 var init_matcher = __esm({
   "../../../node_modules/hono/dist/router/reg-exp-router/matcher.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_router();
     emptyParam = [];
@@ -1792,7 +1792,7 @@ function compareKey(a, b) {
 var LABEL_REG_EXP_STR, ONLY_WILDCARD_REG_EXP_STR, TAIL_WILDCARD_REG_EXP_STR, PATH_ERROR, regExpMetaChars, Node;
 var init_node = __esm({
   "../../../node_modules/hono/dist/router/reg-exp-router/node.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_utils();
     LABEL_REG_EXP_STR = "[^/]+";
@@ -1892,7 +1892,7 @@ var init_node = __esm({
 var Trie;
 var init_trie = __esm({
   "../../../node_modules/hono/dist/router/reg-exp-router/trie.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_utils();
     init_node();
@@ -1984,7 +1984,7 @@ function findMiddleware(middleware, path) {
 var wildcardRegExpCache, RegExpRouter;
 var init_router2 = __esm({
   "../../../node_modules/hono/dist/router/reg-exp-router/router.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_router();
     init_url();
@@ -2106,7 +2106,7 @@ var init_router2 = __esm({
 // ../../../node_modules/hono/dist/router/reg-exp-router/prepared-router.js
 var init_prepared_router = __esm({
   "../../../node_modules/hono/dist/router/reg-exp-router/prepared-router.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_router();
     init_matcher();
@@ -2117,7 +2117,7 @@ var init_prepared_router = __esm({
 // ../../../node_modules/hono/dist/router/reg-exp-router/index.js
 var init_reg_exp_router = __esm({
   "../../../node_modules/hono/dist/router/reg-exp-router/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_router2();
     init_prepared_router();
@@ -2128,7 +2128,7 @@ var init_reg_exp_router = __esm({
 var SmartRouter;
 var init_router3 = __esm({
   "../../../node_modules/hono/dist/router/smart-router/router.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_router();
     SmartRouter = class {
@@ -2193,7 +2193,7 @@ var init_router3 = __esm({
 // ../../../node_modules/hono/dist/router/smart-router/index.js
 var init_smart_router = __esm({
   "../../../node_modules/hono/dist/router/smart-router/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_router3();
   }
@@ -2203,7 +2203,7 @@ var init_smart_router = __esm({
 var emptyParams, order, Node2;
 var init_node2 = __esm({
   "../../../node_modules/hono/dist/router/trie-router/node.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_router();
     init_url();
@@ -2376,7 +2376,7 @@ var init_node2 = __esm({
 var TrieRouter;
 var init_router4 = __esm({
   "../../../node_modules/hono/dist/router/trie-router/router.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_url();
     init_node2();
@@ -2401,7 +2401,7 @@ var init_router4 = __esm({
 // ../../../node_modules/hono/dist/router/trie-router/index.js
 var init_trie_router = __esm({
   "../../../node_modules/hono/dist/router/trie-router/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_router4();
   }
@@ -2411,7 +2411,7 @@ var init_trie_router = __esm({
 var Hono2;
 var init_hono = __esm({
   "../../../node_modules/hono/dist/hono.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_hono_base();
     init_reg_exp_router();
@@ -2439,7 +2439,7 @@ var init_hono = __esm({
 // ../../../node_modules/hono/dist/index.js
 var init_dist = __esm({
   "../../../node_modules/hono/dist/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_hono();
     init_context();
@@ -2450,7 +2450,7 @@ var init_dist = __esm({
 var handle;
 var init_handler = __esm({
   "../../../node_modules/hono/dist/adapter/cloudflare-pages/handler.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_context();
     init_http_exception();
@@ -2471,7 +2471,7 @@ var init_handler = __esm({
 // ../../../node_modules/hono/dist/adapter/cloudflare-pages/conninfo.js
 var init_conninfo = __esm({
   "../../../node_modules/hono/dist/adapter/cloudflare-pages/conninfo.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
   }
 });
@@ -2479,7 +2479,7 @@ var init_conninfo = __esm({
 // ../../../node_modules/hono/dist/adapter/cloudflare-pages/index.js
 var init_cloudflare_pages = __esm({
   "../../../node_modules/hono/dist/adapter/cloudflare-pages/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_handler();
     init_conninfo();
@@ -2490,7 +2490,7 @@ var init_cloudflare_pages = __esm({
 var cors;
 var init_cors = __esm({
   "../../../node_modules/hono/dist/middleware/cors/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     cors = /* @__PURE__ */ __name((options) => {
       const opts = {
@@ -2583,7 +2583,7 @@ var init_cors = __esm({
 var decodeBase64Url, encodeBase64Url, encodeBase64, decodeBase64;
 var init_encode = __esm({
   "../../../node_modules/hono/dist/utils/encode.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     decodeBase64Url = /* @__PURE__ */ __name((str) => {
       return decodeBase64(str.replace(/_|-/g, (m) => ({ _: "/", "-": "+" })[m] ?? m));
@@ -2694,7 +2694,7 @@ function setHeaders(ctx, headersToSet) {
 var HEADERS_MAP, DEFAULT_OPTIONS, secureHeaders;
 var init_secure_headers = __esm({
   "../../../node_modules/hono/dist/middleware/secure-headers/secure-headers.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_encode();
     HEADERS_MAP = {
@@ -2785,7 +2785,7 @@ var init_secure_headers = __esm({
 // ../../../node_modules/hono/dist/middleware/secure-headers/index.js
 var init_secure_headers2 = __esm({
   "../../../node_modules/hono/dist/middleware/secure-headers/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_secure_headers();
   }
@@ -2814,7 +2814,7 @@ async function getColorEnabledAsync() {
 }
 var init_color = __esm({
   "../../../node_modules/hono/dist/utils/color.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     __name(getColorEnabled, "getColorEnabled");
     __name(getColorEnabledAsync, "getColorEnabledAsync");
@@ -2829,7 +2829,7 @@ async function log(fn, prefix, method, path, status = 0, elapsed) {
 var humanize, time, colorStatus, logger;
 var init_logger = __esm({
   "../../../node_modules/hono/dist/middleware/logger/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_color();
     humanize = /* @__PURE__ */ __name((times) => {
@@ -2875,7 +2875,7 @@ var init_logger = __esm({
 var util, objectUtil, ZodParsedType, getParsedType;
 var init_util = __esm({
   "../../../node_modules/zod/v3/helpers/util.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     (function(util2) {
       util2.assertEqual = (_) => {
@@ -3017,7 +3017,7 @@ var init_util = __esm({
 var ZodIssueCode, quotelessJson, ZodError;
 var init_ZodError = __esm({
   "../../../node_modules/zod/v3/ZodError.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_util();
     ZodIssueCode = util.arrayToEnum([
@@ -3146,7 +3146,7 @@ var init_ZodError = __esm({
 var errorMap, en_default;
 var init_en = __esm({
   "../../../node_modules/zod/v3/locales/en.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_ZodError();
     init_util();
@@ -3264,7 +3264,7 @@ function getErrorMap() {
 var overrideErrorMap;
 var init_errors = __esm({
   "../../../node_modules/zod/v3/errors.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_en();
     overrideErrorMap = en_default;
@@ -3296,7 +3296,7 @@ function addIssueToContext(ctx, issueData) {
 var makeIssue, EMPTY_PATH, ParseStatus, INVALID, DIRTY, OK, isAborted, isDirty, isValid, isAsync;
 var init_parseUtil = __esm({
   "../../../node_modules/zod/v3/helpers/parseUtil.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_errors();
     init_en();
@@ -3399,7 +3399,7 @@ var init_parseUtil = __esm({
 // ../../../node_modules/zod/v3/helpers/typeAliases.js
 var init_typeAliases = __esm({
   "../../../node_modules/zod/v3/helpers/typeAliases.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
   }
 });
@@ -3408,7 +3408,7 @@ var init_typeAliases = __esm({
 var errorUtil;
 var init_errorUtil = __esm({
   "../../../node_modules/zod/v3/helpers/errorUtil.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     (function(errorUtil2) {
       errorUtil2.errToObj = (message) => typeof message === "string" ? { message } : message || {};
@@ -3612,7 +3612,7 @@ function custom(check, _params = {}, fatal) {
 var ParseInputLazyPath, handleResult, ZodType, cuidRegex, cuid2Regex, ulidRegex, uuidRegex, nanoidRegex, jwtRegex, durationRegex, emailRegex, _emojiRegex, emojiRegex, ipv4Regex, ipv4CidrRegex, ipv6Regex, ipv6CidrRegex, base64Regex, base64urlRegex, dateRegexSource, dateRegex, ZodString, ZodNumber, ZodBigInt, ZodBoolean, ZodDate, ZodSymbol, ZodUndefined, ZodNull, ZodAny, ZodUnknown, ZodNever, ZodVoid, ZodArray, ZodObject, ZodUnion, getDiscriminator, ZodDiscriminatedUnion, ZodIntersection, ZodTuple, ZodRecord, ZodMap, ZodSet, ZodFunction, ZodLazy, ZodLiteral, ZodEnum, ZodNativeEnum, ZodPromise, ZodEffects, ZodOptional, ZodNullable, ZodDefault, ZodCatch, ZodNaN, BRAND, ZodBranded, ZodPipeline, ZodReadonly, late, ZodFirstPartyTypeKind, instanceOfType, stringType, numberType, nanType, bigIntType, booleanType, dateType, symbolType, undefinedType, nullType, anyType, unknownType, neverType, voidType, arrayType, objectType, strictObjectType, unionType, discriminatedUnionType, intersectionType, tupleType, recordType, mapType, setType, functionType, lazyType, literalType, enumType, nativeEnumType, promiseType, effectsType, optionalType, nullableType, preprocessType, pipelineType, ostring, onumber, oboolean, coerce, NEVER;
 var init_types = __esm({
   "../../../node_modules/zod/v3/types.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_ZodError();
     init_errors();
@@ -7119,7 +7119,7 @@ __export(external_exports, {
 });
 var init_external = __esm({
   "../../../node_modules/zod/v3/external.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_errors();
     init_parseUtil();
@@ -7133,7 +7133,7 @@ var init_external = __esm({
 // ../../../node_modules/zod/index.js
 var init_zod = __esm({
   "../../../node_modules/zod/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_external();
     init_external();
@@ -7159,7 +7159,7 @@ var envSchema;
 var init_env = __esm({
   "config/env.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_zod();
     envSchema = external_exports.object({
@@ -7175,8 +7175,10 @@ var init_env = __esm({
       ACCESS_LOG_RETENTION_DAYS: external_exports.coerce.number().int().min(180).default(180),
       PATIENT_DATA_RETENTION_DAYS: external_exports.coerce.number().int().min(1).default(365),
       MFA_ISSUER: external_exports.string().default("Catraki SEM"),
-      DB: external_exports.any().optional()
+      DB: external_exports.any().optional(),
       // Cloudflare D1 Database binding
+      ASSETS: external_exports.any().optional()
+      // Cloudflare Pages static assets binding
     });
     __name(carregarEnv, "carregarEnv");
   }
@@ -7186,7 +7188,7 @@ var init_env = __esm({
 var validCookieNameRegEx, relaxedCookieNameRegEx, validCookieValueRegEx, trimCookieWhitespace, parse, _serialize, serialize;
 var init_cookie = __esm({
   "../../../node_modules/hono/dist/utils/cookie.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_url();
     validCookieNameRegEx = /^[\w!#$%&'*.^`|~+-]+$/;
@@ -7316,7 +7318,7 @@ var init_cookie = __esm({
 var getCookie, generateCookie, setCookie, deleteCookie;
 var init_cookie2 = __esm({
   "../../../node_modules/hono/dist/helper/cookie/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_cookie();
     getCookie = /* @__PURE__ */ __name((c, key, prefix) => {
@@ -7372,7 +7374,7 @@ var init_cookie2 = __esm({
 var jsonRegex, multipartRegex, urlencodedRegex, validator;
 var init_validator = __esm({
   "../../../node_modules/hono/dist/validator/validator.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_cookie2();
     init_http_exception();
@@ -7462,7 +7464,7 @@ var init_validator = __esm({
 // ../../../node_modules/hono/dist/validator/index.js
 var init_validator2 = __esm({
   "../../../node_modules/hono/dist/validator/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_validator();
   }
@@ -7493,7 +7495,7 @@ function zValidatorFunction(target, schema, hook, options) {
 var zValidator;
 var init_dist2 = __esm({
   "../../../node_modules/@hono/zod-validator/dist/index.mjs"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_validator2();
     __name(zValidatorFunction, "zValidatorFunction");
@@ -7505,7 +7507,7 @@ var init_dist2 = __esm({
 var AlgorithmTypes;
 var init_jwa = __esm({
   "../../../node_modules/hono/dist/utils/jwt/jwa.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     AlgorithmTypes = /* @__PURE__ */ ((AlgorithmTypes2) => {
       AlgorithmTypes2["HS256"] = "HS256";
@@ -7530,7 +7532,7 @@ var init_jwa = __esm({
 var knownUserAgents, getRuntimeKey, checkUserAgentEquals;
 var init_adapter = __esm({
   "../../../node_modules/hono/dist/helper/adapter/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     knownUserAgents = {
       deno: "Deno",
@@ -7570,7 +7572,7 @@ var init_adapter = __esm({
 var JwtAlgorithmNotImplemented, JwtAlgorithmRequired, JwtAlgorithmMismatch, JwtTokenInvalid, JwtTokenNotBefore, JwtTokenExpired, JwtTokenIssuedAt, JwtTokenIssuer, JwtHeaderInvalid, JwtHeaderRequiresKid, JwtSymmetricAlgorithmNotAllowed, JwtAlgorithmNotAllowed, JwtTokenSignatureMismatched, JwtPayloadRequiresAud, JwtTokenAudience, CryptoKeyUsage;
 var init_types2 = __esm({
   "../../../node_modules/hono/dist/utils/jwt/types.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     JwtAlgorithmNotImplemented = class extends Error {
       static {
@@ -7729,7 +7731,7 @@ var init_types2 = __esm({
 var utf8Encoder, utf8Decoder;
 var init_utf8 = __esm({
   "../../../node_modules/hono/dist/utils/jwt/utf8.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     utf8Encoder = new TextEncoder();
     utf8Decoder = new TextDecoder();
@@ -7922,7 +7924,7 @@ function isCryptoKey(key) {
 }
 var init_jws = __esm({
   "../../../node_modules/hono/dist/utils/jwt/jws.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_adapter();
     init_encode();
@@ -7950,7 +7952,7 @@ function isTokenHeader(obj) {
 var encodeJwtPart, encodeSignaturePart, decodeJwtPart, sign, verify, symmetricAlgorithms, verifyWithJwks, decode, decodeHeader;
 var init_jwt = __esm({
   "../../../node_modules/hono/dist/utils/jwt/jwt.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_encode();
     init_jwa();
@@ -8136,7 +8138,7 @@ var init_jwt = __esm({
 var Jwt;
 var init_jwt2 = __esm({
   "../../../node_modules/hono/dist/utils/jwt/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_jwt();
     Jwt = { sign, verify, decode, verifyWithJwks };
@@ -8147,7 +8149,7 @@ var init_jwt2 = __esm({
 var verifyWithJwks2, verify2, decode2, sign2;
 var init_jwt3 = __esm({
   "../../../node_modules/hono/dist/middleware/jwt/jwt.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_cookie2();
     init_http_exception();
@@ -8163,7 +8165,7 @@ var init_jwt3 = __esm({
 // ../../../node_modules/hono/dist/middleware/jwt/index.js
 var init_jwt4 = __esm({
   "../../../node_modules/hono/dist/middleware/jwt/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_jwt3();
     init_jwa();
@@ -8350,7 +8352,7 @@ function keccakP(s, rounds = 24) {
 var uintDecode, atitle, aobject, aopts, isLE, swap32IfBE, oidNist, _HMAC, hmac, U32_MASK64, _32n, fromNumH, fromNumL, shrSH, shrSL, rotrSH, rotrSL, rotrBH, rotrBL, add3L, add3H, add4L, add4H, add5L, add5H, HashMD, SHA256_IV, SHA224_IV, SHA384_IV, SHA512_IV, SHA1_IV, SHA1_W, _SHA1, sha1, SHA256_K, SHA256_W, SHA2_32B, _SHA256, _SHA224, K512, SHA512_Kh, SHA512_Kl, SHA512_W_H, SHA512_W_L, SHA2_64B, _SHA512, _SHA384, sha2562, sha224, sha512, sha384, _0n, _1n, _2n, _7n, _256n, _0x71n, SHA3_PI, SHA3_ROTL, _SHA3_IOTA, IOTAS, SHA3_IOTA_H, SHA3_IOTA_L, rotlSH, rotlSL, rotlBH, rotlBL, rotlH, rotlL, B, Keccak, genKeccak, sha3_224, sha3_256, sha3_384, sha3_512, globalScope, nobleHashes, canonicalizeAlgorithm, hmacDigest, ALPHABET$1, base32Decode, base32Encode, ALPHABET, hexDecode, hexEncode, latin1Decode, latin1Encode, ENCODER, DECODER, utf8Decode, utf8Encode, randomBytes, Secret, timingSafeEqual, HOTP, TOTP;
 var init_otpauth_esm = __esm({
   "../../../node_modules/otpauth/dist/otpauth.esm.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     uintDecode = /* @__PURE__ */ __name((num) => {
       const buf = new ArrayBuffer(8);
@@ -9944,7 +9946,7 @@ var Especialidade;
 var init_especialidade = __esm({
   "../compartilhado/enums/especialidade.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     Especialidade = {
       OFTALMOLOGIA: "OFTALMOLOGIA",
@@ -9961,7 +9963,7 @@ var Turno;
 var init_turno = __esm({
   "../compartilhado/enums/turno.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     Turno = {
       MANHA: "MANHA",
@@ -9975,7 +9977,7 @@ var PerfilAcesso, PERFIS_MFA_OBRIGATORIO;
 var init_perfil_acesso = __esm({
   "../compartilhado/enums/perfil-acesso.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     PerfilAcesso = {
       ADMIN: "ADMIN",
@@ -9994,7 +9996,7 @@ var init_perfil_acesso = __esm({
 var init_enums = __esm({
   "../compartilhado/enums/index.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_especialidade();
     init_turno();
@@ -10007,7 +10009,7 @@ var pacienteSchema, criarPacienteSchema, atualizarPacienteSchema;
 var init_paciente_schema = __esm({
   "../compartilhado/schemas/paciente.schema.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_zod();
     pacienteSchema = external_exports.object({
@@ -10041,7 +10043,7 @@ var consentimentoSchema;
 var init_consentimento_schema = __esm({
   "../compartilhado/schemas/consentimento.schema.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_zod();
     consentimentoSchema = external_exports.object({
@@ -10097,7 +10099,7 @@ var fichaAtendimentoSchema, filtroAtendimentoSchema;
 var init_ficha_atendimento_schema = __esm({
   "../compartilhado/schemas/ficha-atendimento.schema.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_zod();
     init_especialidade();
@@ -10152,7 +10154,7 @@ var usuarioSchema, loginSchema, verificarMfaSchema;
 var init_usuario_schema = __esm({
   "../compartilhado/schemas/usuario.schema.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_zod();
     init_perfil_acesso();
@@ -10181,7 +10183,7 @@ var criarEscolaSchema;
 var init_escola_schema = __esm({
   "../compartilhado/schemas/escola.schema.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_zod();
     criarEscolaSchema = external_exports.object({
@@ -10202,7 +10204,7 @@ var init_escola_schema = __esm({
 var init_schemas = __esm({
   "../compartilhado/schemas/index.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_paciente_schema();
     init_consentimento_schema();
@@ -10216,7 +10218,7 @@ var init_schemas = __esm({
 var init_compartilhado = __esm({
   "../compartilhado/index.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_enums();
     init_schemas();
@@ -10227,7 +10229,7 @@ var init_compartilhado = __esm({
 var require_dist = __commonJS({
   "../../../node_modules/@prisma/client-runtime-utils/dist/index.js"(exports, module) {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     var __defProp3 = Object.defineProperty;
     var __getOwnPropDesc2 = Object.getOwnPropertyDescriptor;
@@ -12848,7 +12850,7 @@ ${log3.fields?.reason}`;
 var require_wasm_compiler_edge = __commonJS({
   "../../../node_modules/@prisma/client/runtime/wasm-compiler-edge.js"(exports, module) {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     var Wl = Object.create;
     var Qr = Object.defineProperty;
@@ -21580,7 +21582,7 @@ new PrismaClient({
 var require_query_compiler_fast_bg = __commonJS({
   "../../../node_modules/.prisma/client/query_compiler_fast_bg.js"(exports, module) {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     var h = Object.defineProperty;
     var T = Object.getOwnPropertyDescriptor;
@@ -21910,7 +21912,7 @@ __export(wasm_worker_loader_exports, {
 var wasm_worker_loader_default;
 var init_wasm_worker_loader = __esm({
   "../../../node_modules/.prisma/client/wasm-worker-loader.mjs"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     wasm_worker_loader_default = import("./54704d3bbdf572d56c30e2267d2de637db19dca6-query_compiler_fast_bg.wasm");
   }
@@ -21919,7 +21921,7 @@ var init_wasm_worker_loader = __esm({
 // ../../../node_modules/.prisma/client/edge.js
 var require_edge = __commonJS({
   "../../../node_modules/.prisma/client/edge.js"(exports) {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     Object.defineProperty(exports, "__esModule", { value: true });
     var {
@@ -22095,7 +22097,7 @@ var require_edge = __commonJS({
 // ../../../node_modules/.prisma/client/default.js
 var require_default = __commonJS({
   "../../../node_modules/.prisma/client/default.js"(exports, module) {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     module.exports = { ...require_edge() };
   }
@@ -22104,7 +22106,7 @@ var require_default = __commonJS({
 // ../../../node_modules/@prisma/client/default.js
 var require_default2 = __commonJS({
   "../../../node_modules/@prisma/client/default.js"(exports, module) {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     module.exports = {
       ...require_default()
@@ -22181,7 +22183,7 @@ function safeStringify(value, indent = 2) {
 var __defProp2, __export2, colors_exports, FORCE_COLOR, NODE_DISABLE_COLORS, NO_COLOR, TERM, isTTY, $, reset, bold, dim, italic, underline, inverse, hidden, strikethrough, black, red, green, yellow, blue, magenta, cyan, white, gray, grey, bgBlack, bgRed, bgGreen, bgYellow, bgBlue, bgMagenta, bgCyan, bgWhite, MAX_ARGS_HISTORY, COLORS, argsHistory, lastTimestamp, lastColor, processEnv, topProps, Debug2;
 var init_dist3 = __esm({
   "../../../node_modules/@prisma/debug/dist/index.mjs"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     __defProp2 = Object.defineProperty;
     __export2 = /* @__PURE__ */ __name((target, all) => {
@@ -22308,7 +22310,7 @@ var init_dist3 = __esm({
 var DriverAdapterError, debug, ColumnTypeEnum, mockAdapterErrors;
 var init_dist4 = __esm({
   "../../../node_modules/@prisma/driver-adapter-utils/dist/index.mjs"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_dist3();
     DriverAdapterError = class extends Error {
@@ -22374,7 +22376,7 @@ var init_dist4 = __esm({
 var HTTPError;
 var init_HTTPError = __esm({
   "../../../node_modules/ky/distribution/errors/HTTPError.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     HTTPError = class extends Error {
       static {
@@ -22402,7 +22404,7 @@ var init_HTTPError = __esm({
 var TimeoutError;
 var init_TimeoutError = __esm({
   "../../../node_modules/ky/distribution/errors/TimeoutError.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     TimeoutError = class extends Error {
       static {
@@ -22422,7 +22424,7 @@ var init_TimeoutError = __esm({
 var isObject;
 var init_is = __esm({
   "../../../node_modules/ky/distribution/utils/is.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     isObject = /* @__PURE__ */ __name((value) => value !== null && typeof value === "object", "isObject");
   }
@@ -22435,7 +22437,7 @@ function newHookValue(original, incoming, property) {
 var validateAndMerge, mergeHeaders, mergeHooks, deepMerge;
 var init_merge = __esm({
   "../../../node_modules/ky/distribution/utils/merge.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_is();
     validateAndMerge = /* @__PURE__ */ __name((...sources) => {
@@ -22502,7 +22504,7 @@ var init_merge = __esm({
 var supportsRequestStreams, supportsAbortController, supportsResponseStreams, supportsFormData, requestMethods, validate, responseTypes, maxSafeTimeout, stop, kyOptionKeys, requestOptionsRegistry;
 var init_constants3 = __esm({
   "../../../node_modules/ky/distribution/core/constants.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     supportsRequestStreams = (() => {
       let duplexAccessed = false;
@@ -22582,7 +22584,7 @@ var init_constants3 = __esm({
 var normalizeRequestMethod, retryMethods, retryStatusCodes, retryAfterStatusCodes, defaultRetryOptions, normalizeRetryOptions;
 var init_normalize = __esm({
   "../../../node_modules/ky/distribution/utils/normalize.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_constants3();
     normalizeRequestMethod = /* @__PURE__ */ __name((input) => requestMethods.includes(input) ? input.toUpperCase() : input, "normalizeRequestMethod");
@@ -22635,7 +22637,7 @@ async function timeout(request, init3, abortController, options) {
 }
 var init_timeout = __esm({
   "../../../node_modules/ky/distribution/utils/timeout.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_TimeoutError();
     __name(timeout, "timeout");
@@ -22662,7 +22664,7 @@ async function delay(ms, { signal }) {
 }
 var init_delay = __esm({
   "../../../node_modules/ky/distribution/utils/delay.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     __name(delay, "delay");
   }
@@ -22672,7 +22674,7 @@ var init_delay = __esm({
 var findUnknownOptions;
 var init_options = __esm({
   "../../../node_modules/ky/distribution/utils/options.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_constants3();
     findUnknownOptions = /* @__PURE__ */ __name((request, options) => {
@@ -22691,7 +22693,7 @@ var init_options = __esm({
 var Ky;
 var init_Ky = __esm({
   "../../../node_modules/ky/distribution/core/Ky.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_HTTPError();
     init_TimeoutError();
@@ -22954,7 +22956,7 @@ var init_Ky = __esm({
 var createInstance, ky, distribution_default;
 var init_distribution = __esm({
   "../../../node_modules/ky/distribution/index.js"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_Ky();
     init_constants3();
@@ -23202,7 +23204,7 @@ function onError2(error) {
 var name, FORCE_COLOR2, NODE_DISABLE_COLORS2, NO_COLOR2, TERM2, isTTY2, $2, reset2, bold2, dim2, italic2, underline2, inverse2, hidden2, strikethrough2, black2, red2, green2, yellow2, blue2, magenta2, cyan2, white2, gray2, grey2, bgBlack2, bgRed2, bgGreen2, bgYellow2, bgBlue2, bgMagenta2, bgCyan2, bgWhite2, MAX_BIND_VALUES, GENERIC_SQLITE_ERROR, isoDateRegex, sqliteDateRegex, UnexpectedTypeError, debug2, D1HttpQueryable, D1HttpTransaction, PrismaD1HttpAdapter, PrismaD1HttpAdapterFactory, debug22, D1WorkerQueryable, D1WorkerTransaction, PrismaD1WorkerAdapter, PrismaD1WorkerAdapterFactory, PrismaD1;
 var init_index_workerd = __esm({
   "../../../node_modules/@prisma/adapter-d1/dist/index-workerd.mjs"() {
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_dist4();
     init_distribution();
@@ -23726,7 +23728,7 @@ var import_client, prismaClient;
 var init_prisma = __esm({
   "infraestrutura/banco/prisma.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     import_client = __toESM(require_default2(), 1);
     init_index_workerd();
@@ -23793,7 +23795,7 @@ async function verificarSenha(senhaTextoPlano, hashArmazenado) {
 var init_senha = __esm({
   "infraestrutura/criptografia/senha.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     __name(hexParaBuffer, "hexParaBuffer");
     __name(comparacaoTempoConstante, "comparacaoTempoConstante");
@@ -23806,7 +23808,7 @@ var middlewareAutenticacao;
 var init_autenticacao = __esm({
   "middlewares/autenticacao.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_cookie2();
     init_jwt4();
@@ -23864,7 +23866,7 @@ var rotasAuth;
 var init_auth_rotas = __esm({
   "rotas/v1/auth.rotas.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_dist();
     init_dist2();
@@ -24104,7 +24106,7 @@ var IV_BYTES, TAG_BITS, DEK_BYTES;
 var init_crypto2 = __esm({
   "infraestrutura/criptografia/crypto.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     IV_BYTES = 12;
     TAG_BITS = 128;
@@ -24140,7 +24142,7 @@ function autorizarPerfis(perfisPermitidos) {
 var init_autorizacao = __esm({
   "middlewares/autorizacao.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     __name(autorizarPerfis, "autorizarPerfis");
   }
@@ -24159,7 +24161,7 @@ async function registrarAuditoria(_prisma, dados) {
 var init_auditoria = __esm({
   "middlewares/auditoria.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     __name(registrarAuditoria, "registrarAuditoria");
   }
@@ -24170,7 +24172,7 @@ var rotasPaciente;
 var init_paciente_rotas = __esm({
   "rotas/v1/paciente.rotas.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_dist();
     init_dist2();
@@ -24411,7 +24413,7 @@ var middlewareIdempotencia;
 var init_idempotencia = __esm({
   "middlewares/idempotencia.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_prisma();
     middlewareIdempotencia = /* @__PURE__ */ __name(async (c, next) => {
@@ -24450,7 +24452,7 @@ var rotasAtendimento;
 var init_atendimento_rotas = __esm({
   "rotas/v1/atendimento.rotas.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_dist();
     init_dist2();
@@ -24620,7 +24622,7 @@ var rotasEscola;
 var init_escola_rotas = __esm({
   "rotas/v1/escola.rotas.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_dist();
     init_dist2();
@@ -24770,7 +24772,7 @@ var rotasV1;
 var init_v1 = __esm({
   "rotas/v1/index.ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_dist();
     init_auth_rotas();
@@ -24790,7 +24792,7 @@ var app, onRequest;
 var init_path = __esm({
   "[[path]].ts"() {
     "use strict";
-    init_functionsRoutes_0_13867453725816037();
+    init_functionsRoutes_0_8270274559998432();
     init_checked_fetch();
     init_dist();
     init_cloudflare_pages();
@@ -24815,14 +24817,20 @@ var init_path = __esm({
       "/api/health",
       (c) => c.json({ status: "ok", runtime: "Cloudflare Pages Functions", timestamp: (/* @__PURE__ */ new Date()).toISOString() })
     );
+    app.notFound(async (c) => {
+      if (c.env?.ASSETS) {
+        return c.env.ASSETS.fetch(c.req.raw);
+      }
+      return c.text("Not Found", 404);
+    });
     onRequest = handle(app);
   }
 });
 
-// ../.wrangler/tmp/pages-JdsNrP/functionsRoutes-0.13867453725816037.mjs
+// ../.wrangler/tmp/pages-1aZTZ5/functionsRoutes-0.8270274559998432.mjs
 var routes;
-var init_functionsRoutes_0_13867453725816037 = __esm({
-  "../.wrangler/tmp/pages-JdsNrP/functionsRoutes-0.13867453725816037.mjs"() {
+var init_functionsRoutes_0_8270274559998432 = __esm({
+  "../.wrangler/tmp/pages-1aZTZ5/functionsRoutes-0.8270274559998432.mjs"() {
     "use strict";
     init_path();
     routes = [
@@ -24837,20 +24845,20 @@ var init_functionsRoutes_0_13867453725816037 = __esm({
   }
 });
 
-// ../.wrangler/tmp/bundle-2AksXc/middleware-loader.entry.ts
-init_functionsRoutes_0_13867453725816037();
+// ../.wrangler/tmp/bundle-u8CjTo/middleware-loader.entry.ts
+init_functionsRoutes_0_8270274559998432();
 init_checked_fetch();
 
-// ../.wrangler/tmp/bundle-2AksXc/middleware-insertion-facade.js
-init_functionsRoutes_0_13867453725816037();
+// ../.wrangler/tmp/bundle-u8CjTo/middleware-insertion-facade.js
+init_functionsRoutes_0_8270274559998432();
 init_checked_fetch();
 
 // ../node_modules/wrangler/templates/pages-template-worker.ts
-init_functionsRoutes_0_13867453725816037();
+init_functionsRoutes_0_8270274559998432();
 init_checked_fetch();
 
 // ../../../node_modules/path-to-regexp/dist.es2015/index.js
-init_functionsRoutes_0_13867453725816037();
+init_functionsRoutes_0_8270274559998432();
 init_checked_fetch();
 function lexer(str) {
   var tokens = [];
@@ -25298,7 +25306,7 @@ var cloneResponse = /* @__PURE__ */ __name((response) => (
 ), "cloneResponse");
 
 // ../node_modules/wrangler/templates/middleware/middleware-ensure-req-body-drained.ts
-init_functionsRoutes_0_13867453725816037();
+init_functionsRoutes_0_8270274559998432();
 init_checked_fetch();
 var drainBody = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx) => {
   try {
@@ -25318,7 +25326,7 @@ var drainBody = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 var middleware_ensure_req_body_drained_default = drainBody;
 
 // ../node_modules/wrangler/templates/middleware/middleware-miniflare3-json-error.ts
-init_functionsRoutes_0_13867453725816037();
+init_functionsRoutes_0_8270274559998432();
 init_checked_fetch();
 function reduceError(e) {
   return {
@@ -25348,7 +25356,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// ../.wrangler/tmp/bundle-2AksXc/middleware-insertion-facade.js
+// ../.wrangler/tmp/bundle-u8CjTo/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -25356,7 +25364,7 @@ var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
 var middleware_insertion_facade_default = pages_template_worker_default;
 
 // ../node_modules/wrangler/templates/middleware/common.ts
-init_functionsRoutes_0_13867453725816037();
+init_functionsRoutes_0_8270274559998432();
 init_checked_fetch();
 var __facade_middleware__ = [];
 function __facade_register__(...args) {
@@ -25382,7 +25390,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// ../.wrangler/tmp/bundle-2AksXc/middleware-loader.entry.ts
+// ../.wrangler/tmp/bundle-u8CjTo/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;
@@ -25506,4 +25514,4 @@ otpauth/dist/otpauth.esm.js:
 ky/distribution/index.js:
   (*! MIT License © Sindre Sorhus *)
 */
-//# sourceMappingURL=functionsWorker-0.42608099069044103.mjs.map
+//# sourceMappingURL=functionsWorker-0.36296914288184445.mjs.map

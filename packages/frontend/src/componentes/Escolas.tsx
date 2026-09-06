@@ -245,9 +245,12 @@ export const Escolas: FC<EscolasProps> = ({
                               className="w-full px-3.5 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer"
                             >
                               <svg className="w-3.5 h-3.5 text-rose-500 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                <line x1="10" y1="11" x2="10" y2="17" />
+                                <line x1="14" y1="11" x2="14" y2="17" />
                               </svg>
-                              <span>Excluir Instituição</span>
+                              <span>Arquivar Instituição</span>
                             </button>
                           </div>
                         </>
@@ -276,16 +279,17 @@ export const Escolas: FC<EscolasProps> = ({
         }}
       />
 
-      {/* Modal de Confirmação de Exclusão */}
+      {/* Modal de Confirmação de Arquivamento */}
       <Modal
         aberto={!!escolaParaExcluir}
         aoFechar={() => setEscolaParaExcluir(null)}
-        titulo="Excluir Instituição"
-        subtitulo={escolaParaExcluir ? `Tem certeza que deseja remover "${escolaParaExcluir.nome}"?` : ''}
+        titulo="Arquivar Instituição"
+        subtitulo={escolaParaExcluir ? `Tem certeza que deseja arquivar "${escolaParaExcluir.nome}"?` : ''}
         tamanho="sm"
         icone={
           <svg className="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
           </svg>
         }
         rodape={
@@ -297,7 +301,7 @@ export const Escolas: FC<EscolasProps> = ({
             />
             <BotaoModal
               variante="perigo"
-              rotulo="Sim, Excluir"
+              rotulo="Sim, Arquivar"
               carregando={excluindo}
               aoClicar={async () => {
                 if (!escolaParaExcluir) return;
@@ -319,7 +323,7 @@ export const Escolas: FC<EscolasProps> = ({
         }
       >
         <p className="text-xs text-slate-500 font-medium">
-          Esta ação removerá a instituição do sistema. Ela não estará mais disponível para seleção de atendimentos.
+          A instituição será ocultada das listagens para evitar novos vínculos, mas todos os registros de estudantes e atendimentos já realizados serão mantidos de forma segura no sistema.
         </p>
       </Modal>
     </div>

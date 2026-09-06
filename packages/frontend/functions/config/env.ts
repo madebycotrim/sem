@@ -35,6 +35,7 @@ const envSchema = z.object({
   MFA_ISSUER: z.string().default('Catraki SEM'),
   
   DB: z.any().optional(), // Cloudflare D1 Database binding
+  ASSETS: z.any().optional(), // Cloudflare Pages static assets binding
 });
 
 export type Env = z.infer<typeof envSchema>;
