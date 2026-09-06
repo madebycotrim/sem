@@ -140,6 +140,7 @@ export const ModalUniversal: FC<PropsModalUniversal> = ({
     <Modal
       aberto={aberto}
       aoFechar={aoFechar}
+      confirmarAoFechar={ehModoFormulario}
       titulo={titulo}
       subtitulo={subtitulo}
       icone={iconeFinal}

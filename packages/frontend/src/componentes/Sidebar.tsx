@@ -268,21 +268,14 @@ const ItemDock: FC<ItemDockProps> = ({
       {/* ─── Tooltip Completo & Minimalista no Hover ──────────────────────── */}
       <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center z-50 pointer-events-none animate-in fade-in zoom-in-95 duration-100">
         <div className="bg-[#0b1b33]/95 backdrop-blur-md text-white px-3 py-2 rounded-2xl shadow-xl shadow-slate-950/25 border border-slate-700/60 min-w-[190px] max-w-[240px] flex flex-col gap-0.5">
-          {/* Linha Superior: Nome do Módulo + Categoria / Status */}
+          {/* Linha Superior: Nome do Módulo + Categoria */}
           <div className="flex items-center justify-between gap-2">
             <span className="text-[12px] font-bold text-white tracking-tight">
               {rotulo}
             </span>
-            {ativo ? (
-              <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Ativo
-              </span>
-            ) : (
-              <span className="text-[9px] font-semibold text-sky-400 uppercase tracking-wider">
-                {categoria}
-              </span>
-            )}
+            <span className="text-[9.5px] font-semibold text-sky-400 uppercase tracking-wider">
+              {categoria}
+            </span>
           </div>
 
           {/* Linha Inferior: Breve Síntese Funcional */}

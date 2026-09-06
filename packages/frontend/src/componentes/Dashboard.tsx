@@ -107,7 +107,7 @@ export const Dashboard: FC<DashboardProps> = ({
           <div className="mt-3">
             <p className="text-3xl font-extrabold text-[#0b2545] tracking-tight">4</p>
             <p className="text-xs text-slate-500 mt-1 font-medium">
-              CEMEIT Taguatinga ativo hoje
+              Polo ativo no dia
             </p>
           </div>
         </div>

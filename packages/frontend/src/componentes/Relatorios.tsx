@@ -1,7 +1,11 @@
 import { useState, type FC } from 'react';
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 
-export const Relatorios: FC = () => {
+export interface RelatoriosProps {
+  escolas?: Array<{ id: string; nome: string }>;
+}
+
+export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   const [escolaFiltro, setEscolaFiltro] = useState('');
 
   const metricasEspecialidade = [
@@ -38,6 +42,11 @@ export const Relatorios: FC = () => {
     document.body.removeChild(link);
   };
 
+  const opcoesEscola = [
+    { id: '', nome: 'Todos os Polos' },
+    ...escolas.map((e) => ({ id: e.id, nome: e.nome })),
+  ];
+
   return (
     <div className="flex flex-col flex-1 animate-fade-in font-sans">
       {/* ─── Cabeçalho Fixo Modular ───────────────────────────────────────── */}
@@ -48,13 +57,7 @@ export const Relatorios: FC = () => {
           valor: escolaFiltro,
           aoMudar: setEscolaFiltro,
           placeholder: 'Todas as Escolas / Polos',
-          opcoes: [
-            { id: '', nome: 'Todos os Polos do DF' },
-            { id: 'cemeit', nome: 'CEMEIT DE TAGUATINGA' },
-            { id: 'cef01', nome: 'CEF 01 DE BRASÍLIA' },
-            { id: 'ec10', nome: 'EC 10 DE CEILÂNDIA' },
-            { id: 'cef02', nome: 'CEF 02 DE SOBRADINHO' },
-          ],
+          opcoes: opcoesEscola,
         }}
         aoExportar={handleExportarPrestacaoContas}
         acaoPrimaria={{

@@ -74,13 +74,13 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
   } = useForm<FormNovoPaciente>({
     resolver: zodResolver(formNovoPacienteSchema),
     defaultValues: {
-      instituicao: escolas[0]?.nome || 'CEMEIT DE TAGUATINGA',
+      instituicao: escolas[0]?.nome || '',
       nomeCompleto: '',
       cpf: '',
       dataNascimento: '',
       sexo: '',
       telefone: '',
-      perfilUsuario: 'ALUNO',
+      perfilUsuario: 'ESTUDANTE',
       anoEscolar: '',
       turma: '',
     },
@@ -89,11 +89,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
   const cpfAtual = watch('cpf');
   const perfilAtual = watch('perfilUsuario');
   const instituicaoAtual = watch('instituicao');
-  const ehAluno =
-    perfilAtual === 'ALUNO' ||
-    perfilAtual === 'Aluno' ||
-    perfilAtual === 'Estudante' ||
-    perfilAtual === 'Estudante / Aluno';
+  const ehAluno = perfilAtual === 'ESTUDANTE';
 
   // ─── Busca e Filtragem Inteligente de Instituição (Combobox) ────────────────
   const listaInstituicoes = useMemo(() => {
@@ -101,24 +97,19 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
     escolas.forEach((e) => {
       if (e.nome) mapa.set(e.nome.toUpperCase().trim(), e.nome.trim());
     });
-    ['CEMEIT DE TAGUATINGA', 'CEF 01 DE BRASÍLIA', 'EC 10 DE CEILÂNDIA', 'CEF 02 DE SOBRADINHO'].forEach((nome) => {
-      if (!mapa.has(nome.toUpperCase())) {
-        mapa.set(nome.toUpperCase(), nome);
-      }
-    });
     return Array.from(mapa.values());
   }, [escolas]);
 
-  const [buscaInstituicao, setBuscaInstituicao] = useState(instituicaoAtual || 'CEMEIT DE TAGUATINGA');
+  const [buscaInstituicao, setBuscaInstituicao] = useState(instituicaoAtual || escolas[0]?.nome || '');
   const [menuInstituicaoAberto, setMenuInstituicaoAberto] = useState(false);
   const containerInstituicaoRef = useRef<HTMLDivElement>(null);
   const inputBuscaInstituicaoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (instituicaoAtual && instituicaoAtual !== buscaInstituicao && !menuInstituicaoAberto) {
+    if (instituicaoAtual !== undefined && instituicaoAtual !== buscaInstituicao && !menuInstituicaoAberto) {
       setBuscaInstituicao(instituicaoAtual);
     }
-  }, [instituicaoAtual, menuInstituicaoAberto]);
+  }, [instituicaoAtual, menuInstituicaoAberto, buscaInstituicao]);
 
   const instituicoesFiltradas = useMemo(() => {
     if (!buscaInstituicao.trim()) return listaInstituicoes;
@@ -153,16 +144,17 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
         setValue('cpf', pacienteParaEditar.cpf || '', { shouldValidate: true });
         setValue('dataNascimento', pacienteParaEditar.dataNascimento || '', { shouldValidate: true });
         setValue('sexo', pacienteParaEditar.sexo || 'Feminino', { shouldValidate: true });
-        setValue('instituicao', pacienteParaEditar.escolaNome || 'CEMEIT DE TAGUATINGA', { shouldValidate: true });
-        setBuscaInstituicao(pacienteParaEditar.escolaNome || 'CEMEIT DE TAGUATINGA');
+        setValue('instituicao', pacienteParaEditar.escolaNome || escolas[0]?.nome || '', { shouldValidate: true });
+        setBuscaInstituicao(pacienteParaEditar.escolaNome || escolas[0]?.nome || '');
         setValue('perfilUsuario', pacienteParaEditar.perfil || 'ALUNO', { shouldValidate: true });
         setValue('telefone', pacienteParaEditar.telefone || '', { shouldValidate: true });
         setValue('anoEscolar', '');
         setValue('turma', pacienteParaEditar.turma || '');
         setCpfConsultado((pacienteParaEditar.cpf || '').replace(/\D/g, ''));
       } else {
+        const escolaPadrao = escolas[0]?.nome || '';
         reset({
-          instituicao: escolas[0]?.nome || 'CEMEIT DE TAGUATINGA',
+          instituicao: escolaPadrao,
           nomeCompleto: '',
           cpf: '',
           dataNascimento: '',
@@ -173,7 +165,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           turma: '',
         });
         setCpfConsultado('');
-        setBuscaInstituicao(escolas[0]?.nome || 'CEMEIT DE TAGUATINGA');
+        setBuscaInstituicao(escolaPadrao);
       }
     }
   }, [aberto, pacienteParaEditar, setValue, reset, escolas]);
@@ -228,6 +220,26 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
     }
   }, [cpfAtual, cpfConsultado, aberto, setValue, setError, clearErrors]);
 
+  const resetarFormulario = () => {
+    const escolaPadrao = escolas[0]?.nome || '';
+    reset({
+      instituicao: escolaPadrao,
+      nomeCompleto: '',
+      cpf: '',
+      dataNascimento: '',
+      sexo: '',
+      telefone: '',
+      perfilUsuario: 'ESTUDANTE',
+      anoEscolar: '',
+      turma: '',
+    });
+    setCpfConsultado('');
+    setBuscaInstituicao(escolaPadrao);
+    setErroGeral(null);
+    setErroConsultaCpf(null);
+    setSucessoConsultaCpf(null);
+  };
+
   const onSubmit = async (dados: FormNovoPaciente) => {
     setSalvando(true);
     setErroGeral(null);
@@ -241,7 +253,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
       };
 
       await aoSalvar(dadosSanitizados);
-      reset();
+      resetarFormulario();
       aoFechar();
     } catch (err: any) {
       setErroGeral(err?.message || 'Erro ao cadastrar paciente.');
@@ -254,6 +266,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
     <Modal
       aberto={aberto}
       aoFechar={aoFechar}
+      aoResetar={resetarFormulario}
       titulo={pacienteParaEditar ? 'Editar Dados do Paciente' : 'Cadastrar um Novo Paciente'}
       subtitulo={
         pacienteParaEditar
@@ -295,24 +308,6 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <span>{erroGeral}</span>
-          </div>
-        )}
-
-        {sucessoConsultaCpf && (
-          <div className="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-fade-in">
-            <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-            <span className="font-semibold">{sucessoConsultaCpf}</span>
-          </div>
-        )}
-
-        {erroConsultaCpf && (
-          <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2 animate-fade-in">
-            <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <span>{erroConsultaCpf}</span>
           </div>
         )}
 
@@ -490,6 +485,22 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
                   )}
                 </div>
               </ModalCampo>
+              {erroConsultaCpf && (
+                <div className="mt-1 text-[11px] font-medium text-amber-600 leading-tight flex items-start gap-1 animate-fade-in">
+                  <svg className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span>{erroConsultaCpf}</span>
+                </div>
+              )}
+              {sucessoConsultaCpf && (
+                <div className="mt-1 text-[11px] font-medium text-emerald-600 leading-tight flex items-start gap-1 animate-fade-in">
+                  <svg className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>{sucessoConsultaCpf}</span>
+                </div>
+              )}
             </div>
 
             <div className="md:col-span-3">
@@ -532,9 +543,10 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
             <div className={ehAluno ? 'md:col-span-4' : 'md:col-span-12'}>
               <ModalCampo rotulo="Perfil do Usuário" obrigatorio erro={errors.perfilUsuario?.message}>
                 <select {...register('perfilUsuario')} className={`${ESTILO_SELECT_MODAL} font-semibold uppercase`}>
-                  <option value="ALUNO">ALUNO</option>
-                  <option value="DEPENDENTE">DEPENDENTE</option>
-                  <option value="COMUNIDADE ESCOLAR">COMUNIDADE ESCOLAR</option>
+                  <option value="ESTUDANTE">ESTUDANTE</option>
+                  <option value="PROFESSOR">PROFESSOR</option>
+                  <option value="FUNCIONARIO">FUNCIONÁRIO</option>
+                  <option value="COMUNIDADE">COMUNIDADE</option>
                 </select>
               </ModalCampo>
             </div>

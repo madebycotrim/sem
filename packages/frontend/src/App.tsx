@@ -521,7 +521,7 @@ export function App() {
             aoSelecionarEscolaAtiva={(id) => {
               setEscolaAtivaId(id);
               setToastNotificacao({
-                texto: 'Polo ativo atualizado com sucesso!',
+                texto: id ? 'Instituição ativa atualizada com sucesso!' : 'Instituição desativada com sucesso.',
                 tipo: 'sucesso',
               });
               setTimeout(() => setToastNotificacao(null), 3000);
@@ -535,7 +535,7 @@ export function App() {
           />
         ) : secaoAtiva === 'relatorios' ? (
           /* 6. Relatórios & Prestação de Contas */
-          <Relatorios />
+          <Relatorios escolas={escolasGlobais} />
         ) : secaoAtiva === 'usuarios' ? (
           /* 5. Usuários & Perfis */
           <Usuarios />

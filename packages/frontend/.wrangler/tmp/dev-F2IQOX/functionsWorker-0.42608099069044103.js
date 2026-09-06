@@ -88,7 +88,7 @@ function checkURL2(request, init3) {
 __name(checkURL2, "checkURL");
 var urls2;
 var init_checked_fetch = __esm({
-  "../.wrangler/tmp/bundle-vQbzFQ/checked-fetch.js"() {
+  "../.wrangler/tmp/bundle-2AksXc/checked-fetch.js"() {
     "use strict";
     urls2 = /* @__PURE__ */ new Set();
     __name2(checkURL2, "checkURL");
@@ -26062,19 +26062,44 @@ var init_escola_rotas = __esm({
       const prisma = getPrisma(c.env.DB);
       const escolas = await prisma.escolaLocal.findMany({
         where: { ativo: true },
+        include: {
+          _count: {
+            select: { pacientes: true, atendimentos: true }
+          }
+        },
         orderBy: { nome: "asc" }
       });
       const mapeado = escolas.map((e) => ({
         id: e.id,
         nome: e.nome,
+        cnpj: e.cnpj || void 0,
         regiao: `${e.cidade} / ${e.uf}`,
         endereco: e.endereco,
         diretoriaRegional: e.diretoriaRegional || "N\xE3o informada",
-        alunosMatriculados: e.alunosMatriculados,
+        alunosMatriculados: e._count?.pacientes ?? e.alunosMatriculados,
+        totalAtendimentos: e._count?.atendimentos ?? 0,
         unidadesMoveisEstacionadas: e.unidadesMoveis,
         status: e.statusOperacao
       }));
       return c.json({ dados: mapeado });
+    });
+    rotasEscola.get("/:id", autorizarPerfis(["ADMIN", "TRIAGEM_RECEPCAO", "PROFISSIONAL_SAUDE"]), async (c) => {
+      const id = c.req.param("id");
+      const prisma = getPrisma(c.env.DB);
+      const escola = await prisma.escolaLocal.findUnique({ where: { id } });
+      if (!escola) return c.json({ erro: "Institui\xE7\xE3o n\xE3o encontrada" }, 404);
+      return c.json({
+        dados: {
+          id: escola.id,
+          nome: escola.nome,
+          cnpj: escola.cnpj || "",
+          endereco: escola.endereco,
+          cidade: escola.cidade,
+          uf: escola.uf,
+          diretoriaRegional: escola.diretoriaRegional || "",
+          alunosMatriculados: escola.alunosMatriculados
+        }
+      });
     });
     rotasEscola.post(
       "/",
@@ -26115,6 +26140,54 @@ var init_escola_rotas = __esm({
         }, 201);
       }
     );
+    rotasEscola.put(
+      "/:id",
+      autorizarPerfis(["ADMIN"]),
+      zValidator("json", criarEscolaSchema.partial()),
+      async (c) => {
+        const id = c.req.param("id");
+        const dados = c.req.valid("json");
+        const prisma = getPrisma(c.env.DB);
+        const usuario = c.get("usuario");
+        const escola = await prisma.escolaLocal.update({
+          where: { id },
+          data: {
+            ...dados.nome && { nome: dados.nome },
+            ...dados.endereco && { endereco: dados.endereco },
+            ...dados.cidade && { cidade: dados.cidade },
+            ...dados.uf && { uf: dados.uf },
+            ...dados.cnpj !== void 0 && { cnpj: dados.cnpj },
+            ...dados.diretoriaRegional !== void 0 && { diretoriaRegional: dados.diretoriaRegional }
+          }
+        });
+        await registrarAuditoria(prisma, {
+          userId: usuario.userId,
+          acao: "UPDATE",
+          entidade: "EscolaLocal",
+          entidadeId: escola.id,
+          diffPosterior: { nome: escola.nome },
+          ip: c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for") ?? "127.0.0.1"
+        });
+        return c.json({ mensagem: "Institui\xE7\xE3o atualizada com sucesso", dados: escola });
+      }
+    );
+    rotasEscola.delete("/:id", autorizarPerfis(["ADMIN"]), async (c) => {
+      const id = c.req.param("id");
+      const prisma = getPrisma(c.env.DB);
+      const usuario = c.get("usuario");
+      await prisma.escolaLocal.update({
+        where: { id },
+        data: { ativo: false }
+      });
+      await registrarAuditoria(prisma, {
+        userId: usuario.userId,
+        acao: "DELETE",
+        entidade: "EscolaLocal",
+        entidadeId: id,
+        ip: c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for") ?? "127.0.0.1"
+      });
+      return c.json({ mensagem: "Institui\xE7\xE3o removida com sucesso" });
+    });
   }
 });
 var rotasV1;

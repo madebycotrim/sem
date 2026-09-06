@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { requisicaoApi } from '../servicos/api.ts';
 import { criarEscolaSchema } from '../../compartilhado/index.js';
+import type { EscolaPolo } from './Escolas.tsx';
 import {
   Modal,
   ModalCampo,
@@ -14,6 +15,7 @@ import {
 
 export interface ModalNovaEscolaProps {
   aberto: boolean;
+  escolaParaEditar?: EscolaPolo | null;
   aoFechar: () => void;
   aoSucesso: () => void;
 }
@@ -42,6 +44,7 @@ const formatarCnpj = (valor: string) =>
 
 export const ModalNovaEscola: FC<ModalNovaEscolaProps> = ({
   aberto,
+  escolaParaEditar,
   aoFechar,
   aoSucesso,
 }) => {
@@ -55,19 +58,71 @@ export const ModalNovaEscola: FC<ModalNovaEscolaProps> = ({
     handleSubmit,
     reset,
     setValue,
-    formState: { errors, isSubmitting },
+    watch,
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<FormNovaEscola>({
     resolver: zodResolver(criarEscolaSchema),
-    defaultValues: { alunosMatriculados: 0 },
+    defaultValues: { alunosMatriculados: 0, nome: '', cnpj: '', endereco: '', cidade: '', uf: '' },
   });
 
-  useEffect(() => {
-    if (!aberto) return;
-    reset({ alunosMatriculados: 0 });
+  const nomeAtual = watch('nome');
+  const enderecoAtual = watch('endereco');
+  const cidadeAtual = watch('cidade');
+  const ufAtual = watch('uf');
+
+  const temDadosPreenchidos =
+    isDirty ||
+    !!cnpjExibicao ||
+    !!(nomeAtual && nomeAtual.trim()) ||
+    !!(enderecoAtual && enderecoAtual.trim()) ||
+    !!(cidadeAtual && cidadeAtual.trim()) ||
+    !!(ufAtual && ufAtual.trim());
+
+  const resetarFormulario = () => {
+    reset({ alunosMatriculados: 0, nome: '', cnpj: '', endereco: '', cidade: '', uf: '' });
     setCnpjExibicao('');
     setErroCnpj(null);
     setCnpjConsultado('');
-  }, [aberto, reset]);
+  };
+
+  useEffect(() => {
+    if (aberto) {
+      if (escolaParaEditar) {
+        const partesRegiao = escolaParaEditar.regiao ? escolaParaEditar.regiao.split(' / ') : [];
+        const cidade = partesRegiao[0] || '';
+        const uf = partesRegiao[1] || '';
+        const cnpjLimpo = escolaParaEditar.cnpj ? somenteDigitos(escolaParaEditar.cnpj) : '';
+        const cnpjFormatado = cnpjLimpo ? formatarCnpj(cnpjLimpo) : '';
+
+        setCnpjExibicao(cnpjFormatado);
+        reset({
+          nome: escolaParaEditar.nome,
+          cnpj: cnpjLimpo,
+          endereco: escolaParaEditar.endereco,
+          cidade,
+          uf,
+          alunosMatriculados: escolaParaEditar.alunosMatriculados || 0,
+        });
+
+        if (!escolaParaEditar.cnpj && escolaParaEditar.id) {
+          requisicaoApi<{ dados: { cnpj?: string } }>(`/escolas/${escolaParaEditar.id}`)
+            .then((res) => {
+              if (res?.dados?.cnpj) {
+                const cnpjBuscado = somenteDigitos(res.dados.cnpj);
+                const cnpjFormatadoBuscado = formatarCnpj(cnpjBuscado);
+                setCnpjExibicao(cnpjFormatadoBuscado);
+                setValue('cnpj', cnpjBuscado, { shouldValidate: true });
+              }
+            })
+            .catch(() => {});
+        }
+      } else {
+        resetarFormulario();
+      }
+    } else {
+      resetarFormulario();
+    }
+  }, [aberto, escolaParaEditar]);
 
   const consultarCnpj = async () => {
     const cnpj = somenteDigitos(cnpjExibicao);
@@ -110,11 +165,16 @@ export const ModalNovaEscola: FC<ModalNovaEscolaProps> = ({
 
   const onSubmit = async (dados: FormNovaEscola) => {
     try {
-      await requisicaoApi('/escolas', { metodo: 'POST', corpo: dados });
+      if (escolaParaEditar) {
+        await requisicaoApi(`/escolas/${escolaParaEditar.id}`, { metodo: 'PUT', corpo: dados });
+      } else {
+        await requisicaoApi('/escolas', { metodo: 'POST', corpo: dados });
+      }
+      resetarFormulario();
       aoSucesso();
       aoFechar();
     } catch (erro) {
-      setErroCnpj(erro instanceof Error ? erro.message : 'Não foi possível cadastrar a instituição.');
+      setErroCnpj(erro instanceof Error ? erro.message : 'Não foi possível salvar a instituição.');
     }
   };
 
@@ -122,8 +182,10 @@ export const ModalNovaEscola: FC<ModalNovaEscolaProps> = ({
     <Modal
       aberto={aberto}
       aoFechar={aoFechar}
-      titulo="Nova Instituição"
-      subtitulo="Preencha os dados abaixo para cadastrar um novo polo ou instituição"
+      aoResetar={resetarFormulario}
+      temDadosPreenchidos={temDadosPreenchidos}
+      titulo={escolaParaEditar ? "Editar Instituição" : "Nova Instituição"}
+      subtitulo={escolaParaEditar ? "Altere os dados da instituição conforme necessário" : "Preencha os dados abaixo para cadastrar um novo polo ou instituição"}
       tamanho="xl"
       icone={
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -141,7 +203,7 @@ export const ModalNovaEscola: FC<ModalNovaEscolaProps> = ({
             tipo="submit"
             formId="form-escola"
             variante="primario"
-            rotulo="Salvar Instituição"
+            rotulo={escolaParaEditar ? "Salvar Alterações" : "Salvar Instituição"}
             carregando={isSubmitting}
           />
         </>

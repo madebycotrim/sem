@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { ItemPaciente } from './TabelaPacientes.tsx';
 import { calcularIdade, formatarSubtituloPaciente } from './TabelaPacientes.tsx';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
+import { formatarCpf } from '../servicos/apiCpf.ts';
 
 interface CardHoverPacienteProps {
   paciente: ItemPaciente;
@@ -187,18 +188,12 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
                 </div>
               </div>
 
-              {/* CPF, Prontuário, Autorização */}
-              <div className="grid grid-cols-[1.2fr_1fr_1.3fr] gap-2">
+              {/* CPF e Termo LGPD */}
+              <div className="grid grid-cols-2 gap-2">
                 <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-100/90 flex flex-col">
                   <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">CPF</span>
                   <span className="text-[11px] font-mono font-semibold text-slate-700 truncate mt-0.5">
-                    {paciente.cpf || 'Não inf.'}
-                  </span>
-                </div>
-                <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-100/90 flex flex-col">
-                  <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Prontuário</span>
-                  <span className="text-[11px] font-bold text-[#034b7f] mt-0.5">
-                    {paciente.atendimentosCount} atend.
+                    {paciente.cpf ? formatarCpf(paciente.cpf) : 'Não inf.'}
                   </span>
                 </div>
                 <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-100/90 flex flex-col">
