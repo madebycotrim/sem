@@ -1,4 +1,5 @@
 import { type FC, useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -253,9 +254,9 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
     }
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs transition-opacity duration-200 ease-out font-sans"
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-[2px] transition-opacity duration-200 ease-out font-sans"
       role="dialog"
       aria-modal="true"
       aria-labelledby="titulo-modal-paciente"
@@ -479,9 +480,9 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
             </div>
 
             {/* Linha 2: NOME COMPLETO | CPF (Com Consulta Automática) | DATA NASCIMENTO */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 mb-3.5">
+            <div className="flex flex-col sm:flex-row gap-3.5 mb-3.5">
               {/* Nome Completo do Estudante */}
-              <div className="md:col-span-5">
+              <div className="flex-1 min-w-0">
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   NOME COMPLETO <span className="text-red-500">*</span>
                 </label>
@@ -499,7 +500,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
               </div>
 
               {/* CPF */}
-              <div className="md:col-span-4">
+              <div className="w-full sm:w-[175px] shrink-0">
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   CPF <span className="text-red-500">*</span>
                 </label>
@@ -530,8 +531,8 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
               </div>
 
               {/* Data de Nascimento */}
-              <div className="md:col-span-3">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              <div className="w-full sm:w-[152px] shrink-0">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 whitespace-nowrap">
                   DATA NASCIMENTO <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -546,6 +547,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
                 )}
               </div>
             </div>
+
 
             {/* Linha 3: SEXO | TELEFONE (2 Colunas 50/50) */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
@@ -706,7 +708,8 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

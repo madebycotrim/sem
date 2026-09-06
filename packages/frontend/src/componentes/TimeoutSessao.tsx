@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * Timeout de Sessão por Inatividade.
@@ -112,12 +113,12 @@ export function TimeoutSessao({
 
   if (!mostrarAviso) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[999999] flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px]"
       role="alertdialog"
       aria-modal="true"
-      aria-labelledby="timeout-titulo"
+      aria-labelledby="titulo-timeout-sessao"
       aria-describedby="timeout-descricao"
     >
       <div
@@ -201,6 +202,7 @@ export function TimeoutSessao({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

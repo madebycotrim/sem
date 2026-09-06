@@ -234,7 +234,7 @@ export const GovernancaAuditoria: FC = () => {
                   <td colSpan={6} className="py-20 text-center">
                     <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
                       <h4 className="text-base font-bold text-slate-800 mb-1">
-                        {temAlgumFiltroAtivo ? 'Nenhum log com os filtros do Excel' : 'Nenhum log encontrado'}
+                        {temAlgumFiltroAtivo ? 'Nenhum log corresponde aos filtros aplicados' : 'Nenhum log encontrado'}
                       </h4>
                       <p className="text-xs text-slate-500 mb-4">
                         {temAlgumFiltroAtivo

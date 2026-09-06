@@ -27,6 +27,10 @@ export interface AtendimentosProps {
   aoSincronizar?: () => void;
   estaSincronizando?: boolean;
   itensPendentes?: number;
+  statusSincronizacaoCatraki?: {
+    status: 'sincronizando' | 'sincronizado' | 'erro' | 'ocioso';
+    ultimaSincronizacao?: Date | null;
+  };
 }
 
 export const Atendimentos: FC<AtendimentosProps> = ({
@@ -35,6 +39,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   aoSincronizar,
   estaSincronizando = false,
   itensPendentes = 0,
+  statusSincronizacaoCatraki,
 }) => {
   const [busca, setBusca] = useState('');
   const [filtroEspecialidade, setFiltroEspecialidade] = useState<string>('');
@@ -140,8 +145,9 @@ export const Atendimentos: FC<AtendimentosProps> = ({
           placeholder: 'Todas as Especialidades',
           opcoes: opcoesEspecialidades,
         }}
+        statusSincronizacaoCatraki={statusSincronizacaoCatraki}
         sincronizacao={
-          aoSincronizar
+          aoSincronizar && !statusSincronizacaoCatraki
             ? {
                 aoSincronizar,
                 estaSincronizando,
@@ -247,7 +253,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                 </tr>
               ) : (
                 dadosPaginados.map((item) => (
-                  <tr key={item.id} className="hover:bg-blue-50/40 transition-colors group cursor-pointer border-b border-slate-100 last:border-0">
+                  <tr key={item.id} className="hover:bg-slate-50/70 transition-colors group border-b border-slate-100 last:border-0">
                     <td className="py-3 px-4.5 font-semibold text-slate-900">
                       <div className="flex items-center gap-3">
                         {(() => {
@@ -261,9 +267,11 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                             </div>
                           );
                         })()}
-                        <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight text-xs">
-                          {item.pacienteNome}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-900 uppercase tracking-tight text-xs">
+                            {item.pacienteNome}
+                          </span>
+                        </div>
                       </div>
                     </td>
                     <td className="py-3 px-3.5">

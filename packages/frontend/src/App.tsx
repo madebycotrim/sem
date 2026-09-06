@@ -14,6 +14,7 @@ import { FichaAtendimento } from './paginas/FichaAtendimento.tsx';
 import { TimeoutSessao } from './componentes/TimeoutSessao.tsx';
 import { DrawerHistoricoPaciente } from './componentes/DrawerHistoricoPaciente.tsx';
 import { requisicaoApi } from './servicos/api.ts';
+import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCatraki.ts';
 import { Especialidade, Turno } from '../compartilhado/index.ts';
 
 const ESCOLAS_PADRAO = [
@@ -30,6 +31,15 @@ export function App() {
   const [pacienteSelecionadoParaFicha, setPacienteSelecionadoParaFicha] = useState<ItemPaciente | null>(null);
   const [pacienteHistoricoDrawer, setPacienteHistoricoDrawer] = useState<ItemPaciente | null>(null);
   const [escolaAtivaId, setEscolaAtivaId] = useState('seed-escola-001');
+
+  // Sincronização Automática em Segundo Plano com a API Catraki
+  const [statusSincronizacaoCatraki, setStatusSincronizacaoCatraki] = useState<{
+    status: 'sincronizando' | 'sincronizado' | 'erro' | 'ocioso';
+    ultimaSincronizacao?: Date | null;
+  }>({
+    status: 'ocioso',
+    ultimaSincronizacao: null,
+  });
 
   // Filtros da Visão de Pacientes
   const [buscaPaciente, setBuscaPaciente] = useState('');
@@ -50,8 +60,12 @@ export function App() {
       dataNascimento: '2010-02-15',
       sexo: 'Feminino',
       escolaNome: 'CEMEIT DE TAGUATINGA',
-      termoConsentimentoStatus: 'ACEITO',
+      termoConsentimentoStatus: 'PENDENTE',
       atendimentosCount: 2,
+      perfil: 'Aluno Regular',
+      turma: '9º Ano — Turma B (Matutino)',
+      telefone: '(61) 98452-1190',
+      responsavelNome: 'Maria Helena Dias',
       criadoEm: new Date(Date.now() - 3600000 * 5).toISOString(),
     },
     {
@@ -61,8 +75,12 @@ export function App() {
       dataNascimento: '2012-05-14',
       sexo: 'Masculino',
       escolaNome: 'CEMEIT DE TAGUATINGA',
-      termoConsentimentoStatus: 'ACEITO',
+      termoConsentimentoStatus: 'PENDENTE',
       atendimentosCount: 2,
+      perfil: 'Aluno Regular',
+      turma: '7º Ano — Turma A (Matutino)',
+      telefone: '(61) 99124-8832',
+      responsavelNome: 'Carlos Eduardo Santos',
       criadoEm: new Date(Date.now() - 3600000 * 4).toISOString(),
     },
     {
@@ -72,8 +90,12 @@ export function App() {
       dataNascimento: '2014-09-20',
       sexo: 'Feminino',
       escolaNome: 'CEF 01 DE BRASÍLIA',
-      termoConsentimentoStatus: 'ACEITO',
+      termoConsentimentoStatus: 'PENDENTE',
       atendimentosCount: 1,
+      perfil: 'Aluno Regular',
+      turma: '5º Ano — Turma C (Vespertino)',
+      telefone: '(61) 98233-4019',
+      responsavelNome: 'Patrícia Lima',
       criadoEm: new Date(Date.now() - 3600000 * 2).toISOString(),
     },
     {
@@ -83,8 +105,12 @@ export function App() {
       dataNascimento: '2010-05-01',
       sexo: 'Masculino',
       escolaNome: 'CEMEIT DE TAGUATINGA',
-      termoConsentimentoStatus: 'ACEITO',
+      termoConsentimentoStatus: 'PENDENTE',
       atendimentosCount: 0,
+      perfil: 'Aluno Regular',
+      turma: '1ª Série EM — Turma 102',
+      telefone: '(61) 99650-7712',
+      responsavelNome: 'Roberto Nunes',
       criadoEm: new Date(Date.now() - 3600000 * 6).toISOString(),
     },
     {
@@ -94,8 +120,12 @@ export function App() {
       dataNascimento: '2009-11-27',
       sexo: 'Feminino',
       escolaNome: 'CEMEIT DE TAGUATINGA',
-      termoConsentimentoStatus: 'ACEITO',
+      termoConsentimentoStatus: 'PENDENTE',
       atendimentosCount: 0,
+      perfil: 'Aluno Regular',
+      turma: '2ª Série EM — Turma 201',
+      telefone: '(61) 98115-6204',
+      responsavelNome: 'Farah Shafiq',
       criadoEm: new Date(Date.now() - 3600000 * 7).toISOString(),
     },
     {
@@ -105,8 +135,12 @@ export function App() {
       dataNascimento: '2010-10-06',
       sexo: 'Feminino',
       escolaNome: 'CEMEIT DE TAGUATINGA',
-      termoConsentimentoStatus: 'ACEITO',
+      termoConsentimentoStatus: 'PENDENTE',
       atendimentosCount: 1,
+      perfil: 'Aluno Regular',
+      turma: '9º Ano — Turma A (Matutino)',
+      telefone: '(61) 99341-5580',
+      responsavelNome: 'Luciana dos Reis',
       criadoEm: new Date(Date.now() - 3600000 * 8).toISOString(),
     },
     {
@@ -116,8 +150,12 @@ export function App() {
       dataNascimento: '2015-11-03',
       sexo: 'Masculino',
       escolaNome: 'CEMEIT DE TAGUATINGA',
-      termoConsentimentoStatus: 'ACEITO',
+      termoConsentimentoStatus: 'PENDENTE',
       atendimentosCount: 0,
+      perfil: 'Aluno Regular',
+      turma: '4º Ano — Turma A (Vespertino)',
+      telefone: '(61) 98570-9943',
+      responsavelNome: 'Fernanda Costa Ribeiro',
       criadoEm: new Date(Date.now() - 3600000).toISOString(),
     },
   ]);
@@ -226,6 +264,76 @@ export function App() {
     setModalNovoPacienteAberto(false);
   };
 
+  // Sincronização Automática em Segundo Plano com a API Catraki
+  useEffect(() => {
+    let montado = true;
+
+    const sincronizarEmSegundoPlano = async () => {
+      const cpfs = pacientes
+        .map((p) => sanitizarCpf(p.cpf))
+        .filter((cpf) => cpf.length === 11);
+
+      if (cpfs.length === 0) return;
+
+      setStatusSincronizacaoCatraki((prev) => ({ ...prev, status: 'sincronizando' }));
+
+      try {
+        const resultado = await verificarAutorizacoesEmLote(cpfs);
+        if (!montado) return;
+
+        if (resultado.success && resultado.results && Object.keys(resultado.results).length > 0) {
+          setPacientes((listaAtual) =>
+            listaAtual.map((p) => {
+              const cpfLimpo = sanitizarCpf(p.cpf);
+              const itemCatraki = resultado.results[cpfLimpo];
+
+              if (!itemCatraki) return p;
+
+              const novoStatus = itemCatraki.authorized
+                ? ('ACEITO' as const)
+                : ('PENDENTE' as const);
+
+              return {
+                ...p,
+                termoConsentimentoStatus: novoStatus,
+                codigoValidacaoCatraki: itemCatraki.authorized ? itemCatraki.validation_code : undefined,
+                assinadoEmCatraki: itemCatraki.authorized ? itemCatraki.signed_at : undefined,
+              };
+            })
+          );
+
+          setStatusSincronizacaoCatraki({
+            status: 'sincronizado',
+            ultimaSincronizacao: new Date(),
+          });
+        } else {
+          setStatusSincronizacaoCatraki((prev) => ({
+            status: 'sincronizado',
+            ultimaSincronizacao: prev.ultimaSincronizacao || new Date(),
+          }));
+        }
+      } catch (e) {
+        if (montado) {
+          setStatusSincronizacaoCatraki((prev) => ({
+            status: prev.ultimaSincronizacao ? 'sincronizado' : 'erro',
+            ultimaSincronizacao: prev.ultimaSincronizacao,
+          }));
+        }
+      }
+    };
+
+    // Executa imediatamente em segundo plano
+    sincronizarEmSegundoPlano();
+
+    // Sincroniza periodicamente a cada 60 segundos
+    const intervalo = setInterval(sincronizarEmSegundoPlano, 60000);
+
+    return () => {
+      montado = false;
+      clearInterval(intervalo);
+    };
+  }, [pacientes.length]);
+
   const handleExcluirPaciente = (paciente: ItemPaciente) => {
     setPacientes((prev) => prev.filter((p) => p.id !== paciente.id));
     setToastNotificacao({
@@ -328,6 +436,7 @@ export function App() {
                 rotulo: 'Novo Paciente',
                 aoClicar: () => setModalNovoPacienteAberto(true),
               }}
+              statusSincronizacaoCatraki={statusSincronizacaoCatraki}
               fixo={true}
             />
 
@@ -374,6 +483,7 @@ export function App() {
           /* 3. Fichas de Atendimento (Histórico) */
           <Atendimentos
             atendimentos={atendimentos}
+            statusSincronizacaoCatraki={statusSincronizacaoCatraki}
             aoNovoAtendimento={() => {
               setModoNovaFicha(true);
               setPacienteSelecionadoParaFicha(null);

@@ -51,43 +51,59 @@ export const Paginacao: FC<PaginacaoProps> = ({
     ];
   }, [paginaAtual, totalPaginas]);
 
+  const paginaInicio = (paginaAtual - 1) * 10 + 1;
+  const paginaFim = Math.min(paginaAtual * 10, totalRegistros);
+
   return (
     <div
-      className={`flex items-center justify-between text-xs text-slate-500 select-none py-2 px-3 ${className}`}
+      className={`flex items-center justify-between select-none px-4 py-3 ${className}`}
     >
-      {/* Lado Esquerdo: Total de Registros */}
-      <div className="text-[12.5px] text-slate-500 font-normal">
-        Total de <span className="font-bold text-slate-800">{totalRegistros}</span> registros
-      </div>
+      {/* Lado Esquerdo: Info de registros */}
+      <p className="text-xs tabular-nums" style={{ color: '#6b7280' }}>
+        Mostrando{' '}
+        <span className="font-medium" style={{ color: '#034b7f' }}>{paginaInicio}–{paginaFim}</span>
+        {' '}de{' '}
+        <span className="font-medium" style={{ color: '#034b7f' }}>{totalRegistros}</span>
+        {' '}registros
+      </p>
 
-      {/* Lado Direito: Navegação de Páginas */}
-      <div className="flex items-center gap-1">
-        {/* Primeira Página (<<) */}
+      {/* Lado Direito: Navegação */}
+      <div className="flex items-center gap-0.5">
+        {/* Primeira Página */}
         <button
           type="button"
           onClick={() => aoMudarPagina(1)}
           disabled={paginaAtual <= 1}
-          className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer disabled:cursor-not-allowed"
+          className="h-7 w-7 flex items-center justify-center rounded transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          style={{ color: '#034b7f' }}
+          onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e8f4f9'; } }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'; }}
           title="Primeira página"
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <polyline points="11 17 6 12 11 7" />
             <polyline points="18 17 13 12 18 7" />
           </svg>
         </button>
 
-        {/* Página Anterior (<) */}
+        {/* Página Anterior */}
         <button
           type="button"
           onClick={() => aoMudarPagina(Math.max(1, paginaAtual - 1))}
           disabled={paginaAtual <= 1}
-          className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer disabled:cursor-not-allowed"
+          className="h-7 w-7 flex items-center justify-center rounded transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          style={{ color: '#034b7f' }}
+          onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e8f4f9'; } }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'; }}
           title="Página anterior"
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
+
+        {/* Separador visual */}
+        <div className="w-px h-4 mx-1.5" style={{ backgroundColor: '#d0e9f3' }} />
 
         {/* Números das Páginas */}
         {paginasVisiveis.map((item, idx) => {
@@ -95,9 +111,10 @@ export const Paginacao: FC<PaginacaoProps> = ({
             return (
               <span
                 key={`reticencias-${idx}`}
-                className="w-7 h-7 flex items-center justify-center text-slate-400 text-xs font-semibold select-none"
+                className="h-7 w-7 flex items-center justify-center text-xs select-none"
+                style={{ color: '#74c4d7' }}
               >
-                •••
+                ···
               </span>
             );
           }
@@ -110,39 +127,49 @@ export const Paginacao: FC<PaginacaoProps> = ({
               key={`pagina-${numPagina}`}
               type="button"
               onClick={() => aoMudarPagina(numPagina)}
-              className={`w-7 h-7 flex items-center justify-center rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
-                estaAtiva
-                  ? 'bg-[#1d63ff] text-white shadow-2xs'
-                  : 'text-slate-600 hover:text-blue-600 hover:bg-slate-100'
-              }`}
+              className="h-7 min-w-[28px] px-1.5 flex items-center justify-center rounded text-xs font-medium transition-all cursor-pointer"
+              style={estaAtiva
+                ? { backgroundColor: '#034b7f', color: '#ffffff', boxShadow: '0 1px 3px rgba(3,75,127,0.3)' }
+                : { color: '#14438f' }
+              }
+              onMouseEnter={e => { if (!estaAtiva) { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e8f4f9'; } }}
+              onMouseLeave={e => { if (!estaAtiva) { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'; } }}
             >
               {numPagina}
             </button>
           );
         })}
 
-        {/* Próxima Página (>) */}
+        <div className="w-px h-4 mx-1.5" style={{ backgroundColor: '#d0e9f3' }} />
+
+        {/* Próxima Página */}
         <button
           type="button"
           onClick={() => aoMudarPagina(Math.min(totalPaginas, paginaAtual + 1))}
           disabled={paginaAtual >= totalPaginas}
-          className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer disabled:cursor-not-allowed"
+          className="h-7 w-7 flex items-center justify-center rounded transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          style={{ color: '#034b7f' }}
+          onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e8f4f9'; } }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'; }}
           title="Próxima página"
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
 
-        {/* Última Página (>>) */}
+        {/* Última Página */}
         <button
           type="button"
           onClick={() => aoMudarPagina(totalPaginas)}
           disabled={paginaAtual >= totalPaginas}
-          className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer disabled:cursor-not-allowed"
+          className="h-7 w-7 flex items-center justify-center rounded transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          style={{ color: '#034b7f' }}
+          onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e8f4f9'; } }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'; }}
           title="Última página"
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <polyline points="13 17 18 12 13 7" />
             <polyline points="6 17 11 12 6 7" />
           </svg>

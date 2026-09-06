@@ -260,7 +260,7 @@ export const Usuarios: FC = () => {
                 </tr>
               ) : (
                 dadosPaginados.map((u) => (
-                  <tr key={u.id} className="hover:bg-blue-50/40 transition-colors group cursor-pointer border-b border-slate-100 last:border-0">
+                  <tr key={u.id} className="hover:bg-slate-50/70 transition-colors group border-b border-slate-100 last:border-0">
                     <td className="py-3 px-4.5 font-semibold text-slate-900">
                       <div className="flex items-center gap-3">
                         {(() => {
@@ -275,7 +275,7 @@ export const Usuarios: FC = () => {
                           );
                         })()}
                         <div className="flex flex-col">
-                          <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight text-xs">
+                          <span className="font-medium text-slate-900 uppercase tracking-tight text-xs">
                             {u.nome}
                           </span>
                           <span className="text-[11px] text-slate-500 font-normal">

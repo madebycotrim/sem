@@ -41,7 +41,13 @@ export interface CabecalhoPaginaProps {
     opcoes: OpcaoSeletor[];
   };
 
-  /** Botão verde de sincronização Catraki */
+  /** Indicador de sincronização automática em segundo plano com a API Catraki */
+  statusSincronizacaoCatraki?: {
+    status: 'sincronizando' | 'sincronizado' | 'erro' | 'ocioso';
+    ultimaSincronizacao?: Date | null;
+  };
+
+  /** Botão de sincronização manual legado (opcional) */
   sincronizacao?: {
     aoSincronizar: () => void;
     estaSincronizando?: boolean;
@@ -74,6 +80,7 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
   filtroAvisos,
   seletor,
   seletorSecundario,
+  statusSincronizacaoCatraki,
   sincronizacao,
   aoExportar,
   acaoPrimaria,
@@ -85,6 +92,7 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
     filtroAvisos ||
     seletor ||
     seletorSecundario ||
+    statusSincronizacaoCatraki ||
     sincronizacao ||
     aoExportar ||
     acaoPrimaria ||
@@ -98,13 +106,14 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
           : ''
       }`}
     >
-      {/* ─── Linha 1: Título e Subtítulo Corporativo Catraki ─────────────────── */}
-      <div className="flex flex-col">
-        <h1 className="text-2xl sm:text-[28px] font-extrabold tracking-tight text-[#0b2545] leading-tight font-sans">
+      {/* ─── Linha 1: Título e Subtítulo Corporativo ────────────────────────── */}
+      <div className="flex flex-col gap-0.5">
+        <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight leading-tight font-sans" style={{ color: '#034b7f' }}>
           {titulo}
         </h1>
         {subtitulo && (
-          <p className="text-[11px] font-bold tracking-wider text-slate-400 uppercase mt-0.5 font-sans">
+          <p className="text-[10.5px] font-semibold tracking-widest uppercase mt-0.5 font-sans flex items-center gap-1.5" style={{ color: '#74c4d7' }}>
+            <span className="inline-block w-1 h-1 rounded-full" style={{ backgroundColor: '#74c4d7' }} />
             {subtitulo}
           </p>
         )}
@@ -127,7 +136,18 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
                 value={busca.valor}
                 onChange={(e) => busca.aoMudar(e.target.value)}
                 placeholder={busca.placeholder || 'Buscar por nome ou CPF...'}
-                className="w-full h-10.5 pl-10 pr-9 text-[13px] bg-white border border-slate-200/90 rounded-2xl text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all shadow-2xs"
+                className="w-full h-10 pl-10 pr-9 text-[13px] bg-white border rounded-xl text-slate-700 placeholder-slate-400 focus:outline-none transition-all shadow-sm"
+                style={{
+                  borderColor: '#d0e9f3',
+                }}
+                onFocus={e => {
+                  e.target.style.borderColor = '#034b7f';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(3,75,127,0.08)';
+                }}
+                onBlur={e => {
+                  e.target.style.borderColor = '#d0e9f3';
+                  e.target.style.boxShadow = '0 1px 2px rgba(0,0,0,0.04)';
+                }}
               />
               {busca.valor && (
                 <button
@@ -179,7 +199,8 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
                 <select
                   value={seletor.valor}
                   onChange={(e) => seletor.aoMudar(e.target.value)}
-                  className="appearance-none h-10.5 pl-3 pr-8 text-xs font-medium bg-white border border-slate-200 rounded-2xl text-slate-700 hover:bg-slate-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
+                  className="appearance-none h-10 pl-3 pr-8 text-xs font-medium bg-white border rounded-xl text-slate-700 hover:bg-slate-50 focus:outline-none transition-all cursor-pointer shadow-sm"
+                  style={{ borderColor: '#d0e9f3', color: '#14438f' }}
                 >
                   <option value="">{seletor.placeholder}</option>
                   {seletor.opcoes.map((opc) => (
@@ -202,7 +223,8 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
                 <select
                   value={seletorSecundario.valor}
                   onChange={(e) => seletorSecundario.aoMudar(e.target.value)}
-                  className="appearance-none h-10.5 pl-3 pr-8 text-xs font-medium bg-white border border-slate-200 rounded-2xl text-slate-700 hover:bg-slate-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
+                  className="appearance-none h-10 pl-3 pr-8 text-xs font-medium bg-white border rounded-xl text-slate-700 hover:bg-slate-50 focus:outline-none transition-all cursor-pointer shadow-sm"
+                  style={{ borderColor: '#d0e9f3', color: '#14438f' }}
                 >
                   <option value="">{seletorSecundario.placeholder}</option>
                   {seletorSecundario.opcoes.map((opc) => (
@@ -222,14 +244,54 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
             {/* Ações Extras Personalizadas */}
             {acoesExtras}
 
-            {/* Botão Sincronizar Catraki */}
-            {sincronizacao && (
+            {/* Indicador Discreto de Sincronização em Segundo Plano com o Catraki */}
+            {statusSincronizacaoCatraki && (
+              <div
+                className="flex items-center justify-center select-none px-1 text-slate-400 hover:text-slate-600 transition-colors cursor-default"
+                title={
+                  statusSincronizacaoCatraki.status === 'sincronizando'
+                    ? 'Sincronizando termos de consentimento com o Catraki...'
+                    : statusSincronizacaoCatraki.status === 'erro'
+                    ? 'Catraki Offline'
+                    : statusSincronizacaoCatraki.ultimaSincronizacao
+                    ? `Sincronizado automaticamente com o Catraki às ${statusSincronizacaoCatraki.ultimaSincronizacao.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+                    : 'Sincronizado com o Catraki'
+                }
+              >
+                {statusSincronizacaoCatraki.status === 'sincronizando' ? (
+                  <svg className="w-4 h-4 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : statusSincronizacaoCatraki.status === 'erro' ? (
+                  <svg className="w-4 h-4 text-amber-500 opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                    <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+                    <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+                    <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
+                    <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                    <line x1="12" y1="20" x2="12.01" y2="20" strokeWidth="2.5" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-emerald-500 hover:text-emerald-600 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                    <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                    <line x1="12" y1="20" x2="12.01" y2="20" strokeWidth="2.5" />
+                  </svg>
+                )}
+              </div>
+            )}
+
+            {/* Botão Sincronizar Catraki (Manual Legado) */}
+            {sincronizacao && !statusSincronizacaoCatraki && (
               <button
                 type="button"
                 onClick={sincronizacao.aoSincronizar}
                 disabled={sincronizacao.estaSincronizando}
-                className="flex items-center gap-1.5 h-10.5 px-3.5 text-xs font-semibold rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer shadow-2xs whitespace-nowrap"
-                title="Sincronizar dados com o Catraki"
+                className="h-10.5 w-10.5 flex items-center justify-center text-slate-500 bg-white border border-slate-200/90 rounded-2xl hover:bg-slate-50 hover:text-emerald-600 transition-all shadow-2xs active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+                title={sincronizacao.rotulo || 'Sincronizar com o Catraki'}
               >
                 {sincronizacao.estaSincronizando ? (
                   <svg className="w-4 h-4 animate-spin text-emerald-600" viewBox="0 0 24 24" fill="none">
@@ -237,15 +299,12 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
                 ) : (
-                  <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                    <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                    <line x1="12" y1="20" x2="12.01" y2="20" strokeWidth="2.5" />
                   </svg>
-                )}
-                <span>{sincronizacao.rotulo || 'Sincronizar Catraki'}</span>
-                {(sincronizacao.itensPendentes ?? 0) > 0 && (
-                  <span className="bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
-                    {sincronizacao.itensPendentes}
-                  </span>
                 )}
               </button>
             )}
@@ -272,7 +331,13 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
                 type="button"
                 onClick={acaoPrimaria.aoClicar}
                 disabled={acaoPrimaria.desabilitado}
-                className="h-10.5 flex items-center gap-2 px-4.5 text-xs font-bold text-white bg-[#0066ff] hover:bg-[#0052cc] active:bg-[#0041a8] rounded-2xl shadow-xs hover:shadow-md hover:shadow-blue-500/20 active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer whitespace-nowrap"
+                className="h-10 flex items-center gap-2 px-5 text-xs font-semibold text-white rounded-xl shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer whitespace-nowrap"
+                style={{
+                  background: 'linear-gradient(135deg, #034b7f 0%, #14438f 100%)',
+                  boxShadow: '0 2px 8px rgba(3,75,127,0.25)',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 16px rgba(3,75,127,0.35)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 2px 8px rgba(3,75,127,0.25)'; }}
               >
                 {acaoPrimaria.icone || (
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">

@@ -23,7 +23,7 @@ const colunas: ConfiguracaoColuna<TestItem>[] = [
     id: 'termoStatus',
     rotulo: 'Autorização',
     tipo: 'opcao',
-    formatarRotulo: (val) => (val === 'ACEITO' ? 'Autorizado' : 'Pendente'),
+    formatarRotulo: (val) => (val === 'ACEITO' ? 'Autorizado' : 'Não Autorizado'),
   },
 ];
 
@@ -68,6 +68,6 @@ describe('Sistema de Filtro e Ordenação Estilo Excel', () => {
   it('deve aplicar formatação de rótulos nos valores de opção', () => {
     const config = colunas.find((c) => c.id === 'termoStatus');
     expect(config?.formatarRotulo?.('ACEITO')).toBe('Autorizado');
-    expect(config?.formatarRotulo?.('PENDENTE')).toBe('Pendente');
+    expect(config?.formatarRotulo?.('PENDENTE')).toBe('Não Autorizado');
   });
 });

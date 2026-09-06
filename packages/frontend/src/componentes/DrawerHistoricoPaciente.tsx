@@ -1,4 +1,5 @@
 import { type FC, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { ItemPaciente } from './TabelaPacientes.tsx';
 
 export interface ItemHistoricoAtendimento {
@@ -122,19 +123,20 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
   const historico = obterHistoricoDoPaciente(paciente);
   const totalRegistros = historico.length;
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="drawer-titulo">
-      {/* Backdrop com desfoque suave */}
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] overflow-hidden font-sans" role="dialog" aria-modal="true" aria-labelledby="drawer-titulo">
+      {/* Overlay Escuro com Animação Suave */}
       <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-250 ease-out animate-fade-in"
+        className="fixed inset-0 bg-slate-900/50 backdrop-blur-[2px] transition-opacity duration-250 ease-out animate-fade-in"
         onClick={aoFechar}
-        aria-hidden="true"
       />
 
-      {/* Painel Lateral Drawer à Direita */}
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+      {/* Painel Lateral Deslizante */}
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-6 sm:pl-10">
         <aside
-          className="w-screen max-w-md sm:max-w-lg bg-slate-50/95 backdrop-blur-md border-l border-slate-200/90 shadow-2xl flex flex-col animate-drawer"
+          className="w-screen max-w-md sm:max-w-lg bg-slate-50 border-l border-slate-200/90 shadow-2xl flex flex-col animate-drawer"
+          role="dialog"
+          aria-labelledby="drawer-titulo"
         >
           {/* ─── Cabeçalho do Drawer ────────────────────────────────────────── */}
           <div className="px-5 py-4 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0">
@@ -374,6 +376,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
           </div>
         </aside>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

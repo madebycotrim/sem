@@ -44,7 +44,7 @@ export function CabecalhoColunaExcel<T>({
   const atualizarPosicao = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    const larguraPopover = 280; // 70-72 tailwind width (aprox 280px)
+    const larguraPopover = 290;
 
     let left = rect.left;
     if (alinhamento === 'right') {
@@ -60,10 +60,10 @@ export function CabecalhoColunaExcel<T>({
       left = padding;
     }
 
-    let top = rect.bottom + 6;
+    let top = rect.bottom + 4;
     // Se estiver muito próximo da base da tela, posicionar acima do botão
-    if (top + 340 > window.innerHeight && rect.top > 350) {
-      top = rect.top - 340;
+    if (top + 360 > window.innerHeight && rect.top > 370) {
+      top = rect.top - 360;
     }
 
     setPosicaoPopover({ top, left });
@@ -116,7 +116,7 @@ export function CabecalhoColunaExcel<T>({
 
   // Filtra a lista de valores únicos pela busca interna do popover
   const valoresFiltrados = valoresUnicos.filter((v) =>
-    v.rotuloExibicao.toLowerCase().includes(buscaValor.trim().toLowerCase())
+    (v.rotuloExibicao || '(Vazio)').toLowerCase().includes(buscaValor.trim().toLowerCase())
   );
 
   const todosSelecionados = !selecaoAtual || selecaoAtual.size === valoresUnicos.length;
@@ -135,121 +135,118 @@ export function CabecalhoColunaExcel<T>({
 
   const rotuloAsc =
     tipo === 'numero'
-      ? 'Classificar do Menor ao Maior (1 → 9)'
+      ? 'Classificar do Menor para o Maior'
       : tipo === 'data'
-      ? 'Classificar do Mais Antigo ao Mais Recente'
+      ? 'Classificar do Mais Antigo para o Mais Recente'
       : 'Classificar de A a Z';
 
   const rotuloDesc =
     tipo === 'numero'
-      ? 'Classificar do Maior ao Menor (9 → 1)'
+      ? 'Classificar do Maior para o Menor'
       : tipo === 'data'
-      ? 'Classificar do Mais Recente ao Mais Antigo'
+      ? 'Classificar do Mais Recente para o Mais Antigo'
       : 'Classificar de Z a A';
+
+  const tooltipTexto =
+    filtroAtivo && estaOrdenado
+      ? `Filtrado e ordenado (${direcaoOrdenacao === 'asc' ? 'crescente' : 'decrescente'}) por "${rotulo}"`
+      : filtroAtivo
+      ? `Filtro ativo na coluna "${rotulo}"`
+      : estaOrdenado
+      ? `Classificado (${direcaoOrdenacao === 'asc' ? 'crescente' : 'decrescente'}) por "${rotulo}"`
+      : `Classificar e filtrar por "${rotulo}"`;
 
   return (
     <th
       scope="col"
-      className={`py-3 px-3 font-bold text-slate-600 relative select-none text-left ${
-        alinhamento === 'right' ? 'text-right' : alinhamento === 'center' ? 'text-center' : ''
+      className={`py-2.5 px-3 font-bold text-slate-700 relative select-none ${
+        alinhamento === 'right' ? 'text-right' : alinhamento === 'center' ? 'text-center' : 'text-left'
       } ${className}`}
     >
-      <div
-        className={`flex items-center gap-1.5 ${
-          alinhamento === 'right'
-            ? 'justify-end'
-            : alinhamento === 'center'
-            ? 'justify-center'
-            : 'justify-start'
-        }`}
-      >
-        {/* Botão de Trigger Principal */}
+      <div className="w-full flex items-center justify-between">
+        {/* Cabeçalho com Gatilho Discreto de Filtro */}
         <button
           ref={triggerRef}
           type="button"
           onClick={abrirMenu}
-          className={`group inline-flex items-center gap-1.5 py-1 px-1.5 -mx-1.5 rounded-2xl text-[11px] font-bold tracking-wider uppercase transition-all cursor-pointer ${
+          className={`group w-full flex items-center justify-between gap-2 py-1 text-[11px] font-bold tracking-wider uppercase transition-colors cursor-pointer select-none ${
             aberto
-              ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200 shadow-2xs'
+              ? 'text-slate-900'
               : filtroAtivo || estaOrdenado
-              ? 'text-blue-700 bg-blue-50/80 hover:bg-blue-100 ring-1 ring-blue-200/60'
-              : 'hover:bg-slate-100/80 hover:text-slate-900 text-slate-600'
+              ? 'text-slate-900'
+              : 'text-slate-600 hover:text-slate-950'
           }`}
-          title={`Opções de filtro e ordenação estilo Excel para "${rotulo}"`}
+          title={tooltipTexto}
         >
-          {iconeExtra}
-          <span>{rotulo}</span>
+          <span className="flex items-center gap-1.5 truncate">
+            {iconeExtra}
+            <span className="truncate">{rotulo}</span>
+          </span>
 
-          {/* Indicador de Status / Ícones */}
-          <div className="inline-flex items-center gap-0.5 shrink-0 ml-0.5">
-            {/* Ícone de Ordenação Ativa */}
+          {/* Ícone de Filtro (Funil) direto, sem círculos ou caixas */}
+          <div className="flex items-center gap-1 shrink-0 ml-1">
+            <svg
+              className={`w-3 h-3 transition-colors ${
+                filtroAtivo
+                  ? 'text-slate-900 fill-slate-900'
+                  : aberto
+                  ? 'text-slate-900'
+                  : 'text-slate-400 group-hover:text-slate-700'
+              }`}
+              viewBox="0 0 24 24"
+              fill={filtroAtivo ? 'currentColor' : 'none'}
+              stroke="currentColor"
+              strokeWidth={filtroAtivo ? '0' : '2'}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              {filtroAtivo ? (
+                <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+              ) : (
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              )}
+            </svg>
+
+            {/* Indicador de Ordenação (se houver) */}
             {estaOrdenado && (
-              <span className="text-blue-600 font-bold text-[11px]">
-                {direcaoOrdenacao === 'asc' ? (
-                  <svg className="w-3 h-3 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="18 15 12 9 6 15" />
-                  </svg>
-                ) : (
-                  <svg className="w-3 h-3 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                )}
+              <span className="text-[10px] font-black leading-none text-slate-900">
+                {direcaoOrdenacao === 'asc' ? '▲' : '▼'}
               </span>
             )}
-
-            {/* Ícone de Filtro Ativo ou Padrão Excel (Funil) */}
-            {filtroAtivo ? (
-              <span className="relative flex items-center justify-center p-0.5 rounded-2xl bg-blue-600 text-white shadow-2xs" title="Filtro ativo">
-                <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-                </svg>
-              </span>
-            ) : !desabilitarFiltro ? (
-              <svg
-                className={`w-3 h-3 transition-colors ${
-                  aberto ? 'text-blue-600' : 'text-slate-400 group-hover:text-blue-600'
-                }`}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-              </svg>
-            ) : null}
           </div>
         </button>
       </div>
 
-      {/* ─── Popover em React Portal com Z-INDEX Máximo Global ───────────────── */}
+      {/* ─── Menu Popover com Portal Flutuante ──────────────────────────────── */}
       {aberto &&
         createPortal(
           <div
             ref={popoverRef}
-            className="fixed bg-white rounded-2xl border border-slate-200/95 shadow-2xl p-3 text-xs font-normal normal-case animate-dropdown origin-top select-none ring-1 ring-black/5"
+            className="fixed bg-white rounded-xl border border-slate-300 shadow-2xl p-3 text-xs font-normal normal-case animate-dropdown origin-top select-none ring-1 ring-black/10"
             style={{
               top: `${posicaoPopover.top}px`,
               left: `${posicaoPopover.left}px`,
-              width: '280px',
+              width: '290px',
               zIndex: 999999,
             }}
           >
-            {/* Cabeçalho do Popover */}
+            {/* Cabeçalho do Menu */}
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
-              <div className="flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-                </svg>
-                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                  Filtro: {rotulo}
+              <div className="flex items-center gap-1.5 truncate">
+                <div className="w-5 h-5 rounded bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+                  </svg>
+                </div>
+                <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider truncate">
+                  {rotulo}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setAberto(false)}
-                className="p-1 text-slate-400 hover:text-slate-700 rounded-2xl hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Fechar menu"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <line x1="18" y1="6" x2="6" y2="18" />
@@ -258,26 +255,23 @@ export function CabecalhoColunaExcel<T>({
               </button>
             </div>
 
-            {/* 1. SEÇÃO DE ORDENAÇÃO */}
+            {/* 1. SEÇÃO DE CLASSIFICAÇÃO / ORDENAÇÃO */}
             {!desabilitarOrdenacao && (
-              <div className="space-y-1 mb-2.5 pb-2.5 border-b border-slate-100">
+              <div className="space-y-0.5 mb-2.5 pb-2 border-b border-slate-100">
                 <button
                   type="button"
                   onClick={() => {
                     estado.definirOrdenacao(colunaId, 'asc');
                   }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-2xl text-xs font-medium transition-colors text-left cursor-pointer ${
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
                     estaOrdenado && direcaoOrdenacao === 'asc'
-                      ? 'bg-blue-50 text-blue-700 font-bold'
-                      : 'text-slate-700 hover:bg-slate-50'
+                      ? 'bg-slate-100 text-slate-900 font-bold border border-slate-300'
+                      : 'text-slate-700 hover:bg-slate-100/80 border border-transparent'
                   }`}
                 >
-                  <svg className="w-3.5 h-3.5 text-blue-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                    <path d="m3 8 4-4 4 4" />
-                    <path d="M7 4v16" />
-                    <path d="M15 4h5l-5 6h5" />
-                    <path d="M15 20v-6h5v6" />
-                  </svg>
+                  <div className="w-4 h-4 flex items-center justify-center text-slate-700 shrink-0 font-bold text-[11px]">
+                    {tipo === 'numero' ? '1→9' : tipo === 'data' ? '⏳' : 'A→Z'}
+                  </div>
                   <span className="truncate">{rotuloAsc}</span>
                 </button>
 
@@ -286,18 +280,15 @@ export function CabecalhoColunaExcel<T>({
                   onClick={() => {
                     estado.definirOrdenacao(colunaId, 'desc');
                   }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-2xl text-xs font-medium transition-colors text-left cursor-pointer ${
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
                     estaOrdenado && direcaoOrdenacao === 'desc'
-                      ? 'bg-blue-50 text-blue-700 font-bold'
-                      : 'text-slate-700 hover:bg-slate-50'
+                      ? 'bg-slate-100 text-slate-900 font-bold border border-slate-300'
+                      : 'text-slate-700 hover:bg-slate-100/80 border border-transparent'
                   }`}
                 >
-                  <svg className="w-3.5 h-3.5 text-blue-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                    <path d="m3 16 4 4 4-4" />
-                    <path d="M7 20V4" />
-                    <path d="M15 10V4h5v6" />
-                    <path d="M15 14h5l-5 6h5" />
-                  </svg>
+                  <div className="w-4 h-4 flex items-center justify-center text-slate-700 shrink-0 font-bold text-[11px]">
+                    {tipo === 'numero' ? '9→1' : tipo === 'data' ? '⌛' : 'Z→A'}
+                  </div>
                   <span className="truncate">{rotuloDesc}</span>
                 </button>
 
@@ -305,19 +296,33 @@ export function CabecalhoColunaExcel<T>({
                   <button
                     type="button"
                     onClick={() => estado.limparOrdenacao()}
-                    className="w-full flex items-center gap-2 px-2.5 py-1 text-[11px] text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-2xl transition-colors text-left cursor-pointer"
+                    className="w-full flex items-center gap-2 px-2.5 py-1 text-[11px] text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left cursor-pointer"
                   >
                     <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <line x1="18" y1="6" x2="6" y2="18" />
                       <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
-                    <span>Limpar ordenação</span>
+                    <span>Limpar classificação</span>
+                  </button>
+                )}
+
+                {filtroAtivo && (
+                  <button
+                    type="button"
+                    onClick={() => estado.limparFiltroColuna(colunaId)}
+                    className="w-full flex items-center gap-2 px-2.5 py-1 text-[11px] text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left cursor-pointer font-semibold"
+                  >
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                      <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" strokeWidth="2" />
+                    </svg>
+                    <span>Limpar filtro de &quot;{rotulo}&quot;</span>
                   </button>
                 )}
               </div>
             )}
 
-            {/* 2. SEÇÃO DE FILTRAGEM POR VALORES */}
+            {/* 2. SEÇÃO DE FILTRAGEM DE VALORES ÚNICOS */}
             {!desabilitarFiltro && (
               <div>
                 {/* Campo de Busca Rápida de Valores */}
@@ -326,8 +331,8 @@ export function CabecalhoColunaExcel<T>({
                     type="text"
                     value={buscaValor}
                     onChange={(e) => setBuscaValor(e.target.value)}
-                    placeholder="Pesquisar valor..."
-                    className="w-full pl-7 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 placeholder-slate-400 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-100 transition-all outline-none"
+                    placeholder="Pesquisar..."
+                    className="w-full pl-7 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-md text-slate-800 placeholder-slate-400 focus:bg-white focus:border-slate-400 focus:ring-1 focus:ring-slate-200 transition-all outline-none"
                   />
                   <svg
                     className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2.5 pointer-events-none"
@@ -354,7 +359,7 @@ export function CabecalhoColunaExcel<T>({
                 </div>
 
                 {/* Checkbox: Selecionar Tudo */}
-                <div className="py-1 px-1.5 mb-1 bg-slate-50/80 rounded-2xl border border-slate-100 flex items-center justify-between text-xs">
+                <div className="py-1 px-2 mb-1 bg-slate-100/80 rounded-md border border-slate-200 flex items-center justify-between text-xs">
                   <label className="flex items-center gap-2 cursor-pointer select-none font-semibold text-slate-700">
                     <input
                       type="checkbox"
@@ -363,20 +368,20 @@ export function CabecalhoColunaExcel<T>({
                         if (el) el.indeterminate = Boolean(selecaoParcial);
                       }}
                       onChange={toggleSelectAll}
-                      className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 focus:ring-1 cursor-pointer"
+                      className="w-3.5 h-3.5 rounded border-slate-300 text-slate-800 focus:ring-slate-400 focus:ring-1 accent-slate-800 cursor-pointer"
                     />
                     <span>(Selecionar Tudo)</span>
                   </label>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    {valoresUnicos.length} valores
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    {valoresUnicos.length} itens
                   </span>
                 </div>
 
-                {/* Lista Scrollável de Valores Únicos */}
-                <div className="max-h-40 overflow-y-auto space-y-0.5 pr-1 text-xs">
+                {/* Lista de Valores Únicos com Checkboxes */}
+                <div className="max-h-44 overflow-y-auto space-y-0.5 pr-1 text-xs border border-slate-100 rounded-md p-1 bg-slate-50/40">
                   {valoresFiltrados.length === 0 ? (
-                    <div className="py-3 text-center text-slate-400 text-[11px] italic">
-                      Nenhum valor encontrado
+                    <div className="py-4 text-center text-slate-400 text-[11px] italic">
+                      Nenhum valor correspondente
                     </div>
                   ) : (
                     valoresFiltrados.map((item) => {
@@ -384,8 +389,8 @@ export function CabecalhoColunaExcel<T>({
                       return (
                         <label
                           key={item.valorChave}
-                          className={`flex items-center justify-between px-2 py-1 rounded-2xl transition-colors cursor-pointer select-none ${
-                            isChecked ? 'hover:bg-blue-50/50' : 'hover:bg-slate-50 opacity-60'
+                          className={`flex items-center justify-between px-2 py-1 rounded transition-colors cursor-pointer select-none ${
+                            isChecked ? 'hover:bg-slate-100/80 text-slate-900 font-medium' : 'hover:bg-slate-100/70 text-slate-400'
                           }`}
                         >
                           <div className="flex items-center gap-2 truncate mr-2">
@@ -393,13 +398,13 @@ export function CabecalhoColunaExcel<T>({
                               type="checkbox"
                               checked={isChecked}
                               onChange={() => estado.alternarValorFiltro(colunaId, item.valorChave)}
-                              className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 focus:ring-1 cursor-pointer shrink-0"
+                              className="w-3.5 h-3.5 rounded border-slate-300 text-slate-800 focus:ring-slate-400 focus:ring-1 accent-slate-800 cursor-pointer shrink-0"
                             />
-                            <span className="truncate text-slate-800 text-[11px]" title={item.rotuloExibicao}>
-                              {item.rotuloExibicao}
+                            <span className="truncate text-[11px]" title={item.rotuloExibicao || '(Vazio)'}>
+                              {item.rotuloExibicao || '(Vazio)'}
                             </span>
                           </div>
-                          <span className="text-[10px] font-mono font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.2 rounded-2xl shrink-0">
+                          <span className="text-[10px] font-mono font-medium text-slate-400 bg-white border border-slate-200/80 px-1.5 py-0.2 rounded shrink-0">
                             {item.contagem}
                           </span>
                         </label>
@@ -419,15 +424,17 @@ export function CabecalhoColunaExcel<T>({
                       Limpar Filtro
                     </button>
                   ) : (
-                    <span className="text-[10px] text-slate-400">Excel Smart Filter</span>
+                    <span className="text-[10px] text-slate-400">
+                      {valoresFiltrados.length} disponíveis
+                    </span>
                   )}
 
                   <button
                     type="button"
                     onClick={() => setAberto(false)}
-                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-[11px] font-bold shadow-2xs transition-all cursor-pointer"
+                    className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-[11px] font-bold shadow-xs transition-all cursor-pointer"
                   >
-                    Fechar
+                    OK
                   </button>
                 </div>
               </div>
@@ -438,3 +445,4 @@ export function CabecalhoColunaExcel<T>({
     </th>
   );
 }
+

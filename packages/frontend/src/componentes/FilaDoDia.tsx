@@ -9,6 +9,8 @@ import {
 } from './tabelaExcel/index.ts';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { Paginacao } from './Paginacao.tsx';
+import { CardHoverPaciente } from './CardHoverPaciente.tsx';
+import type { ItemPaciente } from './TabelaPacientes.tsx';
 
 export type StatusPresenca = 'AGUARDANDO' | 'EM_ATENDIMENTO' | 'CONCLUIDO';
 
@@ -347,7 +349,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                         </svg>
                       </div>
                       <h4 className="text-base font-bold text-slate-800 mb-1">
-                        {temAlgumFiltroAtivo ? 'Nenhum aluno com os filtros do Excel' : 'Fila vazia para este filtro'}
+                        {temAlgumFiltroAtivo ? 'Nenhum aluno corresponde aos filtros aplicados' : 'Fila vazia para este filtro'}
                       </h4>
                       <p className="text-xs text-slate-500 mb-4">
                         {temAlgumFiltroAtivo
@@ -382,41 +384,71 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                 dadosPaginados.map((item) => (
                   <tr
                     key={item.id}
-                    className="hover:bg-blue-50/40 transition-colors group cursor-pointer border-b border-slate-100 last:border-0"
+                    className="hover:bg-slate-50/70 transition-colors group border-b border-slate-100 last:border-0"
                   >
                     <td className="py-3 px-4 font-mono font-bold text-slate-700">
                       {item.horarioChegada}
                     </td>
 
                     <td className="py-3 px-4 font-semibold text-slate-900">
-                      <div className="flex items-center gap-2.5">
-                        {(() => {
-                          const estilo = obterEstiloAvatarGoogle(item.pacienteNome);
-                          return (
-                            <div
-                              style={estilo.style}
-                              className="w-7 h-7 rounded-full font-bold text-[11px] flex items-center justify-center shrink-0 shadow-2xs select-none"
-                            >
-                              {item.pacienteNome.charAt(0)}
-                            </div>
-                          );
-                        })()}
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight text-xs">
-                              {item.pacienteNome}
-                            </span>
-                            {item.prioridade && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-100 text-rose-800 uppercase">
-                                Prioridade
+                      <CardHoverPaciente
+                        paciente={{
+                          id: item.id,
+                          nome: item.pacienteNome,
+                          cpf: item.cpf,
+                          dataNascimento: `${new Date().getFullYear() - item.idade}-05-10`,
+                          escolaNome: item.escolaNome,
+                          termoConsentimentoStatus: 'ACEITO',
+                          atendimentosCount: 1,
+                          criadoEm: new Date().toISOString(),
+                          perfil: 'Aluno Regular',
+                          turma:
+                            item.idade <= 10
+                              ? `${item.idade - 5}º Ano — Fundamental I`
+                              : item.idade <= 14
+                              ? `${item.idade - 5}º Ano — Fundamental II`
+                              : `${item.idade - 14}ª Série — Ensino Médio`,
+                          telefone: '(61) 98452-1190',
+                        }}
+                        aoIniciarAtendimento={() =>
+                          aoIniciarAtendimento({
+                            id: item.id,
+                            nome: item.pacienteNome,
+                            especialidade: item.especialidade,
+                            turno: item.turno,
+                            horario: item.horarioChegada,
+                          })
+                        }
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {(() => {
+                            const estilo = obterEstiloAvatarGoogle(item.pacienteNome);
+                            return (
+                              <div
+                                style={estilo.style}
+                                className="w-7 h-7 rounded-full font-bold text-[11px] flex items-center justify-center shrink-0 shadow-2xs select-none"
+                              >
+                                {item.pacienteNome.charAt(0)}
+                              </div>
+                            );
+                          })()}
+                          <div className="flex flex-col text-left">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-slate-900 uppercase tracking-tight text-xs">
+                                {item.pacienteNome}
                               </span>
-                            )}
+                              {item.prioridade && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-100 text-rose-800 uppercase">
+                                  Prioridade
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-slate-500 font-normal">
+                              {item.idade} anos • CPF: {item.cpf || 'Não informado'}
+                            </span>
                           </div>
-                          <span className="text-[11px] text-slate-500 font-normal">
-                            {item.idade} anos • CPF: {item.cpf || 'Não informado'}
-                          </span>
                         </div>
-                      </div>
+                      </CardHoverPaciente>
                     </td>
 
                     <td className="py-3 px-3">

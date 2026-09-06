@@ -38,3 +38,7 @@ Thumbs.db
 
 # SBOM (gerado no CI, não versionado)
 sbom.json
+
+# Atalhos e junções locais
+catraki-sesi/
+
