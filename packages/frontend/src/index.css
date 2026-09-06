@@ -4,7 +4,18 @@
   --font-sans: 'SF Pro Display', 'SF Pro Text', 'SF Pro', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: 'SF Mono', ui-monospace, Menlo, Monaco, 'JetBrains Mono', 'Fira Code', monospace;
 
+  --radius-xs: 1rem;
+  --radius-sm: 1rem;
+  --radius-md: 1rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1rem;
+  --radius: 1rem;
+
   --animate-fade-in: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-dropdown: dropdownSmooth 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-modal: modalSmooth 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-drawer: drawerSmooth 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 
   @keyframes fadeIn {
     from {
@@ -14,6 +25,39 @@
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+
+  @keyframes dropdownSmooth {
+    from {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes modalSmooth {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes drawerSmooth {
+    from {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
     }
   }
 }

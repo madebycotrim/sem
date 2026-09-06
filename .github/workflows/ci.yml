@@ -33,7 +33,7 @@ jobs:
         run: npm ci
 
       - name: Gerar Prisma Client
-        run: npx prisma generate --schema=packages/backend/prisma/schema.prisma
+        run: npx prisma generate --schema=packages/frontend/prisma/schema.prisma
 
       - name: Lint
         run: npm run lint --workspaces --if-present

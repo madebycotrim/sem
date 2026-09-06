@@ -7,7 +7,9 @@
  * - Content-Type JSON por padrão
  */
 
-const URL_BASE_API = '/api/v1';
+const URL_BASE_API = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api/v1`
+  : '/api/v1';
 
 interface OpcoesFetch {
   metodo?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -47,16 +49,16 @@ export async function requisicaoApi<T = unknown>(
       });
 
       if (!resposta.ok) {
-        const erroBody = await resposta.json().catch(() => ({
+        const erroBody = (await resposta.json().catch(() => ({
           erro: `HTTP ${resposta.status}`,
-        }));
+        }))) as { erro?: string; detalhes?: Record<string, string[]> };
 
         // Não fazer retry em erros de validação/autenticação (4xx)
         if (resposta.status >= 400 && resposta.status < 500) {
-          throw new ErroApi(resposta.status, erroBody.erro, erroBody.detalhes);
+          throw new ErroApi(resposta.status, erroBody.erro ?? 'Erro na requisição', erroBody.detalhes);
         }
 
-        throw new ErroApi(resposta.status, erroBody.erro);
+        throw new ErroApi(resposta.status, erroBody.erro ?? 'Erro no servidor');
       }
 
       return (await resposta.json()) as T;

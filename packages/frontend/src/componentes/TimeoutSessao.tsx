@@ -122,12 +122,12 @@ export function TimeoutSessao({
     >
       <div
         className="
-          mx-4 w-full max-w-md rounded-xl bg-white p-6
+          mx-4 w-full max-w-md rounded-2xl bg-white p-6
           shadow-2xl animacao-fadeIn
         "
       >
         {/* Ícone de alerta */}
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100">
           <svg
             className="h-6 w-6 text-amber-600"
             fill="none"
@@ -179,7 +179,7 @@ export function TimeoutSessao({
           <button
             onClick={handleContinuar}
             className="
-              flex-1 rounded-lg bg-emerald-600 px-4 py-2.5
+              flex-1 rounded-2xl bg-emerald-600 px-4 py-2.5
               text-sm font-semibold text-white
               hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500
               focus:ring-offset-2 transition-colors
@@ -191,7 +191,7 @@ export function TimeoutSessao({
           <button
             onClick={aoExpirar}
             className="
-              rounded-lg border border-gray-300 px-4 py-2.5
+              rounded-2xl border border-gray-300 px-4 py-2.5
               text-sm font-semibold text-gray-700
               hover:bg-gray-50 focus:ring-2 focus:ring-gray-400
               focus:ring-offset-2 transition-colors

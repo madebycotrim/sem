@@ -1,0 +1,140 @@
+// =============================================================================
+// SCHEMA PRISMA — SAÚDE EM MOVIMENTO (100% EM PORTUGUÊS DO BRASIL)
+// =============================================================================
+// Schema 100% neutro e em português (tabelas e colunas em snake_case).
+// Usa @id @default(uuid()) e tipos primitivos para portabilidade
+// transparente entre SQLite, Cloudflare D1 e PostgreSQL.
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── Usuário do Sistema ──────────────────────────────────────────────────────
+
+model Usuario {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  senhaHash     String   @map("senha_hash")
+  nomeCompleto  String   @map("nome_completo")
+  perfil        String   // ADMIN | TRIAGEM_RECEPCAO | PROFISSIONAL_SAUDE | DPO
+  mfaSecret     String?  @map("mfa_secret")
+  mfaAtivo      Boolean  @default(false) @map("mfa_ativo")
+  ativo         Boolean  @default(true)
+  criadoEm      DateTime @default(now()) @map("criado_em")
+  atualizadoEm  DateTime @updatedAt @map("atualizado_em")
+
+  atendimentos  Atendimento[]
+
+  @@map("usuarios")
+}
+
+// ─── Escola / Local de Atendimento ───────────────────────────────────────────
+
+model EscolaLocal {
+  id        String   @id @default(uuid())
+  nome      String
+  endereco  String
+  cidade    String
+  uf        String
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now()) @map("criado_em")
+
+  pacientes     Paciente[]
+  atendimentos  Atendimento[]
+
+  @@map("escolas_locais")
+}
+
+// ─── Paciente ────────────────────────────────────────────────────────────────
+// Campos PII criptografados via AES-256-GCM com envelope encryption.
+// DEK por registro, cifrada pela KEK (variável de ambiente).
+//
+// Finalidade: triagem e registro de atendimentos de saúde em escolas públicas.
+// Base legal: consentimento do responsável legal (LGPD Art. 14).
+
+model Paciente {
+  id                  String    @id @default(uuid())
+
+  // --- Campos PII criptografados (AES-256-GCM) ---
+  nomeEnc             String    @map("nome_enc")
+  cpfEnc              String    @map("cpf_enc")
+  dataNascimentoEnc   String    @map("data_nascimento_enc")
+  telefoneEnc         String?   @map("telefone_enc")
+
+  // --- Metadados de criptografia (envelope encryption) ---
+  dekCifrada          String    @map("dek_cifrada")
+  ivPii               String    @map("iv_pii")
+  tagPii              String    @map("tag_pii")
+
+  // --- Dados não sensíveis ---
+  turma               String
+  escolaLocalId       String    @map("escola_local_id")
+  escolaLocal         EscolaLocal @relation(fields: [escolaLocalId], references: [id])
+
+  // --- LGPD: Retenção e expurgo ---
+  retencaoExpiraEm    DateTime? @map("retencao_expira_em")
+
+  criadoEm            DateTime  @default(now()) @map("criado_em")
+  atualizadoEm        DateTime  @updatedAt @map("atualizado_em")
+
+  consentimentos  Consentimento[]
+  atendimentos    Atendimento[]
+
+  @@map("pacientes")
+}
+
+// ─── Consentimento (LGPD Art. 14) ────────────────────────────────────────────
+// Registro do consentimento do responsável legal para tratamento
+// de dados sensíveis de saúde de menor de idade.
+
+model Consentimento {
+  id                      String    @id @default(uuid())
+  pacienteId              String    @map("paciente_id")
+  paciente                Paciente  @relation(fields: [pacienteId], references: [id])
+
+  consentidoPor           String?   @map("consentido_por")
+  dataConsentimento       DateTime? @map("data_consentimento")
+  referenciaDocumento     String?   @map("referencia_documento")
+
+  consentimentoDispensado Boolean   @default(false) @map("consentimento_dispensado")
+  justificativaDispensa   String?   @map("justificativa_dispensa")
+
+  criadoEm                DateTime  @default(now()) @map("criado_em")
+
+  @@map("consentimentos")
+}
+
+// ─── Registro de Atendimento ─────────────────────────────────────────────────
+
+model Atendimento {
+  id                    String   @id @default(uuid())
+
+  pacienteId            String   @map("paciente_id")
+  paciente              Paciente @relation(fields: [pacienteId], references: [id])
+
+  escolaLocalId         String   @map("escola_local_id")
+  escolaLocal           EscolaLocal @relation(fields: [escolaLocalId], references: [id])
+
+  usuarioId             String   @map("usuario_id")
+  usuario               Usuario  @relation(fields: [usuarioId], references: [id])
+
+  especialidade         String
+  turno                 String
+  resumo                String
+  procedimentos         String?
+  insumosUtilizados     String?  @map("insumos_utilizados")
+  encaminhamentoExterno String?  @map("encaminhamento_externo")
+
+  chaveIdempotencia     String   @unique @map("chave_idempotencia")
+
+  criadoEm              DateTime @default(now()) @map("criado_em")
+  atualizadoEm          DateTime @updatedAt @map("atualizado_em")
+
+  @@map("atendimentos")
+}
