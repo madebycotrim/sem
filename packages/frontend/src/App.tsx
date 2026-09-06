@@ -48,6 +48,20 @@ const SECOES_VALIDAS: SecaoMenu[] = [
   'governanca',
 ];
 
+const converterPacienteApi = (paciente: RespostaListaPacientes['dados'][number]): ItemPaciente => ({
+  id: paciente.id,
+  nome: paciente.nome,
+  cpf: paciente.cpf,
+  dataNascimento: paciente.dataNascimento,
+  sexo: paciente.sexo,
+  telefone: paciente.telefone || undefined,
+  turma: paciente.turma,
+  escolaNome: paciente.escolaLocal || 'Não informada',
+  termoConsentimentoStatus: paciente.termoConsentimentoStatus || 'PENDENTE',
+  atendimentosCount: paciente.atendimentosCount || 0,
+  criadoEm: paciente.criadoEm,
+});
+
 const obterSecaoInicial = (): SecaoMenu => {
   const hash = window.location.hash.replace(/^#/, '') as SecaoMenu;
   if (SECOES_VALIDAS.includes(hash)) {
@@ -141,20 +155,6 @@ export function App() {
     setToastNotificacao({ texto, tipo });
     setTimeout(() => setToastNotificacao(null), 3500);
   };
-
-  const converterPacienteApi = (paciente: RespostaListaPacientes['dados'][number]): ItemPaciente => ({
-    id: paciente.id,
-    nome: paciente.nome,
-    cpf: paciente.cpf,
-    dataNascimento: paciente.dataNascimento,
-    sexo: paciente.sexo,
-    telefone: paciente.telefone || undefined,
-    turma: paciente.turma,
-    escolaNome: paciente.escolaLocal || 'Não informada',
-    termoConsentimentoStatus: paciente.termoConsentimentoStatus || 'PENDENTE',
-    atendimentosCount: paciente.atendimentosCount || 0,
-    criadoEm: paciente.criadoEm,
-  });
 
   useEffect(() => {
     let ativo = true;

@@ -59,11 +59,10 @@ export const Escolas: FC<EscolasProps> = ({
           return (
             <div
               key={escola.id}
-              className={`p-5 rounded-2xl border transition-all duration-200 bg-white flex flex-col justify-between ${
-                estaAtiva
-                  ? 'border-blue-500 ring-2 ring-blue-100 shadow-md'
-                  : 'border-slate-200/90 hover:border-slate-300/90 shadow-xs hover:shadow-sm'
-              }`}
+              className={`p-5 rounded-2xl border transition-all duration-200 bg-white flex flex-col justify-between ${estaAtiva
+                ? 'border-blue-500 ring-2 ring-blue-100 shadow-md'
+                : 'border-slate-200/90 hover:border-slate-300/90 shadow-xs hover:shadow-sm'
+                }`}
             >
               <div>
                 <div className="flex items-start justify-between gap-3 mb-3">
