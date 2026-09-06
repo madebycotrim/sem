@@ -8,19 +8,18 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Iniciando seed do banco de dados...');
 
-  // --- Escola/Local de exemplo ---
-  const escola = await prisma.escolaLocal.upsert({
-    where: { id: 'seed-escola-001' },
-    update: {},
-    create: {
-      id: 'seed-escola-001',
-      nome: 'CEF 01 de Brasília',
-      endereco: 'SGAS 601, Asa Sul',
-      cidade: 'Brasília',
-      uf: 'DF',
-    },
-  });
-  console.log(`✅ Escola criada: ${escola.nome}`);
+  // --- Polos de atendimento padrão ---
+  const escolas = [
+    { id: '0a62d5b0-0d57-4f75-8969-8a0c2c5f7e01', nome: 'CEMEIT DE TAGUATINGA', endereco: 'Taguatinga', cidade: 'Brasília' },
+    { id: '34b4c13f-d88c-4321-9c32-2acb046a5402', nome: 'CEF 01 DE BRASÍLIA', endereco: 'SGAS 601, Asa Sul', cidade: 'Brasília' },
+    { id: 'af51d4c9-9c67-4b4f-b524-8c985d90b403', nome: 'EC 10 DE CEILÂNDIA', endereco: 'Ceilândia', cidade: 'Brasília' },
+    { id: 'cd56f7b2-5801-4b9d-bf43-78c332a5f104', nome: 'CEF 02 DE SOBRADINHO', endereco: 'Sobradinho', cidade: 'Brasília' },
+  ];
+  await Promise.all(escolas.map((escola) => prisma.escolaLocal.upsert({
+    where: { id: escola.id }, update: { nome: escola.nome, endereco: escola.endereco, cidade: escola.cidade, uf: 'DF' },
+    create: { ...escola, uf: 'DF' },
+  })));
+  console.log(`✅ ${escolas.length} polos criados ou atualizados.`);
 
   // --- Usuário ADMIN padrão (senha: Admin@12345678) ---
   const { gerarHashSenha } = await import('../src/infraestrutura/criptografia/senha.js');

@@ -153,10 +153,10 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
         setValue('sexo', pacienteParaEditar.sexo || 'Feminino', { shouldValidate: true });
         setValue('instituicao', pacienteParaEditar.escolaNome || 'CEMEIT DE TAGUATINGA', { shouldValidate: true });
         setBuscaInstituicao(pacienteParaEditar.escolaNome || 'CEMEIT DE TAGUATINGA');
-        setValue('perfilUsuario', 'ALUNO', { shouldValidate: true });
-        setValue('telefone', '(61) 98765-4321', { shouldValidate: true });
-        setValue('anoEscolar', '7º ANO');
-        setValue('turma', 'TURMA B');
+        setValue('perfilUsuario', pacienteParaEditar.perfil || 'ALUNO', { shouldValidate: true });
+        setValue('telefone', pacienteParaEditar.telefone || '', { shouldValidate: true });
+        setValue('anoEscolar', '');
+        setValue('turma', pacienteParaEditar.turma || '');
         setCpfConsultado((pacienteParaEditar.cpf || '').replace(/\D/g, ''));
       } else {
         reset({

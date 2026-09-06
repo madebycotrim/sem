@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { criarPacienteSchema } from '../../../compartilhado/index.js';
+import { criarPacienteSchema, atualizarPacienteSchema } from '../../../compartilhado/index.js';
 import { getPrisma } from '../../infraestrutura/banco/prisma.js';
 import {
   criptografarPii,
@@ -35,6 +35,7 @@ rotasPaciente.post('/', zValidator('json', criarPacienteSchema), async (c) => {
     cpf: dados.cpf,
     dataNascimento: dados.dataNascimento,
     telefone: dados.telefone ?? null,
+    sexo: dados.sexo ?? null,
   });
 
   const piiCifrada = await criptografarPii(piiTextoPlano, kekHex);
@@ -94,25 +95,21 @@ rotasPaciente.get('/', async (c) => {
     prisma.paciente.findMany({
       skip: (pagina - 1) * porPagina,
       take: porPagina,
+      where: { ativo: true },
       orderBy: { criadoEm: 'desc' },
-      include: { escolaLocal: { select: { nome: true } } },
+      include: {
+        escolaLocal: { select: { nome: true } },
+        consentimentos: { orderBy: { criadoEm: 'desc' }, take: 1 },
+        _count: { select: { atendimentos: true } },
+      },
     }),
-    prisma.paciente.count(),
+    prisma.paciente.count({ where: { ativo: true } }),
   ]);
 
   const kekHex = c.env.KEK_HEX;
 
   const pacientesDescriptografados = await Promise.all(
-    pacientes.map(async (p: {
-      id: string;
-      nomeEnc: string;
-      dekCifrada: string;
-      ivPii: string;
-      tagPii: string;
-      turma: string;
-      escolaLocal: { nome: string };
-      criadoEm: Date;
-    }) => {
+    pacientes.map(async (p) => {
       try {
         const piiJson = await descriptografarPii(
           p.nomeEnc,
@@ -126,6 +123,7 @@ rotasPaciente.get('/', async (c) => {
           cpf: string;
           dataNascimento: string;
           telefone: string | null;
+          sexo?: string | null;
         };
 
         return {
@@ -134,8 +132,13 @@ rotasPaciente.get('/', async (c) => {
           cpf: pii.cpf,
           dataNascimento: pii.dataNascimento,
           telefone: pii.telefone,
+          sexo: pii.sexo ?? undefined,
           turma: p.turma,
           escolaLocal: p.escolaLocal.nome,
+          atendimentosCount: p._count.atendimentos,
+          termoConsentimentoStatus: p.consentimentos[0]?.consentimentoDispensado
+            ? 'DISPENSADO'
+            : p.consentimentos[0]?.dataConsentimento ? 'ACEITO' : 'PENDENTE',
           criadoEm: p.criadoEm,
         };
       } catch {
@@ -147,6 +150,8 @@ rotasPaciente.get('/', async (c) => {
           telefone: null,
           turma: p.turma,
           escolaLocal: p.escolaLocal.nome,
+          atendimentosCount: p._count.atendimentos,
+          termoConsentimentoStatus: 'PENDENTE',
           criadoEm: p.criadoEm,
         };
       }
@@ -163,6 +168,69 @@ rotasPaciente.get('/', async (c) => {
 });
 
 /**
+ * PATCH /pacientes/:id
+ * Atualiza dados cadastrais sem expor ou duplicar campos PII em texto plano.
+ */
+rotasPaciente.patch('/:id', zValidator('json', atualizarPacienteSchema), async (c) => {
+  const id = c.req.param('id');
+  const dados = c.req.valid('json');
+  const usuario = c.get('usuario');
+  const prisma = getPrisma(c.env.DB);
+  const existente = await prisma.paciente.findFirst({ where: { id, ativo: true } });
+  if (!existente) return c.json({ erro: 'Paciente não encontrado.' }, 404);
+
+  let piiAtual: { nome: string; cpf: string; dataNascimento: string; telefone: string | null; sexo?: string | null };
+  try {
+    piiAtual = JSON.parse(await descriptografarPii(existente.nomeEnc, existente.dekCifrada, existente.ivPii, existente.tagPii, c.env.KEK_HEX));
+  } catch {
+    return c.json({ erro: 'Não foi possível atualizar os dados protegidos do paciente.' }, 500);
+  }
+
+  const piiCifrada = await criptografarPii(JSON.stringify({
+    nome: dados.nome ?? piiAtual.nome,
+    cpf: dados.cpf ?? piiAtual.cpf,
+    dataNascimento: dados.dataNascimento ?? piiAtual.dataNascimento,
+    telefone: dados.telefone ?? piiAtual.telefone,
+    sexo: dados.sexo ?? piiAtual.sexo ?? null,
+  }), c.env.KEK_HEX);
+  const atualizado = await prisma.paciente.update({
+    where: { id },
+    data: {
+      nomeEnc: piiCifrada.dadosCifrados,
+      dekCifrada: piiCifrada.dekCifrada,
+      ivPii: piiCifrada.iv,
+      tagPii: piiCifrada.tag,
+      turma: dados.turma ?? existente.turma,
+      escolaLocalId: dados.escolaLocalId ?? existente.escolaLocalId,
+    },
+  });
+  await registrarAuditoria(prisma, {
+    userId: usuario.userId, acao: 'UPDATE', entidade: 'Paciente', entidadeId: id,
+    diffAnterior: { turma: existente.turma, escolaLocalId: existente.escolaLocalId },
+    diffPosterior: { turma: atualizado.turma, escolaLocalId: atualizado.escolaLocalId },
+    ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1',
+  });
+  return c.json({ id: atualizado.id, atualizadoEm: atualizado.atualizadoEm });
+});
+
+/** Arquiva, sem apagar o prontuário ou o histórico clínico. */
+rotasPaciente.post('/:id/arquivar', async (c) => {
+  const usuario = c.get('usuario');
+  if (usuario.perfil !== 'ADMIN') return c.json({ erro: 'Apenas administradores podem arquivar pacientes.' }, 403);
+  const prisma = getPrisma(c.env.DB);
+  const id = c.req.param('id');
+  const existente = await prisma.paciente.findFirst({ where: { id, ativo: true } });
+  if (!existente) return c.json({ erro: 'Paciente não encontrado.' }, 404);
+  await prisma.paciente.update({ where: { id }, data: { ativo: false } });
+  await registrarAuditoria(prisma, {
+    userId: usuario.userId, acao: 'ARCHIVE', entidade: 'Paciente', entidadeId: id,
+    diffAnterior: { ativo: true }, diffPosterior: { ativo: false },
+    ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1',
+  });
+  return c.json({ id, arquivado: true });
+});
+
+/**
  * GET /pacientes/:id
  * Busca um paciente por ID com PII descriptografada.
  */
@@ -170,8 +238,8 @@ rotasPaciente.get('/:id', async (c) => {
   const id = c.req.param('id');
   const prisma = getPrisma(c.env.DB);
 
-  const paciente = await prisma.paciente.findUnique({
-    where: { id },
+  const paciente = await prisma.paciente.findFirst({
+    where: { id, ativo: true },
     include: {
       escolaLocal: { select: { nome: true } },
       consentimentos: true,
@@ -197,6 +265,7 @@ rotasPaciente.get('/:id', async (c) => {
       cpf: string;
       dataNascimento: string;
       telefone: string | null;
+      sexo?: string | null;
     };
 
     return c.json({
@@ -205,6 +274,7 @@ rotasPaciente.get('/:id', async (c) => {
       cpf: pii.cpf,
       dataNascimento: pii.dataNascimento,
       telefone: pii.telefone,
+      sexo: pii.sexo ?? undefined,
       turma: paciente.turma,
       escolaLocal: paciente.escolaLocal.nome,
       consentimentos: paciente.consentimentos,

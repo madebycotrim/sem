@@ -10,7 +10,7 @@ import {
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { Paginacao } from './Paginacao.tsx';
 import { CardHoverPaciente } from './CardHoverPaciente.tsx';
-import type { ItemPaciente } from './TabelaPacientes.tsx';
+import { censurarCpf } from './TabelaPacientes.tsx';
 
 export type StatusPresenca = 'AGUARDANDO' | 'EM_ATENDIMENTO' | 'CONCLUIDO';
 
@@ -33,6 +33,7 @@ export interface FilaDoDiaProps {
     nome: string;
     especialidade: Especialidade;
     turno: Turno;
+    horario?: string;
   }) => void;
   aoNovoPaciente: () => void;
 }
@@ -444,7 +445,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                               )}
                             </div>
                             <span className="text-[11px] text-slate-500 font-normal">
-                              {item.idade} anos • CPF: {item.cpf || 'Não informado'}
+                              {item.idade} anos • CPF: {item.cpf ? censurarCpf(item.cpf) : 'Não informado'}
                             </span>
                           </div>
                         </div>

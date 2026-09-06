@@ -87,6 +87,13 @@ export function formatarDataBR(dataStr: string | null | undefined): string {
   return d.toLocaleDateString('pt-BR');
 }
 
+export function censurarCpf(cpf: string | null | undefined): string {
+  if (!cpf) return '';
+  const limpo = cpf.replace(/\D/g, '');
+  if (limpo.length !== 11) return cpf;
+  return `***.***.***-${limpo.substring(9)}`;
+}
+
 interface TabelaPacientesProps {
   pacientes: ItemPaciente[];
   carregando: boolean;
@@ -378,7 +385,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
 
                     {/* CPF */}
                     <td className="py-3 px-3.5 font-mono text-slate-600 text-[12px]">
-                      {paciente.cpf || <span className="text-slate-400 italic font-sans text-[11px]">Não informado</span>}
+                      {paciente.cpf ? censurarCpf(paciente.cpf) : <span className="text-slate-400 italic font-sans text-[11px]">Não informado</span>}
                     </td>
 
                     {/* Nascimento */}
@@ -523,7 +530,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                                         <line x1="10" y1="11" x2="10" y2="17" />
                                         <line x1="14" y1="11" x2="14" y2="17" />
                                       </svg>
-                                      <span>Excluir Paciente</span>
+                                      <span>Arquivar Paciente</span>
                                     </button>
                                   </>
                                 )}
@@ -568,14 +575,14 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900">Excluir Cadastro de Paciente</h3>
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900">Arquivar Cadastro de Paciente</h3>
                   <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider">Ação Restrita a Administradores</span>
                 </div>
               </div>
 
               <p className="text-xs text-slate-600 leading-relaxed mb-5">
-                Tem certeza que deseja remover o estudante <strong>{pacienteConfirmarExclusao.nome}</strong> (CPF: {pacienteConfirmarExclusao.cpf || 'Não informado'})?
-                Esta ação excluirá o prontuário e o histórico da base ativa.
+                Tem certeza que deseja arquivar o estudante <strong>{pacienteConfirmarExclusao.nome}</strong> (CPF: {pacienteConfirmarExclusao.cpf || 'Não informado'})?
+                O prontuário e o histórico serão preservados, mas o paciente deixará de aparecer na base ativa.
               </p>
 
               <div className="flex items-center justify-end gap-2.5">
@@ -595,7 +602,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                   }}
                   className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-2xl shadow-xs transition-all cursor-pointer"
                 >
-                  Excluir Paciente
+                  Arquivar Paciente
                 </button>
               </div>
             </div>
@@ -612,4 +619,3 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
     </div>
   );
 };
-

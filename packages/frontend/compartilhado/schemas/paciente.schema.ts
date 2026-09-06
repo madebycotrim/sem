@@ -51,6 +51,7 @@ export const pacienteSchema = z.object({
 
   /** ID da escola/local de atendimento */
   escolaLocalId: z.string().uuid('ID da escola deve ser um UUID válido'),
+  sexo: z.string().min(1).max(30).optional(),
 });
 
 /** Schema para criação de paciente (todos os campos obrigatórios exceto telefone) */

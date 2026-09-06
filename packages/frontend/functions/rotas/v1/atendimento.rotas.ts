@@ -6,6 +6,7 @@ import { middlewareAutenticacao, type AppVariables } from '../../middlewares/aut
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import { middlewareIdempotencia } from '../../middlewares/idempotencia.js';
 import { registrarAuditoria } from '../../middlewares/auditoria.js';
+import { descriptografarPii } from '../../infraestrutura/criptografia/crypto.js';
 import type { Bindings } from '../../config/env.js';
 
 export const rotasAtendimento = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
@@ -138,35 +139,49 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
       include: {
         escolaLocal: { select: { nome: true } },
         usuario: { select: { nomeCompleto: true } },
+        paciente: { select: { nomeEnc: true, dekCifrada: true, ivPii: true, tagPii: true } },
       },
     }),
     prisma.atendimento.count({ where }),
   ]);
 
+  const kekHex = c.env.KEK_HEX;
+
+  const atendimentosMapeados = await Promise.all(
+    atendimentos.map(async (a) => {
+      let pacienteNome = 'Paciente Desconhecido';
+      try {
+        const piiJson = await descriptografarPii(
+          a.paciente.nomeEnc,
+          a.paciente.dekCifrada,
+          a.paciente.ivPii,
+          a.paciente.tagPii,
+          kekHex
+        );
+        const pii = JSON.parse(piiJson);
+        pacienteNome = pii.nome;
+      } catch {
+        pacienteNome = '[ERRO DE DESCRIPTOGRAFIA]';
+      }
+
+      return {
+        id: a.id,
+        pacienteNome,
+        especialidade: a.especialidade,
+        turno: a.turno,
+        resumo: a.resumo,
+        procedimentos: a.procedimentos,
+        insumosUtilizados: a.insumosUtilizados,
+        encaminhamentoExterno: a.encaminhamentoExterno,
+        escolaLocal: a.escolaLocal.nome,
+        profissional: a.usuario.nomeCompleto,
+        criadoEm: a.criadoEm,
+      };
+    })
+  );
+
   return c.json({
-    dados: atendimentos.map((a: {
-      id: string;
-      especialidade: string;
-      turno: string;
-      resumo: string;
-      procedimentos: string | null;
-      insumosUtilizados: string | null;
-      encaminhamentoExterno: string | null;
-      escolaLocal: { nome: string };
-      usuario: { nomeCompleto: string };
-      criadoEm: Date;
-    }) => ({
-      id: a.id,
-      especialidade: a.especialidade,
-      turno: a.turno,
-      resumo: a.resumo,
-      procedimentos: a.procedimentos,
-      insumosUtilizados: a.insumosUtilizados,
-      encaminhamentoExterno: a.encaminhamentoExterno,
-      escolaLocal: a.escolaLocal.nome,
-      profissional: a.usuario.nomeCompleto,
-      criadoEm: a.criadoEm,
-    })),
+    dados: atendimentosMapeados,
     total,
     pagina: filtros.pagina,
     porPagina: filtros.porPagina,

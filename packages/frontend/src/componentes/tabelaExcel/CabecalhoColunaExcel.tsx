@@ -159,7 +159,7 @@ export function CabecalhoColunaExcel<T>({
   return (
     <th
       scope="col"
-      className={`py-2.5 px-3 font-bold text-slate-700 relative select-none ${
+      className={`py-2.5 px-3 font-semibold text-[#034b7f] relative select-none ${
         alinhamento === 'right' ? 'text-right' : alinhamento === 'center' ? 'text-center' : 'text-left'
       } ${className}`}
     >
@@ -171,10 +171,10 @@ export function CabecalhoColunaExcel<T>({
           onClick={abrirMenu}
           className={`group w-full flex items-center justify-between gap-2 py-1 text-[11px] font-bold tracking-wider uppercase transition-colors cursor-pointer select-none ${
             aberto
-              ? 'text-slate-900'
+              ? 'text-[#034b7f]'
               : filtroAtivo || estaOrdenado
-              ? 'text-slate-900'
-              : 'text-slate-600 hover:text-slate-950'
+              ? 'text-[#034b7f]'
+              : 'text-slate-500 hover:text-[#034b7f]'
           }`}
           title={tooltipTexto}
         >
@@ -188,10 +188,10 @@ export function CabecalhoColunaExcel<T>({
             <svg
               className={`w-3 h-3 transition-colors ${
                 filtroAtivo
-                  ? 'text-slate-900 fill-slate-900'
+                  ? 'text-[#034b7f] fill-[#034b7f]'
                   : aberto
-                  ? 'text-slate-900'
-                  : 'text-slate-400 group-hover:text-slate-700'
+                  ? 'text-[#034b7f]'
+                  : 'text-slate-400 group-hover:text-[#034b7f]'
               }`}
               viewBox="0 0 24 24"
               fill={filtroAtivo ? 'currentColor' : 'none'}
@@ -209,7 +209,7 @@ export function CabecalhoColunaExcel<T>({
 
             {/* Indicador de Ordenação (se houver) */}
             {estaOrdenado && (
-              <span className="text-[10px] font-black leading-none text-slate-900">
+              <span className="text-[10px] font-black leading-none text-[#034b7f]">
                 {direcaoOrdenacao === 'asc' ? '▲' : '▼'}
               </span>
             )}
@@ -233,12 +233,12 @@ export function CabecalhoColunaExcel<T>({
             {/* Cabeçalho do Menu */}
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
               <div className="flex items-center gap-1.5 truncate">
-                <div className="w-5 h-5 rounded bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                <div className="w-5 h-5 rounded border flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(3,75,127,0.06)', color: '#034b7f', borderColor: 'rgba(3,75,127,0.15)' }}>
                   <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
                   </svg>
                 </div>
-                <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider truncate">
+                <span className="text-[11px] font-bold uppercase tracking-wider truncate" style={{ color: '#034b7f' }}>
                   {rotulo}
                 </span>
               </div>
@@ -263,13 +263,14 @@ export function CabecalhoColunaExcel<T>({
                   onClick={() => {
                     estado.definirOrdenacao(colunaId, 'asc');
                   }}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer border ${
                     estaOrdenado && direcaoOrdenacao === 'asc'
-                      ? 'bg-slate-100 text-slate-900 font-bold border border-slate-300'
-                      : 'text-slate-700 hover:bg-slate-100/80 border border-transparent'
+                      ? 'font-bold'
+                      : 'text-slate-600 hover:bg-slate-50 border-transparent'
                   }`}
+                  style={estaOrdenado && direcaoOrdenacao === 'asc' ? { backgroundColor: 'rgba(3,75,127,0.05)', color: '#034b7f', borderColor: 'rgba(3,75,127,0.2)' } : {}}
                 >
-                  <div className="w-4 h-4 flex items-center justify-center text-slate-700 shrink-0 font-bold text-[11px]">
+                  <div className={`w-4 h-4 flex items-center justify-center shrink-0 font-bold text-[11px] ${estaOrdenado && direcaoOrdenacao === 'asc' ? 'text-[#034b7f]' : 'text-slate-500'}`}>
                     {tipo === 'numero' ? '1→9' : tipo === 'data' ? '⏳' : 'A→Z'}
                   </div>
                   <span className="truncate">{rotuloAsc}</span>
@@ -280,13 +281,14 @@ export function CabecalhoColunaExcel<T>({
                   onClick={() => {
                     estado.definirOrdenacao(colunaId, 'desc');
                   }}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer border ${
                     estaOrdenado && direcaoOrdenacao === 'desc'
-                      ? 'bg-slate-100 text-slate-900 font-bold border border-slate-300'
-                      : 'text-slate-700 hover:bg-slate-100/80 border border-transparent'
+                      ? 'font-bold'
+                      : 'text-slate-600 hover:bg-slate-50 border-transparent'
                   }`}
+                  style={estaOrdenado && direcaoOrdenacao === 'desc' ? { backgroundColor: 'rgba(3,75,127,0.05)', color: '#034b7f', borderColor: 'rgba(3,75,127,0.2)' } : {}}
                 >
-                  <div className="w-4 h-4 flex items-center justify-center text-slate-700 shrink-0 font-bold text-[11px]">
+                  <div className={`w-4 h-4 flex items-center justify-center shrink-0 font-bold text-[11px] ${estaOrdenado && direcaoOrdenacao === 'desc' ? 'text-[#034b7f]' : 'text-slate-500'}`}>
                     {tipo === 'numero' ? '9→1' : tipo === 'data' ? '⌛' : 'Z→A'}
                   </div>
                   <span className="truncate">{rotuloDesc}</span>
@@ -360,7 +362,7 @@ export function CabecalhoColunaExcel<T>({
 
                 {/* Checkbox: Selecionar Tudo */}
                 <div className="py-1 px-2 mb-1 bg-slate-100/80 rounded-md border border-slate-200 flex items-center justify-between text-xs">
-                  <label className="flex items-center gap-2 cursor-pointer select-none font-semibold text-slate-700">
+                  <label className="flex items-center gap-2 cursor-pointer select-none font-semibold text-[#034b7f]">
                     <input
                       type="checkbox"
                       checked={todosSelecionados}
@@ -368,7 +370,7 @@ export function CabecalhoColunaExcel<T>({
                         if (el) el.indeterminate = Boolean(selecaoParcial);
                       }}
                       onChange={toggleSelectAll}
-                      className="w-3.5 h-3.5 rounded border-slate-300 text-slate-800 focus:ring-slate-400 focus:ring-1 accent-slate-800 cursor-pointer"
+                      className="w-3.5 h-3.5 rounded border-slate-300 focus:ring-[#74c4d7] focus:ring-1 cursor-pointer accent-[#034b7f]"
                     />
                     <span>(Selecionar Tudo)</span>
                   </label>
@@ -390,15 +392,16 @@ export function CabecalhoColunaExcel<T>({
                         <label
                           key={item.valorChave}
                           className={`flex items-center justify-between px-2 py-1 rounded transition-colors cursor-pointer select-none ${
-                            isChecked ? 'hover:bg-slate-100/80 text-slate-900 font-medium' : 'hover:bg-slate-100/70 text-slate-400'
+                            isChecked ? 'font-medium' : 'hover:bg-slate-100/70 text-slate-500'
                           }`}
+                          style={isChecked ? { backgroundColor: 'rgba(3,75,127,0.03)', color: '#034b7f' } : {}}
                         >
                           <div className="flex items-center gap-2 truncate mr-2">
                             <input
                               type="checkbox"
                               checked={isChecked}
                               onChange={() => estado.alternarValorFiltro(colunaId, item.valorChave)}
-                              className="w-3.5 h-3.5 rounded border-slate-300 text-slate-800 focus:ring-slate-400 focus:ring-1 accent-slate-800 cursor-pointer shrink-0"
+                              className="w-3.5 h-3.5 rounded border-slate-300 focus:ring-[#74c4d7] focus:ring-1 cursor-pointer shrink-0 accent-[#034b7f]"
                             />
                             <span className="truncate text-[11px]" title={item.rotuloExibicao || '(Vazio)'}>
                               {item.rotuloExibicao || '(Vazio)'}
@@ -432,7 +435,8 @@ export function CabecalhoColunaExcel<T>({
                   <button
                     type="button"
                     onClick={() => setAberto(false)}
-                    className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-[11px] font-bold shadow-xs transition-all cursor-pointer"
+                    className="px-4 py-1.5 text-white rounded-md text-[11px] font-bold shadow-xs transition-all cursor-pointer active:scale-95"
+                    style={{ background: 'linear-gradient(135deg, #034b7f 0%, #14438f 100%)', boxShadow: '0 2px 6px rgba(3,75,127,0.2)' }}
                   >
                     OK
                   </button>

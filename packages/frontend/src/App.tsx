@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Sidebar, type SecaoMenu } from './componentes/Sidebar.tsx';
 import { CabecalhoPagina } from './componentes/CabecalhoPagina.tsx';
 import { TabelaPacientes, type ItemPaciente } from './componentes/TabelaPacientes.tsx';
@@ -18,11 +18,32 @@ import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCat
 import { Especialidade, Turno } from '../compartilhado/index.ts';
 
 const ESCOLAS_PADRAO = [
-  { id: 'seed-escola-001', nome: 'CEMEIT DE TAGUATINGA' },
-  { id: 'seed-escola-002', nome: 'CEF 01 DE BRASÍLIA' },
-  { id: 'seed-escola-003', nome: 'EC 10 DE CEILÂNDIA' },
-  { id: 'seed-escola-004', nome: 'CEF 02 DE SOBRADINHO' },
+  { id: '0a62d5b0-0d57-4f75-8969-8a0c2c5f7e01', nome: 'CEMEIT DE TAGUATINGA' },
+  { id: '34b4c13f-d88c-4321-9c32-2acb046a5402', nome: 'CEF 01 DE BRASÍLIA' },
+  { id: 'af51d4c9-9c67-4b4f-b524-8c985d90b403', nome: 'EC 10 DE CEILÂNDIA' },
+  { id: 'cd56f7b2-5801-4b9d-bf43-78c332a5f104', nome: 'CEF 02 DE SOBRADINHO' },
 ];
+
+interface RespostaListaPacientes {
+  dados: Array<{
+    id: string;
+    nome: string;
+    cpf?: string;
+    dataNascimento: string;
+    sexo?: string;
+    telefone?: string | null;
+    turma?: string;
+    escolaLocal?: string;
+    criadoEm: string;
+    atendimentosCount?: number;
+    termoConsentimentoStatus?: ItemPaciente['termoConsentimentoStatus'];
+  }>;
+}
+
+const normalizarTexto = (valor?: string) =>
+  (valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+const somenteDigitos = (valor?: string) => (valor || '').replace(/\D/g, '');
 
 export function App() {
   // Navegação
@@ -30,7 +51,7 @@ export function App() {
   const [modoNovaFicha, setModoNovaFicha] = useState(false);
   const [pacienteSelecionadoParaFicha, setPacienteSelecionadoParaFicha] = useState<ItemPaciente | null>(null);
   const [pacienteHistoricoDrawer, setPacienteHistoricoDrawer] = useState<ItemPaciente | null>(null);
-  const [escolaAtivaId, setEscolaAtivaId] = useState('seed-escola-001');
+  const [escolaAtivaId, setEscolaAtivaId] = useState('0a62d5b0-0d57-4f75-8969-8a0c2c5f7e01');
 
   // Sincronização Automática em Segundo Plano com a API Catraki
   const [statusSincronizacaoCatraki, setStatusSincronizacaoCatraki] = useState<{
@@ -43,6 +64,9 @@ export function App() {
 
   // Filtros da Visão de Pacientes
   const [buscaPaciente, setBuscaPaciente] = useState('');
+  const [carregandoPacientes, setCarregandoPacientes] = useState(true);
+
+  // Modais
 
   // Modais
   const [modalNovoPacienteAberto, setModalNovoPacienteAberto] = useState(false);
@@ -52,137 +76,66 @@ export function App() {
   const [toastNotificacao, setToastNotificacao] = useState<{ texto: string; tipo: 'sucesso' | 'info' | 'erro' } | null>(null);
 
   // Lista de Pacientes
-  const [pacientes, setPacientes] = useState<ItemPaciente[]>([
-    {
-      id: '550e8400-e29b-41d4-a716-446655440004',
-      nome: 'ANA BEATRIZ DIAS GONSALO',
-      cpf: '087.567.621-41',
-      dataNascimento: '2010-02-15',
-      sexo: 'Feminino',
-      escolaNome: 'CEMEIT DE TAGUATINGA',
-      termoConsentimentoStatus: 'PENDENTE',
-      atendimentosCount: 2,
-      perfil: 'Aluno Regular',
-      turma: '9º Ano — Turma B (Matutino)',
-      telefone: '(61) 98452-1190',
-      responsavelNome: 'Maria Helena Dias',
-      criadoEm: new Date(Date.now() - 3600000 * 5).toISOString(),
-    },
-    {
-      id: '550e8400-e29b-41d4-a716-446655440001',
-      nome: 'GABRIEL HENRIQUE SANTOS',
-      cpf: '078.432.191-04',
-      dataNascimento: '2012-05-14',
-      sexo: 'Masculino',
-      escolaNome: 'CEMEIT DE TAGUATINGA',
-      termoConsentimentoStatus: 'PENDENTE',
-      atendimentosCount: 2,
-      perfil: 'Aluno Regular',
-      turma: '7º Ano — Turma A (Matutino)',
-      telefone: '(61) 99124-8832',
-      responsavelNome: 'Carlos Eduardo Santos',
-      criadoEm: new Date(Date.now() - 3600000 * 4).toISOString(),
-    },
-    {
-      id: '550e8400-e29b-41d4-a716-446655440002',
-      nome: 'BEATRIZ LIMA DE OLIVEIRA',
-      cpf: '065.912.331-88',
-      dataNascimento: '2014-09-20',
-      sexo: 'Feminino',
-      escolaNome: 'CEF 01 DE BRASÍLIA',
-      termoConsentimentoStatus: 'PENDENTE',
-      atendimentosCount: 1,
-      perfil: 'Aluno Regular',
-      turma: '5º Ano — Turma C (Vespertino)',
-      telefone: '(61) 98233-4019',
-      responsavelNome: 'Patrícia Lima',
-      criadoEm: new Date(Date.now() - 3600000 * 2).toISOString(),
-    },
-    {
-      id: '550e8400-e29b-41d4-a716-446655440005',
-      nome: 'ALEXANDRE DE SOUZA NUNES',
-      cpf: '065.320.071-93',
-      dataNascimento: '2010-05-01',
-      sexo: 'Masculino',
-      escolaNome: 'CEMEIT DE TAGUATINGA',
-      termoConsentimentoStatus: 'PENDENTE',
-      atendimentosCount: 0,
-      perfil: 'Aluno Regular',
-      turma: '1ª Série EM — Turma 102',
-      telefone: '(61) 99650-7712',
-      responsavelNome: 'Roberto Nunes',
-      criadoEm: new Date(Date.now() - 3600000 * 6).toISOString(),
-    },
-    {
-      id: '550e8400-e29b-41d4-a716-446655440006',
-      nome: 'ALIA ALI SHAFIQ',
-      cpf: '082.528.511-03',
-      dataNascimento: '2009-11-27',
-      sexo: 'Feminino',
-      escolaNome: 'CEMEIT DE TAGUATINGA',
-      termoConsentimentoStatus: 'PENDENTE',
-      atendimentosCount: 0,
-      perfil: 'Aluno Regular',
-      turma: '2ª Série EM — Turma 201',
-      telefone: '(61) 98115-6204',
-      responsavelNome: 'Farah Shafiq',
-      criadoEm: new Date(Date.now() - 3600000 * 7).toISOString(),
-    },
-    {
-      id: '550e8400-e29b-41d4-a716-446655440007',
-      nome: 'ALICE DOS REIS NETTO MORAES',
-      cpf: '064.003.241-61',
-      dataNascimento: '2010-10-06',
-      sexo: 'Feminino',
-      escolaNome: 'CEMEIT DE TAGUATINGA',
-      termoConsentimentoStatus: 'PENDENTE',
-      atendimentosCount: 1,
-      perfil: 'Aluno Regular',
-      turma: '9º Ano — Turma A (Matutino)',
-      telefone: '(61) 99341-5580',
-      responsavelNome: 'Luciana dos Reis',
-      criadoEm: new Date(Date.now() - 3600000 * 8).toISOString(),
-    },
-    {
-      id: '550e8400-e29b-41d4-a716-446655440003',
-      nome: 'MATHEUS COSTA RIBEIRO',
-      cpf: '088.231.990-11',
-      dataNascimento: '2015-11-03',
-      sexo: 'Masculino',
-      escolaNome: 'CEMEIT DE TAGUATINGA',
-      termoConsentimentoStatus: 'PENDENTE',
-      atendimentosCount: 0,
-      perfil: 'Aluno Regular',
-      turma: '4º Ano — Turma A (Vespertino)',
-      telefone: '(61) 98570-9943',
-      responsavelNome: 'Fernanda Costa Ribeiro',
-      criadoEm: new Date(Date.now() - 3600000).toISOString(),
-    },
-  ]);
+  const [pacientes, setPacientes] = useState<ItemPaciente[]>([]);
+
+  const mostrarToast = (texto: string, tipo: 'sucesso' | 'info' | 'erro') => {
+    setToastNotificacao({ texto, tipo });
+    setTimeout(() => setToastNotificacao(null), 3500);
+  };
+
+  const converterPacienteApi = (paciente: RespostaListaPacientes['dados'][number]): ItemPaciente => ({
+    id: paciente.id,
+    nome: paciente.nome,
+    cpf: paciente.cpf,
+    dataNascimento: paciente.dataNascimento,
+    sexo: paciente.sexo,
+    telefone: paciente.telefone || undefined,
+    turma: paciente.turma,
+    escolaNome: paciente.escolaLocal || 'Não informada',
+    termoConsentimentoStatus: paciente.termoConsentimentoStatus || 'PENDENTE',
+    atendimentosCount: paciente.atendimentosCount || 0,
+    criadoEm: paciente.criadoEm,
+  });
+
+  useEffect(() => {
+    let ativo = true;
+    const carregarPacientes = async () => {
+      try {
+        const resposta = await requisicaoApi<RespostaListaPacientes>('/pacientes?porPagina=100');
+        if (ativo) setPacientes(resposta.dados.map(converterPacienteApi));
+      } catch (erro) {
+        if (ativo) {
+          mostrarToast(erro instanceof Error ? `Não foi possível carregar os pacientes: ${erro.message}` : 'Não foi possível carregar os pacientes.', 'erro');
+        }
+      } finally {
+        if (ativo) setCarregandoPacientes(false);
+      }
+    };
+    carregarPacientes();
+    return () => { ativo = false; };
+  }, []);
 
   // Lista de Atendimentos
-  const [atendimentos] = useState<ItemAtendimentoLista[]>([
-    {
-      id: 'atend-001',
-      pacienteNome: 'GABRIEL HENRIQUE SANTOS',
-      especialidade: Especialidade.OFTALMOLOGIA,
-      turno: Turno.MANHA,
-      escolaNome: 'CEMEIT DE TAGUATINGA',
-      profissionalNome: 'Dra. Carolina Mendes',
-      resumo: 'Acuidade visual 20/20 bilateral, sem queixas oftalmológicas.',
-      criadoEm: new Date(Date.now() - 3600000 * 3).toISOString(),
-    },
-    {
-      id: 'atend-002',
-      pacienteNome: 'BEATRIZ LIMA DE OLIVEIRA',
-      especialidade: Especialidade.ODONTOLOGIA,
-      turno: Turno.MANHA,
-      escolaNome: 'CEF 01 DE BRASÍLIA',
-      profissionalNome: 'Dr. Felipe Arantes',
-      resumo: 'Aplicação de flúor e profilaxia dentária realizada com sucesso.',
-      criadoEm: new Date(Date.now() - 3600000).toISOString(),
-    },
-  ]);
+  const [atendimentos, setAtendimentos] = useState<ItemAtendimentoLista[]>([]);
+  const [carregandoAtendimentos, setCarregandoAtendimentos] = useState(true);
+
+  useEffect(() => {
+    let ativo = true;
+    const carregarAtendimentos = async () => {
+      try {
+        const resposta = await requisicaoApi<{ dados: ItemAtendimentoLista[] }>('/atendimentos?porPagina=100');
+        if (ativo) setAtendimentos(resposta.dados);
+      } catch (erro) {
+        if (ativo) {
+          mostrarToast(erro instanceof Error ? `Não foi possível carregar os atendimentos: ${erro.message}` : 'Não foi possível carregar os atendimentos.', 'erro');
+        }
+      } finally {
+        if (ativo) setCarregandoAtendimentos(false);
+      }
+    };
+    carregarAtendimentos();
+    return () => { ativo = false; };
+  }, []);
 
   // Atalho Global Alt+N para novo paciente
   useEffect(() => {
@@ -198,7 +151,26 @@ export function App() {
 
   // Cadastro ou Edição de Paciente
   const handleSalvarPaciente = async (dados: FormNovoPaciente) => {
+    const turma = [dados.anoEscolar, dados.turma].filter(Boolean).join(' — ') || 'Não informada';
+    const escola = ESCOLAS_PADRAO.find((item) => item.nome === dados.instituicao);
+    if (!escola) {
+      throw new Error('Selecione uma instituição cadastrada.');
+    }
+    const corpo = {
+      nome: dados.nomeCompleto,
+      cpf: somenteDigitos(dados.cpf),
+      dataNascimento: dados.dataNascimento,
+      telefone: somenteDigitos(dados.telefone),
+      turma,
+      escolaLocalId: escola.id,
+      sexo: dados.sexo,
+    };
+
     if (pacienteParaEditar) {
+      await requisicaoApi(`/pacientes/${pacienteParaEditar.id}`, {
+        metodo: 'PATCH',
+        corpo,
+      });
       setPacientes((prev) =>
         prev.map((p) =>
           p.id === pacienteParaEditar.id
@@ -209,58 +181,38 @@ export function App() {
                 dataNascimento: dados.dataNascimento,
                 sexo: dados.sexo,
                 escolaNome: dados.instituicao,
+                telefone: dados.telefone,
+                turma,
               }
             : p
         )
       );
-      setToastNotificacao({
-        texto: `Cadastro de ${dados.nomeCompleto} atualizado com sucesso!`,
-        tipo: 'sucesso',
-      });
-      setTimeout(() => setToastNotificacao(null), 3500);
+      mostrarToast(`Cadastro de ${dados.nomeCompleto} atualizado com sucesso!`, 'sucesso');
       setPacienteParaEditar(null);
       setModalNovoPacienteAberto(false);
       return;
     }
 
-    const novoId = crypto.randomUUID();
+    const resposta = await requisicaoApi<{ id: string; criadoEm: string }>('/pacientes', {
+      metodo: 'POST',
+      corpo,
+    });
     const novoPaciente: ItemPaciente = {
-      id: novoId,
+      id: resposta.id,
       nome: dados.nomeCompleto,
       cpf: dados.cpf,
       dataNascimento: dados.dataNascimento,
       sexo: dados.sexo,
+      telefone: dados.telefone,
+      turma,
       escolaNome: dados.instituicao,
-      termoConsentimentoStatus: 'ACEITO',
+      termoConsentimentoStatus: 'PENDENTE',
       atendimentosCount: 0,
-      criadoEm: new Date().toISOString(),
+      criadoEm: resposta.criadoEm,
     };
 
-    try {
-      await requisicaoApi('/pacientes', {
-        metodo: 'POST',
-        corpo: {
-          nome: dados.nomeCompleto,
-          cpf: dados.cpf,
-          dataNascimento: dados.dataNascimento,
-          sexo: dados.sexo,
-          escolaLocalId: escolaAtivaId,
-          responsavelNome: dados.nomeCompleto,
-          responsavelParentesco: 'Responsável',
-          responsavelTelefone: dados.telefone,
-          termoAceito: true,
-        },
-      });
-    } catch {
-      // Fallback otimista em memória
-    }
-
     setPacientes((prev) => [novoPaciente, ...prev]);
-    setToastNotificacao({
-      texto: `Paciente ${novoPaciente.nome} cadastrado com sucesso!`,
-      tipo: 'sucesso',
-    });
-    setTimeout(() => setToastNotificacao(null), 3500);
+    mostrarToast(`Paciente ${novoPaciente.nome} cadastrado com sucesso!`, 'sucesso');
     setModalNovoPacienteAberto(false);
   };
 
@@ -270,6 +222,7 @@ export function App() {
 
     const sincronizarEmSegundoPlano = async () => {
       const cpfs = pacientes
+        .filter((p) => p.termoConsentimentoStatus === 'PENDENTE')
         .map((p) => sanitizarCpf(p.cpf))
         .filter((cpf) => cpf.length === 11);
 
@@ -334,25 +287,30 @@ export function App() {
     };
   }, [pacientes.length]);
 
-  const handleExcluirPaciente = (paciente: ItemPaciente) => {
-    setPacientes((prev) => prev.filter((p) => p.id !== paciente.id));
-    setToastNotificacao({
-      texto: `Paciente ${paciente.nome} foi excluído com sucesso.`,
-      tipo: 'sucesso',
-    });
-    setTimeout(() => setToastNotificacao(null), 3500);
+  const handleExcluirPaciente = async (paciente: ItemPaciente) => {
+    try {
+      await requisicaoApi(`/pacientes/${paciente.id}/arquivar`, { metodo: 'POST' });
+      setPacientes((prev) => prev.filter((p) => p.id !== paciente.id));
+      mostrarToast(`Paciente ${paciente.nome} foi arquivado com sucesso.`, 'sucesso');
+    } catch (erro) {
+      mostrarToast(erro instanceof Error ? `Não foi possível arquivar: ${erro.message}` : 'Não foi possível arquivar o paciente.', 'erro');
+    }
   };
 
   // Filtragem da Lista de Pacientes
-  const pacientesFiltrados = pacientes.filter((paciente) => {
-    const termo = buscaPaciente.trim().toLowerCase();
-    if (!termo) return true;
-    return (
-      paciente.nome.toLowerCase().includes(termo) ||
-      (paciente.cpf && paciente.cpf.includes(termo)) ||
-      paciente.escolaNome.toLowerCase().includes(termo)
-    );
-  });
+  const pacientesFiltrados = useMemo(() => pacientes.filter((paciente) => {
+    const termoTexto = normalizarTexto(buscaPaciente.trim());
+    const termoNumerico = somenteDigitos(buscaPaciente);
+    const correspondeBusca = !termoTexto || [
+      paciente.nome,
+      paciente.escolaNome,
+      paciente.responsavelNome,
+      paciente.telefone,
+      paciente.turma,
+    ].some((valor) => normalizarTexto(valor).includes(termoTexto)) ||
+      (termoNumerico.length > 0 && [paciente.cpf, paciente.telefone].some((valor) => somenteDigitos(valor).includes(termoNumerico)));
+    return correspondeBusca;
+  }), [pacientes, buscaPaciente]);
 
   return (
     <div className="flex min-h-screen bg-[#f4f7fb] text-slate-800 font-sans">
@@ -430,7 +388,7 @@ export function App() {
               busca={{
                 valor: buscaPaciente,
                 aoMudar: setBuscaPaciente,
-                placeholder: 'Buscar por nome ou CPF...',
+                placeholder: 'Buscar por nome, CPF, telefone, turma ou responsável...',
               }}
               acaoPrimaria={{
                 rotulo: 'Novo Paciente',
@@ -442,7 +400,7 @@ export function App() {
 
             <TabelaPacientes
               pacientes={pacientesFiltrados}
-              carregando={false}
+              carregando={carregandoPacientes}
               aoNovoPaciente={() => {
                 setPacienteParaEditar(null);
                 setModalNovoPacienteAberto(true);

@@ -9,6 +9,7 @@ import {
 } from './tabelaExcel/index.ts';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { Paginacao } from './Paginacao.tsx';
+import { censurarCpf } from './TabelaPacientes.tsx';
 
 export interface UsuarioItem {
   id: string;
@@ -286,7 +287,7 @@ export const Usuarios: FC = () => {
                     </td>
 
                     <td className="py-3 px-3.5 font-mono text-slate-600 text-xs">
-                      {u.cpf}
+                      {u.cpf ? censurarCpf(u.cpf) : ''}
                     </td>
 
                     <td className="py-3 px-3.5">

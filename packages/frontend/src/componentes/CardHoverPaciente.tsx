@@ -27,7 +27,6 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
   const idade = calcularIdade(paciente.dataNascimento);
 
   // Fallbacks inteligentes caso algum campo não venha preenchido no mock
-  const perfil = paciente.perfil || 'Aluno Regular';
   const turma =
     paciente.turma ||
     (idade <= 5
@@ -41,7 +40,6 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
       : 'EJA / Comunidade');
 
   const telefone = paciente.telefone || '(61) 98452-1190';
-  const responsavel = paciente.responsavelNome || 'Responsável Legal Cadastrado';
 
   const atualizarPosicao = () => {
     if (!triggerRef.current) return;
@@ -132,28 +130,11 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
                 {paciente.nome.charAt(0).toUpperCase()}
               </div>
 
-              <div className="flex flex-col min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-1">
-                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 uppercase tracking-wider">
-                    {perfil}
-                  </span>
-                  {paciente.termoConsentimentoStatus === 'ACEITO' ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Autorizado
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                      Não Autorizado
-                    </span>
-                  )}
-                </div>
-
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-tight truncate mt-1">
+              <div className="flex flex-col min-w-0 flex-1 justify-center">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-tight truncate">
                   {paciente.nome}
                 </h4>
-                <p className="text-[11px] text-slate-500 font-normal">
+                <p className="text-[11px] text-slate-500 font-normal mt-0.5">
                   {formatarSubtituloPaciente(paciente)}
                 </p>
               </div>
@@ -183,9 +164,9 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
                   </svg>
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Telefone / Responsável</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Celular</span>
                   <span className="text-[11.5px] font-mono font-semibold text-slate-800 truncate">
-                    {telefone} <span className="text-[10px] font-sans font-normal text-slate-500">({responsavel.split(' ')[0]})</span>
+                    {telefone}
                   </span>
                 </div>
               </div>
@@ -206,19 +187,38 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
                 </div>
               </div>
 
-              {/* CPF & Atendimentos */}
-              <div className="grid grid-cols-2 gap-2">
+              {/* CPF, Prontuário, Autorização */}
+              <div className="grid grid-cols-[1.2fr_1fr_1.3fr] gap-2">
                 <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-100/90 flex flex-col">
                   <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">CPF</span>
                   <span className="text-[11px] font-mono font-semibold text-slate-700 truncate mt-0.5">
-                    {paciente.cpf || 'Não informado'}
+                    {paciente.cpf || 'Não inf.'}
                   </span>
                 </div>
                 <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-100/90 flex flex-col">
                   <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Prontuário</span>
-                  <span className="text-[11px] font-bold text-blue-600 mt-0.5">
-                    {paciente.atendimentosCount} atendimento(s)
+                  <span className="text-[11px] font-bold text-[#034b7f] mt-0.5">
+                    {paciente.atendimentosCount} atend.
                   </span>
+                </div>
+                <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-100/90 flex flex-col">
+                  <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Termo LGPD</span>
+                  {paciente.termoConsentimentoStatus === 'ACEITO' ? (
+                    <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-600 mt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Autorizado
+                    </span>
+                  ) : paciente.termoConsentimentoStatus === 'DISPENSADO' ? (
+                    <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-[#14438f] mt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#14438f]" />
+                      Disp. Legal
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-slate-500 mt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                      Pendente
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -247,7 +247,8 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
                       setVisivel(false);
                       aoIniciarAtendimento(paciente);
                     }}
-                    className="flex-1 py-1.5 px-2.5 rounded-xl text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all text-center cursor-pointer shadow-xs"
+                    className="flex-1 py-1.5 px-2.5 rounded-xl text-[11px] font-bold text-white transition-all text-center cursor-pointer shadow-xs"
+                    style={{ background: 'linear-gradient(135deg, #034b7f 0%, #14438f 100%)', boxShadow: '0 2px 8px rgba(3,75,127,0.25)' }}
                   >
                     Atender
                   </button>

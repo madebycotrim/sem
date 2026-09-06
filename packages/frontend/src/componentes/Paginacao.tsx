@@ -51,8 +51,8 @@ export const Paginacao: FC<PaginacaoProps> = ({
     ];
   }, [paginaAtual, totalPaginas]);
 
-  const paginaInicio = (paginaAtual - 1) * 10 + 1;
-  const paginaFim = Math.min(paginaAtual * 10, totalRegistros);
+  const paginaInicio = totalRegistros === 0 ? 0 : (paginaAtual - 1) * 10 + 1;
+  const paginaFim = totalRegistros === 0 ? 0 : Math.min(paginaAtual * 10, totalRegistros);
 
   return (
     <div
@@ -68,7 +68,7 @@ export const Paginacao: FC<PaginacaoProps> = ({
       </p>
 
       {/* Lado Direito: Navegação */}
-      <div className="flex items-center gap-0.5">
+      {totalRegistros > 0 && <div className="flex items-center gap-0.5">
         {/* Primeira Página */}
         <button
           type="button"
@@ -174,7 +174,7 @@ export const Paginacao: FC<PaginacaoProps> = ({
             <polyline points="6 17 11 12 6 7" />
           </svg>
         </button>
-      </div>
+      </div>}
     </div>
   );
 };

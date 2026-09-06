@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS pacientes (
   turma TEXT NOT NULL,
   escola_local_id TEXT NOT NULL,
   retencao_expira_em DATETIME,
+  ativo INTEGER NOT NULL DEFAULT 1,
   criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
   atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (escola_local_id) REFERENCES escolas_locais(id)

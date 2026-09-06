@@ -13,6 +13,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 // ─── Usuário do Sistema ──────────────────────────────────────────────────────
@@ -38,12 +39,16 @@ model Usuario {
 
 model EscolaLocal {
   id        String   @id @default(uuid())
-  nome      String
-  endereco  String
-  cidade    String
-  uf        String
-  ativo     Boolean  @default(true)
-  criadoEm  DateTime @default(now()) @map("criado_em")
+  nome                String
+  endereco            String
+  cidade              String
+  uf                  String
+  diretoriaRegional   String?  @map("diretoria_regional")
+  alunosMatriculados  Int      @default(0) @map("alunos_matriculados")
+  unidadesMoveis      Int      @default(0) @map("unidades_moveis")
+  statusOperacao      String   @default("PROGRAMADA") @map("status_operacao")
+  ativo               Boolean  @default(true)
+  criadoEm            DateTime @default(now()) @map("criado_em")
 
   pacientes     Paciente[]
   atendimentos  Atendimento[]
@@ -79,6 +84,7 @@ model Paciente {
 
   // --- LGPD: Retenção e expurgo ---
   retencaoExpiraEm    DateTime? @map("retencao_expira_em")
+  ativo               Boolean   @default(true)
 
   criadoEm            DateTime  @default(now()) @map("criado_em")
   atualizadoEm        DateTime  @updatedAt @map("atualizado_em")
