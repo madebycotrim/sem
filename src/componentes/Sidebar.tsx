@@ -21,6 +21,7 @@ export interface SidebarProps {
   nomeUsuario?: string;
   emailUsuario?: string;
   cargoUsuario?: string;
+  perfilUsuario?: string;
 }
 
 export const Sidebar: FC<SidebarProps> = ({
@@ -29,9 +30,10 @@ export const Sidebar: FC<SidebarProps> = ({
   aoDeslogar = () => {
     window.location.reload();
   },
-  nomeUsuario = 'Mateus Cotrim',
-  emailUsuario = 'mateus.cotrim@catraki.com.br',
-  cargoUsuario = 'Administrador Geral',
+  nomeUsuario = 'Usuário',
+  emailUsuario = '',
+  cargoUsuario = 'Membro',
+  perfilUsuario = 'ADMIN',
 }) => {
   const [confirmandoSaida, setConfirmandoSaida] = useState(false);
   const containerSairRef = useRef<HTMLDivElement>(null);
@@ -74,33 +76,41 @@ export const Sidebar: FC<SidebarProps> = ({
         {/* ─── 2. Meio: Dock de Ícones Elegantes com Flyouts Instantâneos ──── */}
         <nav className="flex flex-col items-center justify-center space-y-1.5 w-full my-auto shrink-0">
           {/* Grupo 1: Atendimento & Triagem */}
-          <ItemDock
-            rotulo="Pacientes"
-            categoria="Atendimento"
-            descricao="Cadastro e prontuário dos alunos"
-            ativo={secaoAtiva === 'pacientes'}
-            aoClicar={() => aoMudarSecao('pacientes')}
-            icone={<IconePacientes />}
-          />
-          <ItemDock
-            rotulo="Fila do Dia"
-            categoria="Atendimento"
-            descricao="Ordem de chegada e prioridades"
-            ativo={secaoAtiva === 'filaDia'}
-            aoClicar={() => aoMudarSecao('filaDia')}
-            icone={<IconeFila />}
-          />
-          <ItemDock
-            rotulo="Fichas de Atendimento"
-            categoria="Atendimento"
-            descricao="Registro clínico das especialidades"
-            ativo={secaoAtiva === 'consultas'}
-            aoClicar={() => aoMudarSecao('consultas')}
-            icone={<IconeConsultas />}
-          />
+          {['ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
+            <ItemDock
+              rotulo="Pacientes"
+              categoria="Atendimento"
+              descricao="Cadastro e prontuário dos alunos"
+              ativo={secaoAtiva === 'pacientes'}
+              aoClicar={() => aoMudarSecao('pacientes')}
+              icone={<IconePacientes />}
+            />
+          )}
+          {['ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
+            <ItemDock
+              rotulo="Fila do Dia"
+              categoria="Atendimento"
+              descricao="Ordem de chegada e prioridades"
+              ativo={secaoAtiva === 'filaDia'}
+              aoClicar={() => aoMudarSecao('filaDia')}
+              icone={<IconeFila />}
+            />
+          )}
+          {['ADMIN', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
+            <ItemDock
+              rotulo="Fichas de Atendimento"
+              categoria="Atendimento"
+              descricao="Registro clínico das especialidades"
+              ativo={secaoAtiva === 'consultas'}
+              aoClicar={() => aoMudarSecao('consultas')}
+              icone={<IconeConsultas />}
+            />
+          )}
 
           {/* Divisor Delicado */}
-          <div className="w-7 h-[1.5px] bg-slate-100 rounded-full my-1 shrink-0" />
+          {['ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
+            <div className="w-7 h-[1.5px] bg-slate-100 rounded-full my-1 shrink-0" />
+          )}
 
           {/* Grupo 2: Operação & Gestão */}
           <ItemDock
@@ -111,43 +121,53 @@ export const Sidebar: FC<SidebarProps> = ({
             aoClicar={() => aoMudarSecao('dashboard')}
             icone={<IconeDashboard />}
           />
-          <ItemDock
-            rotulo="Escolas"
-            categoria="Operação"
-            descricao="Polos escolares e unidades móveis"
-            ativo={secaoAtiva === 'escolas'}
-            aoClicar={() => aoMudarSecao('escolas')}
-            icone={<IconeEscolas />}
-          />
-          <ItemDock
-            rotulo="Relatórios"
-            categoria="Operação"
-            descricao="Consolidação e prestação de contas"
-            ativo={secaoAtiva === 'relatorios'}
-            aoClicar={() => aoMudarSecao('relatorios')}
-            icone={<IconeRelatorios />}
-          />
+          {['ADMIN'].includes(perfilUsuario) && (
+            <ItemDock
+              rotulo="Escolas"
+              categoria="Operação"
+              descricao="Polos escolares e unidades móveis"
+              ativo={secaoAtiva === 'escolas'}
+              aoClicar={() => aoMudarSecao('escolas')}
+              icone={<IconeEscolas />}
+            />
+          )}
+          {['ADMIN', 'DPO'].includes(perfilUsuario) && (
+            <ItemDock
+              rotulo="Relatórios"
+              categoria="Operação"
+              descricao="Consolidação e prestação de contas"
+              ativo={secaoAtiva === 'relatorios'}
+              aoClicar={() => aoMudarSecao('relatorios')}
+              icone={<IconeRelatorios />}
+            />
+          )}
 
           {/* Divisor Delicado */}
-          <div className="w-7 h-[1.5px] bg-slate-100 rounded-full my-1 shrink-0" />
+          {['ADMIN', 'DPO'].includes(perfilUsuario) && (
+            <div className="w-7 h-[1.5px] bg-slate-100 rounded-full my-1 shrink-0" />
+          )}
 
           {/* Grupo 3: Segurança & Controle */}
-          <ItemDock
-            rotulo="Usuários & Permissões"
-            categoria="Segurança"
-            descricao="Controle de acesso da equipe (RBAC)"
-            ativo={secaoAtiva === 'usuarios'}
-            aoClicar={() => aoMudarSecao('usuarios')}
-            icone={<IconeUsuarios />}
-          />
-          <ItemDock
-            rotulo="Auditoria & Governança"
-            categoria="Segurança"
-            descricao="Trilha de auditoria e conformidade"
-            ativo={secaoAtiva === 'governanca'}
-            aoClicar={() => aoMudarSecao('governanca')}
-            icone={<IconeGovernanca />}
-          />
+          {['ADMIN'].includes(perfilUsuario) && (
+            <ItemDock
+              rotulo="Usuários & Permissões"
+              categoria="Segurança"
+              descricao="Controle de acesso da equipe (RBAC)"
+              ativo={secaoAtiva === 'usuarios'}
+              aoClicar={() => aoMudarSecao('usuarios')}
+              icone={<IconeUsuarios />}
+            />
+          )}
+          {['ADMIN', 'DPO'].includes(perfilUsuario) && (
+            <ItemDock
+              rotulo="Auditoria & Governança"
+              categoria="Segurança"
+              descricao="Trilha de auditoria e conformidade"
+              ativo={secaoAtiva === 'governanca'}
+              aoClicar={() => aoMudarSecao('governanca')}
+              icone={<IconeGovernanca />}
+            />
+          )}
         </nav>
 
         {/* ─── 3. Rodapé: Perfil Estilo Google + Botão de Deslogar ─────────── */}

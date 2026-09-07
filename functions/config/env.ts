@@ -33,6 +33,9 @@ const envSchema = z.object({
   PATIENT_DATA_RETENTION_DAYS: z.coerce.number().int().min(1).default(365),
 
   MFA_ISSUER: z.string().default('Catraki SEM'),
+
+  ADMIN_BOOTSTRAP_EMAIL: z.string().optional(),
+  ADMIN_BOOTSTRAP_PASSWORD: z.string().optional(),
   
   DB: z.any().optional(), // Cloudflare D1 Database binding
   ASSETS: z.any().optional(), // Cloudflare Pages static assets binding

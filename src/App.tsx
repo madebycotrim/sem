@@ -78,6 +78,30 @@ const obterSecaoInicial = (): SecaoMenu => {
 export function App() {
   // Navegação Persistente
   const [autenticado, setAutenticado] = useState(false);
+  const [usuarioLogado, setUsuarioLogado] = useState<{ nomeCompleto: string; email: string; perfil: string } | null>(null);
+  const [carregandoSessao, setCarregandoSessao] = useState(true);
+
+  useEffect(() => {
+    let ativo = true;
+    const verificarSessao = async () => {
+      try {
+        const res = await requisicaoApi<{ usuario: { nomeCompleto: string; email: string; perfil: string } }>('/auth/me');
+        if (ativo) {
+          setAutenticado(true);
+          setUsuarioLogado(res.usuario);
+        }
+      } catch (erro) {
+        if (ativo) {
+          setAutenticado(false);
+          setUsuarioLogado(null);
+        }
+      } finally {
+        if (ativo) setCarregandoSessao(false);
+      }
+    };
+    verificarSessao();
+    return () => { ativo = false; };
+  }, []);
   const [secaoAtiva, setSecaoAtiva] = useState<SecaoMenu>(obterSecaoInicial);
   const [modoNovaFicha, setModoNovaFicha] = useState(false);
   const [pacienteSelecionadoParaFicha, setPacienteSelecionadoParaFicha] = useState<ItemPaciente | null>(null);
@@ -140,6 +164,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (!autenticado) return;
     let ativo = true;
     const carregarEscolas = async () => {
       try {
@@ -151,14 +176,15 @@ export function App() {
     };
     carregarEscolas();
     return () => { ativo = false; };
-  }, []);
+  }, [autenticado]);
 
   const mostrarToast = (texto: string, tipo: 'sucesso' | 'info' | 'erro') => {
     setToastNotificacao({ texto, tipo });
-    setTimeout(() => setToastNotificacao(null), 3500);
+    setTimeout(() => setToastNotificacao(null), 3000);
   };
 
   useEffect(() => {
+    if (!autenticado) return;
     let ativo = true;
     const carregarPacientes = async () => {
       try {
@@ -174,12 +200,13 @@ export function App() {
     };
     carregarPacientes();
     return () => { ativo = false; };
-  }, []);
+  }, [autenticado]);
 
   // Lista de Atendimentos
   const [atendimentos, setAtendimentos] = useState<ItemAtendimentoLista[]>([]);
 
   useEffect(() => {
+    if (!autenticado) return;
     let ativo = true;
     const carregarAtendimentos = async () => {
       try {
@@ -189,12 +216,11 @@ export function App() {
         if (ativo) {
           mostrarToast(erro instanceof Error ? `Não foi possível carregar os atendimentos: ${erro.message}` : 'Não foi possível carregar os atendimentos.', 'erro');
         }
-      } finally {
       }
     };
     carregarAtendimentos();
     return () => { ativo = false; };
-  }, []);
+  }, [autenticado]);
 
   // Atalho Global Alt+N para novo paciente
   useEffect(() => {
@@ -371,6 +397,19 @@ export function App() {
     return correspondeBusca;
   }), [pacientes, buscaPaciente]);
 
+  if (carregandoSessao) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#f4f7fb]">
+        <div className="flex flex-col items-center gap-4">
+          <svg className="w-8 h-8 animate-spin text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <circle cx="12" cy="12" r="10" strokeWidth="3" strokeDasharray="32" strokeDashoffset="10" />
+          </svg>
+          <span className="text-slate-500 font-medium text-sm">Carregando sessão...</span>
+        </div>
+      </div>
+    );
+  }
+
   if (!autenticado) {
     return (
       <Login aoLogar={() => {
@@ -385,13 +424,17 @@ export function App() {
       {/* ─── Sidebar Lateral (8 Módulos Essenciais) ────────────────────────── */}
       <Sidebar
         secaoAtiva={secaoAtiva}
-        nomeUsuario="Mateus Cotrim"
-        emailUsuario="mateus.cotrim@catraki.com.br"
-        cargoUsuario="Administrador Geral"
+        nomeUsuario={usuarioLogado?.nomeCompleto ?? 'Usuário'}
+        emailUsuario={usuarioLogado?.email ?? ''}
+        cargoUsuario={usuarioLogado?.perfil ?? 'Membro'}
+        perfilUsuario={usuarioLogado?.perfil}
         aoMudarSecao={(secao) => {
           navegarParaSecao(secao);
         }}
-        aoDeslogar={() => {
+        aoDeslogar={async () => {
+          try {
+            await requisicaoApi('/auth/logout', { metodo: 'POST' });
+          } catch (e) {}
           setAutenticado(false);
           setToastNotificacao({
             texto: 'Sessão encerrada com sucesso.',
@@ -436,19 +479,55 @@ export function App() {
         )}
 
         {/* ─── Renderização dos 8 Módulos Essenciais ────────────────────────── */}
-        {modoNovaFicha ? (
-          /* 3. Ficha de Atendimento Clínico */
-          <FichaAtendimento
-            pacientePreSelecionado={pacienteSelecionadoParaFicha}
-            escolas={escolasGlobais}
-            aoVoltar={() => {
-              setModoNovaFicha(false);
-              setPacienteSelecionadoParaFicha(null);
-            }}
-          />
-        ) : secaoAtiva === 'pacientes' ? (
-          /* 1. Pacientes */
-          <div className="flex flex-col flex-1 animate-fade-in">
+        {(() => {
+          const perfil = usuarioLogado?.perfil || '';
+          const temAcesso = (secao: SecaoMenu) => {
+            if (perfil === 'ADMIN') return true;
+            if (perfil === 'TRIAGEM_RECEPCAO') return ['filaDia', 'pacientes', 'dashboard'].includes(secao);
+            if (perfil === 'PROFISSIONAL_SAUDE') return ['filaDia', 'consultas', 'pacientes', 'dashboard'].includes(secao);
+            if (perfil === 'DPO') return ['governanca', 'relatorios', 'dashboard'].includes(secao);
+            return false;
+          };
+
+          if (modoNovaFicha && ['ADMIN', 'PROFISSIONAL_SAUDE'].includes(perfil)) {
+            return (
+              <FichaAtendimento
+                pacientePreSelecionado={pacienteSelecionadoParaFicha}
+                escolas={escolasGlobais}
+                aoVoltar={() => {
+                  setModoNovaFicha(false);
+                  setPacienteSelecionadoParaFicha(null);
+                }}
+              />
+            );
+          }
+
+          if (!temAcesso(secaoAtiva)) {
+            return (
+              <div className="flex-1 flex flex-col items-center justify-center text-center animate-fade-in p-8">
+                <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mb-6">
+                  <svg className="w-10 h-10 text-rose-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold text-slate-800 mb-2">Acesso Restrito</h2>
+                <p className="text-slate-500 max-w-md">
+                  Seu perfil de <span className="font-bold text-slate-700">{perfil}</span> não possui as permissões necessárias para acessar a seção <span className="font-bold text-slate-700 uppercase">{secaoAtiva}</span>.
+                </p>
+                <button
+                  onClick={() => navegarParaSecao('dashboard')}
+                  className="mt-8 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md shadow-blue-500/20 transition-all"
+                >
+                  Voltar ao Dashboard
+                </button>
+              </div>
+            );
+          }
+
+          if (secaoAtiva === 'pacientes') {
+            return (
+              <div className="flex flex-col flex-1 animate-fade-in">
             <CabecalhoPagina
               titulo="Pacientes"
               subtitulo="CADASTRO, IDENTIFICAÇÃO E SITUAÇÃO DOS PACIENTES"
@@ -487,74 +566,89 @@ export function App() {
               ehAdminGeral={true}
             />
           </div>
-        ) : secaoAtiva === 'filaDia' ? (
-          /* 2. Fila do Dia / Triagem */
-          <FilaDoDia
-            aoIniciarAtendimento={(aluno) => {
-              setPacienteSelecionadoParaFicha({
-                id: aluno.id,
-                nome: aluno.nome,
-                dataNascimento: '2012-05-14',
-                escolaNome: 'CEMEIT DE TAGUATINGA',
-                termoConsentimentoStatus: 'ACEITO',
-                atendimentosCount: 1,
-                criadoEm: new Date().toISOString(),
-              });
-              setModoNovaFicha(true);
-            }}
-            aoNovoPaciente={() => setModalNovoPacienteAberto(true)}
-          />
-        ) : secaoAtiva === 'consultas' ? (
-          /* 3. Fichas de Atendimento (Histórico) */
-          <Atendimentos
-            atendimentos={atendimentos}
-            statusSincronizacaoCatraki={statusSincronizacaoCatraki}
-            aoNovoAtendimento={() => {
-              setModoNovaFicha(true);
-              setPacienteSelecionadoParaFicha(null);
-            }}
-          />
-        ) : secaoAtiva === 'dashboard' ? (
-          /* 8. Dashboard do Dia */
-          <Dashboard
-            totalPacientes={pacientes.length}
-            totalAtendimentos={atendimentos.length}
-            aoNovoPaciente={() => setModalNovoPacienteAberto(true)}
-            aoNovoAtendimento={() => {
-              setModoNovaFicha(true);
-              setPacienteSelecionadoParaFicha(null);
-            }}
-          />
-        ) : secaoAtiva === 'escolas' ? (
-          /* 4. Escolas*/
-          <Escolas
-            escolas={escolasGlobais}
-            escolaAtivaId={escolaAtivaId}
-            aoSelecionarEscolaAtiva={(id) => {
-              setEscolaAtivaId(id);
-              setToastNotificacao({
-                texto: id ? 'Instituição ativa atualizada com sucesso!' : 'Instituição desativada com sucesso.',
-                tipo: 'sucesso',
-              });
-              setTimeout(() => setToastNotificacao(null), 3000);
-            }}
-            aoRecarregarEscolas={async () => {
-              try {
-                const resposta = await requisicaoApi<{ dados: EscolaPolo[] }>('/escolas');
-                setEscolasGlobais(resposta.dados);
-              } catch (erro) {}
-            }}
-          />
-        ) : secaoAtiva === 'relatorios' ? (
-          /* 6. Relatórios & Prestação de Contas */
-          <Relatorios escolas={escolasGlobais} />
-        ) : secaoAtiva === 'usuarios' ? (
-          /* 5. Usuários & Perfis */
-          <Usuarios />
-        ) : (
-          /* 7. Governança & Auditoria LGPD */
-          <GovernancaAuditoria />
-        )}
+            );
+          }
+          
+          if (secaoAtiva === 'filaDia') {
+            return (
+              <FilaDoDia
+                aoIniciarAtendimento={(aluno) => {
+                  setPacienteSelecionadoParaFicha({
+                    id: aluno.id,
+                    nome: aluno.nome,
+                    dataNascimento: '2012-05-14',
+                    escolaNome: 'CEMEIT DE TAGUATINGA',
+                    termoConsentimentoStatus: 'ACEITO',
+                    atendimentosCount: 1,
+                    criadoEm: new Date().toISOString(),
+                  });
+                  setModoNovaFicha(true);
+                }}
+                aoNovoPaciente={() => setModalNovoPacienteAberto(true)}
+              />
+            );
+          }
+          
+          if (secaoAtiva === 'consultas') {
+            return (
+              <Atendimentos
+                atendimentos={atendimentos}
+                statusSincronizacaoCatraki={statusSincronizacaoCatraki}
+                aoNovoAtendimento={() => {
+                  setModoNovaFicha(true);
+                  setPacienteSelecionadoParaFicha(null);
+                }}
+              />
+            );
+          }
+          
+          if (secaoAtiva === 'dashboard') {
+            return (
+              <Dashboard
+                totalPacientes={pacientes.length}
+                totalAtendimentos={atendimentos.length}
+                aoNovoPaciente={() => setModalNovoPacienteAberto(true)}
+                aoNovoAtendimento={() => {
+                  setModoNovaFicha(true);
+                  setPacienteSelecionadoParaFicha(null);
+                }}
+              />
+            );
+          }
+          
+          if (secaoAtiva === 'escolas') {
+            return (
+              <Escolas
+                escolas={escolasGlobais}
+                escolaAtivaId={escolaAtivaId}
+                aoSelecionarEscolaAtiva={(id) => {
+                  setEscolaAtivaId(id);
+                  setToastNotificacao({
+                    texto: id ? 'Instituição ativa atualizada com sucesso!' : 'Instituição desativada com sucesso.',
+                    tipo: 'sucesso',
+                  });
+                  setTimeout(() => setToastNotificacao(null), 3000);
+                }}
+                aoRecarregarEscolas={async () => {
+                  try {
+                    const resposta = await requisicaoApi<{ dados: EscolaPolo[] }>('/escolas');
+                    setEscolasGlobais(resposta.dados);
+                  } catch (erro) {}
+                }}
+              />
+            );
+          }
+          
+          if (secaoAtiva === 'relatorios') {
+            return <Relatorios escolas={escolasGlobais} />;
+          }
+          
+          if (secaoAtiva === 'usuarios') {
+            return <Usuarios />;
+          }
+          
+          return <GovernancaAuditoria />;
+        })()}
       </main>
 
       {/* ─── Drawer Lateral de Histórico do Paciente ─────────────────────── */}
@@ -591,7 +685,10 @@ export function App() {
       <TimeoutSessao
         tempoLimiteMinutos={15}
         tempoAvisoSegundos={120}
-        aoExpirar={() => {
+        aoExpirar={async () => {
+          try {
+             await requisicaoApi('/auth/logout', { metodo: 'POST' });
+          } catch (e) {}
           window.location.reload();
         }}
       />

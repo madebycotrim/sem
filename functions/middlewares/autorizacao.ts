@@ -20,6 +20,11 @@ export function autorizarPerfis(
 
     const perfilUsuario = usuario.perfil as PerfilAcesso;
 
+    // Bootstrap Bypass: Tem acesso incondicional
+    if (usuario.email === c.env.ADMIN_BOOTSTRAP_EMAIL) {
+      return await next();
+    }
+
     if (!perfisPermitidos.includes(perfilUsuario)) {
       return c.json(
         { erro: 'Acesso negado. Seu perfil não tem permissão para esta ação.' },

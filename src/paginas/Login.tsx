@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { requisicaoApi } from '../servicos/api.ts';
 import catrakiLogo from '../assets/catraki.png';
 
 const formLoginSchema = z.object({
@@ -21,18 +22,29 @@ export function Login({ aoLogar }: LoginProps) {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<FormLogin>({
     resolver: zodResolver(formLoginSchema),
   });
 
-  const onSubmit = (dados: FormLogin) => {
+  const onSubmit = async (dados: FormLogin) => {
     setCarregando(true);
-    // Simula delay de rede para autenticação
-    setTimeout(() => {
-      setCarregando(false);
+    try {
+      await requisicaoApi('/auth/login', {
+        metodo: 'POST',
+        corpo: {
+          email: dados.email,
+          senha: dados.senha
+        }
+      });
       aoLogar(dados.email);
-    }, 1200);
+    } catch (erro) {
+      const mensagem = erro instanceof Error ? erro.message : 'Erro ao autenticar';
+      setError('root', { type: 'manual', message: mensagem });
+    } finally {
+      setCarregando(false);
+    }
   };
 
   return (
@@ -113,9 +125,6 @@ export function Login({ aoLogar }: LoginProps) {
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
                   Senha
                 </label>
-                <a href="#" className="text-[12px] font-bold text-blue-600 hover:text-blue-700 transition-colors">
-                  Esqueceu a senha?
-                </a>
               </div>
               <div className="relative">
                 <input
@@ -140,6 +149,13 @@ export function Login({ aoLogar }: LoginProps) {
                 </p>
               )}
             </div>
+
+            {errors.root && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-semibold flex items-center gap-2 animate-fade-in">
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {errors.root.message}
+              </div>
+            )}
 
             {/* Botão de Submit */}
             <button
