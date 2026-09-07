@@ -11,6 +11,7 @@ import { Usuarios } from './componentes/Usuarios.tsx';
 import { Relatorios } from './componentes/Relatorios.tsx';
 import { GovernancaAuditoria } from './componentes/GovernancaAuditoria.tsx';
 import { FichaAtendimento } from './paginas/FichaAtendimento.tsx';
+import { Login } from './paginas/Login.tsx';
 import { TimeoutSessao } from './componentes/TimeoutSessao.tsx';
 import { DrawerHistoricoPaciente } from './componentes/DrawerHistoricoPaciente.tsx';
 import { requisicaoApi } from './servicos/api.ts';
@@ -76,6 +77,7 @@ const obterSecaoInicial = (): SecaoMenu => {
 
 export function App() {
   // Navegação Persistente
+  const [autenticado, setAutenticado] = useState(false);
   const [secaoAtiva, setSecaoAtiva] = useState<SecaoMenu>(obterSecaoInicial);
   const [modoNovaFicha, setModoNovaFicha] = useState(false);
   const [pacienteSelecionadoParaFicha, setPacienteSelecionadoParaFicha] = useState<ItemPaciente | null>(null);
@@ -369,6 +371,15 @@ export function App() {
     return correspondeBusca;
   }), [pacientes, buscaPaciente]);
 
+  if (!autenticado) {
+    return (
+      <Login aoLogar={() => {
+        setAutenticado(true);
+        mostrarToast(`Bem-vindo de volta!`, 'sucesso');
+      }} />
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-[#f4f7fb] text-slate-800 font-sans">
       {/* ─── Sidebar Lateral (8 Módulos Essenciais) ────────────────────────── */}
@@ -381,6 +392,7 @@ export function App() {
           navegarParaSecao(secao);
         }}
         aoDeslogar={() => {
+          setAutenticado(false);
           setToastNotificacao({
             texto: 'Sessão encerrada com sucesso.',
             tipo: 'info',

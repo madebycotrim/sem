@@ -205,7 +205,7 @@ export const Modal: FC<ModalProps> = ({
           )}
 
           {/* ─── 2. Corpo Conteúdo (Rolável) ───────────────────────────────── */}
-          <div className="p-6 pb-20 overflow-y-auto flex-1 min-h-0">
+          <div className="p-6 overflow-y-auto flex-1 min-h-0">
             {children}
           </div>
 
