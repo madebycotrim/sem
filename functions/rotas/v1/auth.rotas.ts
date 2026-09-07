@@ -24,10 +24,14 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
     c.env.ADMIN_BOOTSTRAP_EMAIL && 
     body.email === c.env.ADMIN_BOOTSTRAP_EMAIL
   ) {
+    if (c.env.ADMIN_BOOTSTRAP_PASSWORD && body.senha !== c.env.ADMIN_BOOTSTRAP_PASSWORD) {
+      return c.json({ erro: 'Credenciais inválidas.' }, 401);
+    }
+
     const token = await sign({
       userId: '00000000-0000-0000-0000-000000000000',
       email: body.email,
-      perfil: 'ADMIN',
+      perfil: 'BOOTSTRAP',
       mfaVerificado: true,
       exp: Math.floor(Date.now() / 1000) + 60 * 60 * 8, // 8h
     }, c.env.JWT_SECRET);
@@ -41,7 +45,7 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
         id: '00000000-0000-0000-0000-000000000000',
         email: body.email,
         nomeCompleto: 'Super Admin (Bootstrap)',
-        perfil: 'ADMIN',
+        perfil: 'BOOTSTRAP',
         mfaAtivo: false,
         mfaVerificado: true,
       },
@@ -171,7 +175,7 @@ rotasAuth.get('/me', middlewareAutenticacao, async (c) => {
         id: usuarioLogado.userId,
         email: usuarioLogado.email,
         nomeCompleto: 'Super Admin (Bootstrap)',
-        perfil: 'ADMIN',
+        perfil: 'BOOTSTRAP',
         mfaAtivo: false,
         ativo: true,
         criadoEm: new Date(),

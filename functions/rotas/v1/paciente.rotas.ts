@@ -17,7 +17,7 @@ export const rotasPaciente = new Hono<{ Bindings: Bindings; Variables: AppVariab
 rotasPaciente.use('*', middlewareAutenticacao);
 rotasPaciente.use(
   '*',
-  autorizarPerfis(['ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE'])
+  autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE'])
 );
 
 /**

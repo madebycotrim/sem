@@ -76,7 +76,7 @@ export const Sidebar: FC<SidebarProps> = ({
         {/* ─── 2. Meio: Dock de Ícones Elegantes com Flyouts Instantâneos ──── */}
         <nav className="flex flex-col items-center justify-center space-y-1.5 w-full my-auto shrink-0">
           {/* Grupo 1: Atendimento & Triagem */}
-          {['ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
+          {['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
             <ItemDock
               rotulo="Pacientes"
               categoria="Atendimento"
@@ -86,7 +86,7 @@ export const Sidebar: FC<SidebarProps> = ({
               icone={<IconePacientes />}
             />
           )}
-          {['ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
+          {['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
             <ItemDock
               rotulo="Fila do Dia"
               categoria="Atendimento"
@@ -96,7 +96,7 @@ export const Sidebar: FC<SidebarProps> = ({
               icone={<IconeFila />}
             />
           )}
-          {['ADMIN', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
+          {['BOOTSTRAP', 'ADMIN', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
             <ItemDock
               rotulo="Fichas de Atendimento"
               categoria="Atendimento"
@@ -108,7 +108,7 @@ export const Sidebar: FC<SidebarProps> = ({
           )}
 
           {/* Divisor Delicado */}
-          {['ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
+          {['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
             <div className="w-7 h-[1.5px] bg-slate-100 rounded-full my-1 shrink-0" />
           )}
 
@@ -121,7 +121,7 @@ export const Sidebar: FC<SidebarProps> = ({
             aoClicar={() => aoMudarSecao('dashboard')}
             icone={<IconeDashboard />}
           />
-          {['ADMIN'].includes(perfilUsuario) && (
+          {['BOOTSTRAP', 'ADMIN'].includes(perfilUsuario) && (
             <ItemDock
               rotulo="Escolas"
               categoria="Operação"
@@ -131,7 +131,7 @@ export const Sidebar: FC<SidebarProps> = ({
               icone={<IconeEscolas />}
             />
           )}
-          {['ADMIN', 'DPO'].includes(perfilUsuario) && (
+          {['BOOTSTRAP', 'ADMIN', 'DPO'].includes(perfilUsuario) && (
             <ItemDock
               rotulo="Relatórios"
               categoria="Operação"
@@ -143,12 +143,12 @@ export const Sidebar: FC<SidebarProps> = ({
           )}
 
           {/* Divisor Delicado */}
-          {['ADMIN', 'DPO'].includes(perfilUsuario) && (
+          {['BOOTSTRAP', 'ADMIN', 'DPO'].includes(perfilUsuario) && (
             <div className="w-7 h-[1.5px] bg-slate-100 rounded-full my-1 shrink-0" />
           )}
 
           {/* Grupo 3: Segurança & Controle */}
-          {['ADMIN'].includes(perfilUsuario) && (
+          {['BOOTSTRAP', 'ADMIN'].includes(perfilUsuario) && (
             <ItemDock
               rotulo="Usuários & Permissões"
               categoria="Segurança"
@@ -158,7 +158,7 @@ export const Sidebar: FC<SidebarProps> = ({
               icone={<IconeUsuarios />}
             />
           )}
-          {['ADMIN', 'DPO'].includes(perfilUsuario) && (
+          {['BOOTSTRAP', 'ADMIN', 'DPO'].includes(perfilUsuario) && (
             <ItemDock
               rotulo="Auditoria & Governança"
               categoria="Segurança"

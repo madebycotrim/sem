@@ -12,7 +12,7 @@ export const rotasEscola = new Hono<{ Bindings: Bindings; Variables: AppVariable
 rotasEscola.use('*', middlewareAutenticacao);
 
 // ─── Listar Escolas ──────────────────────────────────────────────────────────
-rotasEscola.get('/', autorizarPerfis(['ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE']), async (c) => {
+rotasEscola.get('/', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE']), async (c) => {
   const prisma = getPrisma(c.env.DB);
   
   const escolas = await prisma.escolaLocal.findMany({
@@ -42,7 +42,7 @@ rotasEscola.get('/', autorizarPerfis(['ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL
 });
 
 // ─── Obter Escola por ID ─────────────────────────────────────────────────────
-rotasEscola.get('/:id', autorizarPerfis(['ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE']), async (c) => {
+rotasEscola.get('/:id', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE']), async (c) => {
   const id = c.req.param('id');
   const prisma = getPrisma(c.env.DB);
   const escola = await prisma.escolaLocal.findUnique({ where: { id } });
@@ -64,7 +64,7 @@ rotasEscola.get('/:id', autorizarPerfis(['ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIO
 // ─── Criar Escola ────────────────────────────────────────────────────────────
 rotasEscola.post(
   '/',
-  autorizarPerfis(['ADMIN']),
+  autorizarPerfis(['BOOTSTRAP', 'ADMIN']),
   middlewareIdempotencia,
   zValidator('json', criarEscolaSchema),
   async (c) => {
@@ -109,7 +109,7 @@ rotasEscola.post(
 // ─── Atualizar Escola ────────────────────────────────────────────────────────
 rotasEscola.put(
   '/:id',
-  autorizarPerfis(['ADMIN']),
+  autorizarPerfis(['BOOTSTRAP', 'ADMIN']),
   zValidator('json', criarEscolaSchema.partial()),
   async (c) => {
     const id = c.req.param('id');
@@ -143,7 +143,7 @@ rotasEscola.put(
 );
 
 // ─── Excluir Escola (Soft Delete) ────────────────────────────────────────────
-rotasEscola.delete('/:id', autorizarPerfis(['ADMIN']), async (c) => {
+rotasEscola.delete('/:id', autorizarPerfis(['BOOTSTRAP', 'ADMIN']), async (c) => {
   const id = c.req.param('id');
   const prisma = getPrisma(c.env.DB);
   const usuario = c.get('usuario');

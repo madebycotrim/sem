@@ -169,7 +169,7 @@ export const Modal: FC<ModalProps> = ({
         >
           {/* ─── 1. Cabeçalho do Modal ────────────────────────────────────── */}
           {(titulo || subtitulo) && (
-            <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/60 shrink-0">
+            <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/60 shrink-0 relative z-10 rounded-t-3xl">
               <div className="flex items-center gap-3.5">
                 {icone && (
                   <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-2xs">
@@ -205,13 +205,13 @@ export const Modal: FC<ModalProps> = ({
           )}
 
           {/* ─── 2. Corpo Conteúdo (Rolável) ───────────────────────────────── */}
-          <div className="p-6 overflow-y-auto flex-1 min-h-0">
+          <div className="p-6 overflow-y-auto flex-1 min-h-0 relative z-20">
             {children}
           </div>
 
           {/* ─── 3. Rodapé com Ações ou Confirmação Discreta Inline (Altura Fixa h-18) ─── */}
           {confirmandoDescarte ? (
-            <div className="h-18 px-6 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-3 rounded-b-3xl shrink-0 animate-fade-in font-sans">
+            <div className="h-18 px-6 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-3 rounded-b-3xl shrink-0 animate-fade-in font-sans relative z-10">
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
                 <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
                 <span>Descartar os dados preenchidos e fechar?</span>
@@ -238,7 +238,7 @@ export const Modal: FC<ModalProps> = ({
             </div>
           ) : (
             rodape && (
-              <div className="h-18 px-6 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-3 rounded-b-3xl shrink-0">
+              <div className="h-18 px-6 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-3 rounded-b-3xl shrink-0 relative z-10">
                 {rodape}
               </div>
             )

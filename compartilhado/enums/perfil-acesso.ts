@@ -7,6 +7,7 @@
  * - DPO: Encarregado de Dados (LGPD). Acesso somente-leitura ao AuditLog. MFA obrigatório.
  */
 export const PerfilAcesso = {
+  BOOTSTRAP: 'BOOTSTRAP',
   ADMIN: 'ADMIN',
   TRIAGEM_RECEPCAO: 'TRIAGEM_RECEPCAO',
   PROFISSIONAL_SAUDE: 'PROFISSIONAL_SAUDE',
@@ -17,6 +18,7 @@ export type PerfilAcesso = (typeof PerfilAcesso)[keyof typeof PerfilAcesso];
 
 /** Labels em português para exibição na UI */
 export const PERFIL_ACESSO_LABELS: Record<PerfilAcesso, string> = {
+  BOOTSTRAP: 'Super Admin (Bootstrap)',
   ADMIN: 'Administrador',
   TRIAGEM_RECEPCAO: 'Triagem / Recepção',
   PROFISSIONAL_SAUDE: 'Profissional de Saúde',

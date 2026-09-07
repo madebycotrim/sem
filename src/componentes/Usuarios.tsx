@@ -11,6 +11,8 @@ import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { Paginacao } from './Paginacao.tsx';
 import { censurarCpf } from './TabelaPacientes.tsx';
 
+import { ModalNovoUsuario, type FormNovoUsuario } from './ModalNovoUsuario.tsx';
+
 export interface UsuarioItem {
   id: string;
   nome: string;
@@ -29,8 +31,10 @@ export const Usuarios: FC = () => {
   const [paginaAtual, setPaginaAtual] = useState(1);
   const itensPorPagina = 10;
 
+  const [modalAberto, setModalAberto] = useState(false);
+
   // Usuários Mockados da Equipe de Campo
-  const [usuarios] = useState<UsuarioItem[]>([
+  const [usuarios, setUsuarios] = useState<UsuarioItem[]>([
     {
       id: 'usr-01',
       nome: 'DRA. CAROLINA MENDES',
@@ -141,6 +145,27 @@ export const Usuarios: FC = () => {
       Boolean(item.registroProfissional && item.registroProfissional.toLowerCase().includes(termo)),
   });
 
+  const handleSalvarNovoUsuario = async (dados: FormNovoUsuario) => {
+    // Simula uma chamada de API e adiciona na lista local para feedback imediato
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    
+    const novoUsuario: UsuarioItem = {
+      id: `usr-novo-${Date.now()}`,
+      nome: dados.nomeCompleto,
+      email: dados.email,
+      cpf: '', // CPF foi removido do convite, será preenchido pelo usuário após aceite
+      perfil: dados.perfil,
+      registroProfissional: dados.conselhoProfissional 
+        ? `${dados.conselhoProfissional} ${dados.registroProfissional}`
+        : dados.registroProfissional,
+      especialidade: dados.especialidade,
+      ativo: true,
+      ultimoAcesso: 'Nunca acessou',
+    };
+    
+    setUsuarios((prev) => [novoUsuario, ...prev]);
+  };
+
   const { dadosFiltrados, temAlgumFiltroAtivo } = filtroExcel;
   const totalPaginas = Math.max(1, Math.ceil(dadosFiltrados.length / itensPorPagina));
   const paginaCorrigida = Math.min(paginaAtual, totalPaginas);
@@ -169,7 +194,7 @@ export const Usuarios: FC = () => {
         }}
         acaoPrimaria={{
           rotulo: 'Convidar Profissional',
-          aoClicar: () => alert('Modal de Convite / Cadastro de Profissional em desenvolvimento.'),
+          aoClicar: () => setModalAberto(true),
         }}
         fixo={true}
       />
@@ -354,6 +379,13 @@ export const Usuarios: FC = () => {
           />
         </div>
       </div>
+
+      {/* ─── Modais ────────────────────────────────────────────────────────── */}
+      <ModalNovoUsuario
+        aberto={modalAberto}
+        aoFechar={() => setModalAberto(false)}
+        aoSalvar={handleSalvarNovoUsuario}
+      />
     </div>
   );
 };

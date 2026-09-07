@@ -482,6 +482,7 @@ export function App() {
         {(() => {
           const perfil = usuarioLogado?.perfil || '';
           const temAcesso = (secao: SecaoMenu) => {
+            if (perfil === 'BOOTSTRAP') return true;
             if (perfil === 'ADMIN') return true;
             if (perfil === 'TRIAGEM_RECEPCAO') return ['filaDia', 'pacientes', 'dashboard'].includes(secao);
             if (perfil === 'PROFISSIONAL_SAUDE') return ['filaDia', 'consultas', 'pacientes', 'dashboard'].includes(secao);
@@ -489,7 +490,7 @@ export function App() {
             return false;
           };
 
-          if (modoNovaFicha && ['ADMIN', 'PROFISSIONAL_SAUDE'].includes(perfil)) {
+          if (modoNovaFicha && ['BOOTSTRAP', 'ADMIN', 'PROFISSIONAL_SAUDE'].includes(perfil)) {
             return (
               <FichaAtendimento
                 pacientePreSelecionado={pacienteSelecionadoParaFicha}

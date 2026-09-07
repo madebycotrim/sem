@@ -2,6 +2,8 @@
 export {
   Especialidade,
   ESPECIALIDADE_LABELS,
+  ConselhoProfissional,
+  CONSELHO_PROFISSIONAL_LABELS,
   Turno,
   TURNO_LABELS,
   PerfilAcesso,
