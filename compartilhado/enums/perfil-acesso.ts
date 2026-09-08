@@ -36,6 +36,7 @@ export type PermissaoAcesso = 'LIVRE' | 'BLOQUEADO';
 export interface PermissoesPerfil {
   modulos: {
     dashboard: PermissaoAcesso;
+    bi: PermissaoAcesso;
     pacientes: PermissaoAcesso;
     filaDia: PermissaoAcesso;
     consultas: PermissaoAcesso;
@@ -55,23 +56,23 @@ export interface PermissoesPerfil {
 // Configuração Inicial de Permissões Hardcoded para Mock
 export const PERMISSOES_PADRAO: Record<PerfilAcesso, PermissoesPerfil> = {
   BOOTSTRAP: {
-    modulos: { dashboard: 'LIVRE', pacientes: 'LIVRE', filaDia: 'LIVRE', consultas: 'LIVRE', escolas: 'LIVRE', relatorios: 'LIVRE', usuarios: 'LIVRE', governanca: 'LIVRE' },
+    modulos: { dashboard: 'LIVRE', bi: 'LIVRE', pacientes: 'LIVRE', filaDia: 'LIVRE', consultas: 'LIVRE', escolas: 'LIVRE', relatorios: 'LIVRE', usuarios: 'LIVRE', governanca: 'LIVRE' },
     acoes: { criarPaciente: 'LIVRE', editarPaciente: 'LIVRE', arquivarPaciente: 'LIVRE', exportarDados: 'LIVRE' },
   },
   ADMIN: {
-    modulos: { dashboard: 'LIVRE', pacientes: 'LIVRE', filaDia: 'LIVRE', consultas: 'LIVRE', escolas: 'LIVRE', relatorios: 'LIVRE', usuarios: 'LIVRE', governanca: 'LIVRE' },
+    modulos: { dashboard: 'LIVRE', bi: 'LIVRE', pacientes: 'LIVRE', filaDia: 'LIVRE', consultas: 'LIVRE', escolas: 'LIVRE', relatorios: 'LIVRE', usuarios: 'LIVRE', governanca: 'LIVRE' },
     acoes: { criarPaciente: 'LIVRE', editarPaciente: 'LIVRE', arquivarPaciente: 'LIVRE', exportarDados: 'LIVRE' },
   },
   DPO: {
-    modulos: { dashboard: 'LIVRE', pacientes: 'BLOQUEADO', filaDia: 'BLOQUEADO', consultas: 'BLOQUEADO', escolas: 'BLOQUEADO', relatorios: 'LIVRE', usuarios: 'BLOQUEADO', governanca: 'LIVRE' },
+    modulos: { dashboard: 'LIVRE', bi: 'LIVRE', pacientes: 'BLOQUEADO', filaDia: 'BLOQUEADO', consultas: 'BLOQUEADO', escolas: 'BLOQUEADO', relatorios: 'LIVRE', usuarios: 'BLOQUEADO', governanca: 'LIVRE' },
     acoes: { criarPaciente: 'BLOQUEADO', editarPaciente: 'BLOQUEADO', arquivarPaciente: 'BLOQUEADO', exportarDados: 'LIVRE' },
   },
   PROFISSIONAL_SAUDE: {
-    modulos: { dashboard: 'LIVRE', pacientes: 'LIVRE', filaDia: 'LIVRE', consultas: 'LIVRE', escolas: 'BLOQUEADO', relatorios: 'BLOQUEADO', usuarios: 'BLOQUEADO', governanca: 'BLOQUEADO' },
+    modulos: { dashboard: 'LIVRE', bi: 'LIVRE', pacientes: 'LIVRE', filaDia: 'LIVRE', consultas: 'LIVRE', escolas: 'BLOQUEADO', relatorios: 'BLOQUEADO', usuarios: 'BLOQUEADO', governanca: 'BLOQUEADO' },
     acoes: { criarPaciente: 'LIVRE', editarPaciente: 'LIVRE', arquivarPaciente: 'BLOQUEADO', exportarDados: 'BLOQUEADO' },
   },
   TRIAGEM_RECEPCAO: {
-    modulos: { dashboard: 'LIVRE', pacientes: 'LIVRE', filaDia: 'LIVRE', consultas: 'BLOQUEADO', escolas: 'BLOQUEADO', relatorios: 'BLOQUEADO', usuarios: 'BLOQUEADO', governanca: 'BLOQUEADO' },
+    modulos: { dashboard: 'LIVRE', bi: 'BLOQUEADO', pacientes: 'LIVRE', filaDia: 'LIVRE', consultas: 'BLOQUEADO', escolas: 'BLOQUEADO', relatorios: 'BLOQUEADO', usuarios: 'BLOQUEADO', governanca: 'BLOQUEADO' },
     acoes: { criarPaciente: 'LIVRE', editarPaciente: 'LIVRE', arquivarPaciente: 'BLOQUEADO', exportarDados: 'BLOQUEADO' },
   },
 };

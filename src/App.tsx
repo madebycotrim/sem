@@ -10,12 +10,12 @@ import { Atendimentos, type ItemAtendimentoLista } from './componentes/Atendimen
 import { Dashboard } from './componentes/Dashboard.tsx';
 import { Escolas, type EscolaPolo } from './componentes/Escolas.tsx';
 import { Usuarios } from './componentes/Usuarios.tsx';
-import { FichaAtendimento } from './paginas/FichaAtendimento.tsx';
 import { Login } from './paginas/Login.tsx';
 import { TimeoutSessao } from './componentes/TimeoutSessao.tsx';
 import { DrawerHistoricoPaciente } from './componentes/DrawerHistoricoPaciente.tsx';
 import { ModalAlterarSenha } from './componentes/ModalAlterarSenha.tsx';
 import { PainelAnalitico } from './paginas/PainelAnalitico.tsx';
+import { Relatorios } from './componentes/Relatorios.tsx';
 import { requisicaoApi } from './servicos/api.ts';
 import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCatraki.ts';
 import { PERMISSOES_PADRAO, type PermissoesPerfil, type PerfilAcesso, type StatusAtendimento } from '../compartilhado/index.ts';
@@ -47,6 +47,7 @@ const SECOES_VALIDAS: SecaoMenu[] = [
   'filaDia',
   'consultas',
   'dashboard',
+  'bi',
   'escolas',
   'relatorios',
   'usuarios',
@@ -152,8 +153,6 @@ export function App() {
     return () => { ativo = false; };
   }, []);
   const [secaoAtiva, setSecaoAtiva] = useState<SecaoMenu>(obterSecaoInicial);
-  const [modoNovaFicha, setModoNovaFicha] = useState(false);
-  const [pacienteSelecionadoParaFicha, setPacienteSelecionadoParaFicha] = useState<ItemPaciente | null>(null);
   const [pacienteHistoricoDrawer, setPacienteHistoricoDrawer] = useState<ItemPaciente | null>(null);
   const [escolaAtivaId, setEscolaAtivaId] = useState('');
 
@@ -192,8 +191,6 @@ export function App() {
     setUsuarioLogado(null);
     setAutenticado(false);
     setModalAlterarSenhaAberto(false);
-    setModoNovaFicha(false);
-    setPacienteSelecionadoParaFicha(null);
   };
 
   const deslogar = async () => {
@@ -208,8 +205,6 @@ export function App() {
   const navegarParaSecao = (secao: SecaoMenu) => {
     setSecaoAtiva(secao);
     setMostrarPacientesPendentes(false);
-    setModoNovaFicha(false);
-    setPacienteSelecionadoParaFicha(null);
     window.location.hash = secao;
     localStorage.setItem('catraki_secao_ativa', secao);
   };
@@ -228,8 +223,6 @@ export function App() {
       const hash = window.location.hash.replace(/^#/, '') as SecaoMenu;
       if (SECOES_VALIDAS.includes(hash)) {
         setSecaoAtiva(hash);
-        setModoNovaFicha(false);
-        setPacienteSelecionadoParaFicha(null);
         localStorage.setItem('catraki_secao_ativa', hash);
       }
     };
@@ -587,19 +580,6 @@ export function App() {
         {(() => {
           const perfil = usuarioLogado?.perfil || '';
 
-          if (modoNovaFicha && ['BOOTSTRAP', 'ADMIN', 'PROFISSIONAL_SAUDE'].includes(perfil)) {
-            return (
-              <FichaAtendimento
-                pacientePreSelecionado={pacienteSelecionadoParaFicha}
-                escolas={escolasGlobais}
-                aoVoltar={() => {
-                  setModoNovaFicha(false);
-                  setPacienteSelecionadoParaFicha(null);
-                }}
-              />
-            );
-          }
-
           if (!temAcesso(secaoAtiva)) {
             return (
               <div className="flex-1 flex flex-col items-center justify-center text-center animate-fade-in p-8">
@@ -646,9 +626,8 @@ export function App() {
                 setPacienteParaEditar(null);
                 setModalNovoPacienteAberto(true);
               }}
-              aoIniciarAtendimento={(paciente) => {
-                setPacienteSelecionadoParaFicha(paciente);
-                setModoNovaFicha(true);
+              aoIniciarAtendimento={() => {
+                navegarParaSecao('filaDia');
               }}
               aoVerDetalhes={(paciente) => {
                 setPacienteHistoricoDrawer(paciente);
@@ -672,19 +651,12 @@ export function App() {
           if (secaoAtiva === 'filaDia') {
             return (
               <FilaDoDia
-                aoIniciarAtendimento={(aluno) => {
-                  setPacienteSelecionadoParaFicha({
-                    id: aluno.id,
-                    nome: aluno.nome,
-                    dataNascimento: '2012-05-14',
-                    escolaNome: 'CEMEIT DE TAGUATINGA',
-                    termoConsentimentoStatus: 'ACEITO',
-                    atendimentosCount: 1,
-                    criadoEm: new Date().toISOString(),
-                  });
-                  setModoNovaFicha(true);
+                escolas={escolasGlobais}
+                pacientes={pacientes}
+                aoIniciarAtendimento={() => {
+                  // O modal de atendimento já trata o fluxo internamente na FilaDoDia
                 }}
-                aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}
+                aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : undefined}
               />
             );
           }
@@ -695,10 +667,7 @@ export function App() {
                 atendimentos={atendimentos}
                 statusSincronizacaoCatraki={statusSincronizacaoCatraki}
                 aoAtualizarStatus={handleAtualizarStatusAtendimento}
-                aoNovoAtendimento={temPermissao('criarPaciente') ? () => {
-                  setModoNovaFicha(true);
-                  setPacienteSelecionadoParaFicha(null);
-                } : () => {}}
+                aoNovoAtendimento={temPermissao('criarPaciente') ? () => navegarParaSecao('filaDia') : () => {}}
               />
             );
           }
@@ -713,12 +682,20 @@ export function App() {
                 atendimentos={atendimentos}
                 carregando={carregandoPacientes || carregandoAtendimentos}
                 aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}
-                aoNovoAtendimento={() => {
-                  setModoNovaFicha(true);
-                  setPacienteSelecionadoParaFicha(null);
-                }}
+                aoNovoAtendimento={() => navegarParaSecao('filaDia')}
                 aoAbrirAtendimentos={() => setSecaoAtiva('consultas')}
                 aoAbrirRelatorios={() => setSecaoAtiva('relatorios')}
+                aoAbrirBi={() => setSecaoAtiva('bi')}
+              />
+            );
+          }
+          
+          if (secaoAtiva === 'bi') {
+            return (
+              <PainelAnalitico
+                atendimentos={atendimentos}
+                pacientes={pacientes}
+                escolas={escolasGlobais}
               />
             );
           }
@@ -749,9 +726,7 @@ export function App() {
           
           if (secaoAtiva === 'relatorios') {
             return (
-              <PainelAnalitico
-                atendimentos={atendimentos}
-                pacientes={pacientes}
+              <Relatorios
                 escolas={escolasGlobais}
               />
             );
@@ -769,12 +744,10 @@ export function App() {
             atendimentos={atendimentos}
             carregando={carregandoPacientes || carregandoAtendimentos}
             aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}
-            aoNovoAtendimento={() => {
-              setModoNovaFicha(true);
-              setPacienteSelecionadoParaFicha(null);
-            }}
+            aoNovoAtendimento={() => navegarParaSecao('filaDia')}
             aoAbrirAtendimentos={() => setSecaoAtiva('consultas')}
             aoAbrirRelatorios={() => setSecaoAtiva('relatorios')}
+            aoAbrirBi={() => setSecaoAtiva('bi')}
           />;
         })()}
       </main>
@@ -784,16 +757,13 @@ export function App() {
         aberto={Boolean(pacienteHistoricoDrawer)}
         paciente={pacienteHistoricoDrawer}
         aoFechar={() => setPacienteHistoricoDrawer(null)}
-        aoNovoAtendimento={(paciente) => {
-          setPacienteSelecionadoParaFicha(paciente);
-          setModoNovaFicha(true);
+        aoNovoAtendimento={() => {
+          setPacienteHistoricoDrawer(null);
+          navegarParaSecao('filaDia');
         }}
         aoVerProntuario={() => {
-          if (pacienteHistoricoDrawer) {
-            setPacienteSelecionadoParaFicha(pacienteHistoricoDrawer);
-            setModoNovaFicha(true);
-            setPacienteHistoricoDrawer(null);
-          }
+          setPacienteHistoricoDrawer(null);
+          navegarParaSecao('filaDia');
         }}
       />
 

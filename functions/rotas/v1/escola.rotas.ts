@@ -28,7 +28,7 @@ rotasEscola.get('/', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 
     orderBy: { nome: 'asc' }
   });
   
-  const mapeado = escolas.map(e => ({
+  const mapeado = (escolas as any[]).map((e: any) => ({
     id: e.id,
     nome: e.nome,
     cnpj: e.cnpj || undefined,

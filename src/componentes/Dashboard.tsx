@@ -22,7 +22,7 @@ const NumeroAnimado: FC<{ valor: number; duracao?: number }> = ({ valor, duracao
   return <>{valorExibido}</>;
 };
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
-import { Activity, BarChart3, CalendarDays, ClipboardCheck, Clock3, Ear, Eye, FileText, Lightbulb, Brain, Smile, UserPlus } from 'lucide-react';
+import { Activity, Apple, BarChart3, ClipboardCheck, Clock3, Ear, Eye, FileText, Lightbulb, Brain, Smile, UserPlus, XCircle } from 'lucide-react';
 
 export interface DashboardProps {
   totalPacientes: number;
@@ -45,24 +45,36 @@ export interface DashboardProps {
   aoNovoAtendimento: () => void;
   aoAbrirAtendimentos: () => void;
   aoAbrirRelatorios: () => void;
+  aoAbrirBi?: () => void;
 }
 
 export const Dashboard: FC<DashboardProps> = ({
   totalAtendimentos,
-  pacientes,
+  pacientes: _pacientes,
   atendimentos,
   carregando = false,
   aoNovoPaciente,
   aoNovoAtendimento,
   aoAbrirAtendimentos,
   aoAbrirRelatorios,
+  aoAbrirBi,
 }) => {
-  const hoje = new Date().toISOString().slice(0, 10);
-  const atendimentosHoje = atendimentos.filter((atendimento) => atendimento.criadoEm.slice(0, 10) === hoje).length;
-  const pacientesHoje = pacientes.filter((paciente) => paciente.criadoEm.slice(0, 10) === hoje).length;
-  const atendimentosPendentes = atendimentos.filter((atendimento) =>
-    ['AGENDADO', 'CONFIRMADO', 'EM_ATENDIMENTO'].includes(atendimento.status || '')
+  const hojeIso = new Date().toISOString().slice(0, 10);
+  const atendimentosHoje = atendimentos.filter(
+    (atendimento) => atendimento.criadoEm.slice(0, 10) === hojeIso
+  );
+
+  const totalConsultasTodasUnidades = atendimentosHoje.length;
+  const totalConsultasConcluidas = atendimentosHoje.filter((atendimento) =>
+    (atendimento.status === 'CONCLUIDO' || !atendimento.status)
   ).length;
+  const totalConsultasPendentes = atendimentosHoje.filter((atendimento) =>
+    ['AGENDADO', 'CONFIRMADO', 'EM_ATENDIMENTO', 'PENDENTE'].includes(atendimento.status || '')
+  ).length;
+  const totalConsultasCanceladas = atendimentosHoje.filter((atendimento) =>
+    ['CANCELADO', 'FALTOU', 'CANCELADA'].includes(atendimento.status || '')
+  ).length;
+
   const nomesEspecialidades: Record<string, string> = {
     ODONTOLOGIA: 'Odontologia',
     OFTALMOLOGIA: 'Oftalmologia',
@@ -73,16 +85,16 @@ export const Dashboard: FC<DashboardProps> = ({
   const atendimentosRecentes = [...atendimentos]
     .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
     .slice(0, 5);
-  const especialidadesHoje = [
+  const especialidadesTotal = [
     { id: 'ODONTOLOGIA', nome: 'Odontologia', icone: Smile, cor: 'text-blue-600', fundo: 'bg-blue-50' },
     { id: 'OFTALMOLOGIA', nome: 'Oftalmologia', icone: Eye, cor: 'text-indigo-600', fundo: 'bg-indigo-50' },
     { id: 'AUDIOMETRIA', nome: 'Audiometria', icone: Ear, cor: 'text-sky-600', fundo: 'bg-sky-50' },
-    { id: 'NUTRICAO', nome: 'Nutrição', icone: Activity, cor: 'text-emerald-600', fundo: 'bg-emerald-50' },
+    { id: 'NUTRICAO', nome: 'Nutrição', icone: Apple, cor: 'text-emerald-600', fundo: 'bg-emerald-50' },
     { id: 'PSICOLOGIA', nome: 'Psicologia', icone: Brain, cor: 'text-amber-600', fundo: 'bg-amber-50' },
   ].map((especialidade) => ({
     ...especialidade,
-    total: atendimentos.filter(
-      (atendimento) => atendimento.criadoEm.slice(0, 10) === hoje && atendimento.especialidade === especialidade.id
+    total: atendimentosHoje.filter(
+      (atendimento) => atendimento.especialidade === especialidade.id
     ).length,
   }));
 
@@ -90,28 +102,59 @@ export const Dashboard: FC<DashboardProps> = ({
     <div className="flex flex-col flex-1 animate-fade-in font-sans">
       {/* ─── Cabeçalho Fixo Modular ───────────────────────────────────────── */}
       <CabecalhoPagina
-        titulo="Dashboard"
-        subtitulo="INDICADORES E GESTÃO CLÍNICA — CATRAKI SAÚDE"
+        titulo="Página Inicial"
+        subtitulo="INDICADORES DO DIA E GESTÃO CLÍNICA — CATRAKI & SESI SAÚDE"
         fixo={true}
       />
 
-      <section className="mb-5" aria-label="Resumo de hoje">
-        <div className="mb-2 flex items-center gap-2 px-1">
-          <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Resumo operacional</span>
+      <section className="mb-5" aria-label="Resumo operacional de consultas">
+        <div className="mb-2 flex items-center justify-between px-1">
+          <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Resumo operacional do dia</span>
+          <span className="text-[11px] font-semibold text-slate-400">Hoje</span>
         </div>
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           {[
-            { rotulo: 'Consultas', valor: atendimentosHoje, detalhe: 'registros de hoje', icone: Activity, cor: 'text-blue-600', fundo: 'bg-blue-50' },
-            { rotulo: 'Concluídas', valor: atendimentosHoje, detalhe: 'atendimentos registrados', icone: ClipboardCheck, cor: 'text-emerald-600', fundo: 'bg-emerald-50' },
-            { rotulo: 'Pendentes', valor: atendimentosPendentes, detalhe: 'consultas não concluídas', icone: CalendarDays, cor: 'text-amber-600', fundo: 'bg-amber-50', aoClicar: aoAbrirAtendimentos },
-            { rotulo: 'Novos', valor: pacientesHoje, detalhe: 'pacientes cadastrados hoje', icone: UserPlus, cor: 'text-indigo-600', fundo: 'bg-indigo-50' },
+            {
+              rotulo: 'TOTAL DE CONSULTAS',
+              valor: totalConsultasTodasUnidades,
+              detalhe: 'todas as unidades hoje',
+              icone: Activity,
+              cor: 'text-blue-600',
+              fundo: 'bg-blue-50',
+              aoClicar: aoAbrirAtendimentos,
+            },
+            {
+              rotulo: 'CONCLUÍDA',
+              valor: totalConsultasConcluidas,
+              detalhe: 'atendimentos finalizados hoje',
+              icone: ClipboardCheck,
+              cor: 'text-emerald-600',
+              fundo: 'bg-emerald-50',
+            },
+            {
+              rotulo: 'EM ANDAMENTO',
+              valor: totalConsultasPendentes,
+              detalhe: 'em andamento ou aguardando',
+              icone: Clock3,
+              cor: 'text-amber-600',
+              fundo: 'bg-amber-50',
+              aoClicar: aoAbrirAtendimentos,
+            },
+            {
+              rotulo: 'CANCELADO',
+              valor: totalConsultasCanceladas,
+              detalhe: 'cancelamentos e faltas hoje',
+              icone: XCircle,
+              cor: 'text-rose-600',
+              fundo: 'bg-rose-50',
+            },
           ].map((indicador) => {
             const Icone = indicador.icone;
             return (
               <button key={indicador.rotulo} type="button" onClick={indicador.aoClicar} disabled={!indicador.aoClicar} className="flex min-h-[92px] items-center justify-between rounded-xl border border-slate-200/90 bg-white px-4 py-3 text-left shadow-xs transition-shadow hover:shadow-sm disabled:cursor-default">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{indicador.rotulo}</p>
-                                    <p className={carregando ? 'mt-1 h-7 w-10 animate-pulse rounded-md bg-slate-200' : 'mt-1 text-2xl font-extrabold leading-none text-[#0b2545]'}>{carregando ? '' : <NumeroAnimado valor={indicador.valor} />}</p>
+                  <p className={carregando ? 'mt-1 h-7 w-10 animate-pulse rounded-md bg-slate-200' : 'mt-1 text-2xl font-extrabold leading-none text-[#0b2545]'}>{carregando ? '' : <NumeroAnimado valor={indicador.valor} />}</p>
                   <p className="mt-1 text-[10px] font-medium text-slate-400">{indicador.detalhe}</p>
                 </div>
                 <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${indicador.fundo} ${indicador.cor}`}>
@@ -126,10 +169,10 @@ export const Dashboard: FC<DashboardProps> = ({
       <section className="mb-5" aria-label="Consultas por especialidade hoje">
         <div className="mb-2 flex items-center justify-between px-1">
           <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Consultas por especialidade</span>
-          <span className="text-[11px] font-medium text-slate-400">Hoje</span>
+          <span className="text-[11px] font-semibold text-slate-400">Hoje</span>
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-          {especialidadesHoje.map((especialidade) => {
+          {especialidadesTotal.map((especialidade) => {
             const Icone = especialidade.icone;
             return (
               <div key={especialidade.id} className="flex min-h-[116px] flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-sm">
@@ -140,8 +183,8 @@ export const Dashboard: FC<DashboardProps> = ({
                   </span>
                 </div>
                 <div>
-                                    <p className={carregando ? 'h-8 w-10 animate-pulse rounded-md bg-slate-200' : 'text-3xl font-extrabold leading-none text-[#0b2545]'}>{carregando ? '' : <NumeroAnimado valor={especialidade.total} />}</p>
-                  <p className="mt-1 text-[10px] font-medium text-slate-400">consultas hoje</p>
+                  <p className={carregando ? 'h-8 w-10 animate-pulse rounded-md bg-slate-200' : 'text-3xl font-extrabold leading-none text-[#0b2545]'}>{carregando ? '' : <NumeroAnimado valor={especialidade.total} />}</p>
+                  <p className="mt-1 text-[10px] font-medium text-slate-400">atendimentos hoje</p>
                 </div>
               </div>
             );
@@ -203,7 +246,7 @@ export const Dashboard: FC<DashboardProps> = ({
 
               <button
                 type="button"
-                onClick={aoAbrirRelatorios}
+                onClick={aoAbrirBi ?? aoAbrirRelatorios}
                 className="p-4 rounded-2xl border border-indigo-200/90 bg-gradient-to-br from-indigo-50/60 to-white hover:from-indigo-100/70 hover:to-indigo-50/40 text-left transition-all cursor-pointer group shadow-2xs active:scale-[0.99]"
               >
                 <div className="w-9 h-9 rounded-2xl bg-indigo-600 text-white flex items-center justify-center mb-2.5 shadow-2xs group-hover:scale-105 transition-transform">
@@ -225,7 +268,7 @@ export const Dashboard: FC<DashboardProps> = ({
         </div>
 
         {/* Atividade recente */}
-                <button type="button" onClick={aoAbrirAtendimentos} className="lg:col-span-5 bg-white border border-slate-200/90 rounded-2xl p-5 text-left shadow-xs flex flex-col justify-between transition-shadow hover:shadow-sm">
+        <button type="button" onClick={aoAbrirAtendimentos} className="lg:col-span-5 bg-white border border-slate-200/90 rounded-2xl p-5 text-left shadow-xs flex flex-col justify-between transition-shadow hover:shadow-sm">
           <div>
             <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
               <h3 className="text-xs font-bold text-[#0b2545] uppercase tracking-wider flex items-center gap-2">

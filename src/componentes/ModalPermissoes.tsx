@@ -7,7 +7,7 @@ import {
   type PermissoesPerfil 
 } from '../../compartilhado/index.ts';
 import { requisicaoApi } from '../servicos/api.ts';
-import { Check, Edit3, LayoutGrid, LockKeyhole, ShieldCheck, UserPlus } from 'lucide-react';
+import { Edit3, LayoutGrid, LockKeyhole, ShieldCheck, UserPlus } from 'lucide-react';
 
 interface ModalPermissoesProps {
   aberto: boolean;
@@ -16,6 +16,7 @@ interface ModalPermissoesProps {
 
 const NOME_MODULOS: Partial<Record<keyof PermissoesPerfil['modulos'], string>> = {
   dashboard: 'Dashboard (Métricas)',
+  bi: 'Painel BI (Analytics)',
   pacientes: 'Cadastro de Pacientes',
   filaDia: 'Fila do Dia (Triagem)',
   consultas: 'Consultas / Atendimentos',
@@ -39,16 +40,23 @@ const ToggleSwitch: FC<{ ativo: boolean; desabilitado?: boolean; aoAlternar: () 
       role="switch"
       aria-checked={ativo}
       disabled={desabilitado}
-      onClick={aoAlternar}
-      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-transparent transition-all duration-200 ease-in-out focus:outline-none focus-visible:ring-3 focus-visible:ring-blue-200 focus-visible:ring-offset-2 ${
+      onClick={(e) => {
+        e.stopPropagation();
+        if (!desabilitado) aoAlternar();
+      }}
+      className={`relative inline-flex h-6.5 w-12 shrink-0 cursor-pointer items-center rounded-full p-1 border transition-all duration-200 ease-out focus:outline-none focus-visible:ring-3 focus-visible:ring-blue-300/60 ${
         desabilitado ? 'opacity-50 cursor-not-allowed' : ''
-      } ${ativo ? 'bg-gradient-to-r from-blue-600 to-blue-500 shadow-[0_6px_14px_rgba(37,99,235,0.32)]' : 'bg-slate-200/90'}`}
+      } ${
+        ativo
+          ? 'bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 border-blue-600/40 shadow-[0_3px_10px_rgba(37,99,235,0.35)]'
+          : 'bg-slate-200/90 border-slate-300/70 hover:bg-slate-300/70'
+      }`}
     >
       <span className="sr-only">Alternar configuração</span>
       <span
         aria-hidden="true"
-        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-[0_2px_6px_rgba(15,23,42,0.2)] ring-0 transition-all duration-200 ease-in-out ${
-          ativo ? 'translate-x-6' : 'translate-x-1'
+        className={`pointer-events-none inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow-[0_2px_4px_rgba(0,0,0,0.25)] ring-0 transition-transform duration-200 ease-out ${
+          ativo ? 'translate-x-[22px]' : 'translate-x-0'
         }`}
       />
     </button>
@@ -94,48 +102,54 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
 
   const alternarModulo = (chave: keyof PermissoesPerfil['modulos']) => {
     if (ehAdminGlobal) return;
-    setEstadoPermissoes(prev => ({
-      ...prev,
-      [perfilAtivo]: {
-        ...prev[perfilAtivo],
-        modulos: {
-          ...prev[perfilAtivo].modulos,
-          [String(chave)]: prev[perfilAtivo].modulos[chave] === 'LIVRE' ? 'BLOQUEADO' : 'LIVRE',
-        }
-      }
-    }));
+    setEstadoPermissoes((prev) => {
+      const valorAtual = prev[perfilAtivo].modulos[chave];
+      const novoValor = valorAtual === 'LIVRE' ? 'BLOQUEADO' : 'LIVRE';
+      return {
+        ...prev,
+        [perfilAtivo]: {
+          ...prev[perfilAtivo],
+          modulos: {
+            ...prev[perfilAtivo].modulos,
+            [chave]: novoValor,
+          },
+        },
+      };
+    });
   };
 
   const alternarAcao = (chave: keyof PermissoesPerfil['acoes']) => {
     if (ehAdminGlobal) return;
-    setEstadoPermissoes(prev => ({
-      ...prev,
-      [perfilAtivo]: {
-        ...prev[perfilAtivo],
-        acoes: {
-          ...prev[perfilAtivo].acoes,
-          [String(chave)]: prev[perfilAtivo].acoes[chave] === 'LIVRE' ? 'BLOQUEADO' : 'LIVRE',
-        }
-      }
-    }));
+    setEstadoPermissoes((prev) => {
+      const valorAtual = prev[perfilAtivo].acoes[chave];
+      const novoValor = valorAtual === 'LIVRE' ? 'BLOQUEADO' : 'LIVRE';
+      return {
+        ...prev,
+        [perfilAtivo]: {
+          ...prev[perfilAtivo],
+          acoes: {
+            ...prev[perfilAtivo].acoes,
+            [chave]: novoValor,
+          },
+        },
+      };
+    });
   };
 
-  const handleSalvar = async () => {
+  const salvarAlteracoes = async () => {
     setSalvando(true);
     try {
       await requisicaoApi('/rbac/permissoes', {
-        metodo: 'PUT',
-        corpo: estadoPermissoes
+        metodo: 'POST',
+        corpo: { permissoes: estadoPermissoes }
       });
-      // Salva no localStorage e dispara evento para outras telas atualizarem
       localStorage.setItem('permissoes_rbac', JSON.stringify(estadoPermissoes));
-      window.dispatchEvent(new CustomEvent('permissoes_atualizadas', { detail: estadoPermissoes }));
-
       setSalvo(true);
       setTimeout(() => setSalvo(false), 3000);
+      aoFechar();
     } catch (e) {
-      console.error('Falha ao salvar', e);
-      alert('Houve um erro ao salvar as permissões.');
+      console.error('Erro ao salvar permissoes', e);
+      alert('Falha ao salvar permissões no servidor. Tente novamente.');
     } finally {
       setSalvando(false);
     }
@@ -145,36 +159,26 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
     <Modal
       aberto={aberto}
       aoFechar={aoFechar}
-      tamanho="3xl"
-      confirmarAoFechar={!salvo}
       titulo="Configuração de Permissões"
       subtitulo="Gerencie os acessos de cada perfil do sistema (RBAC)"
-      icone={
-        <LayoutGrid className="w-5 h-5" />
-      }
-      contentClassName="!p-0"
+      tamanho="3xl"
+      icone={<LayoutGrid className="w-5 h-5 text-blue-600" />}
+      contentClassName="p-0"
       rodape={
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center">
-            {salvo && (
-              <span className="text-[11.5px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg flex items-center gap-1.5 animate-fade-in">
-                <Check className="w-3.5 h-3.5" />
-                Permissões atualizadas com sucesso!
-              </span>
-            )}
-          </div>
-          <div className="flex gap-2.5">
-            <BotaoModal rotulo="Fechar" variante="secundario" aoClicar={aoFechar} />
-            <BotaoModal
-              rotulo="Salvar Alterações"
-              variante="primario"
-              carregando={salvando}
-              aoClicar={handleSalvar}
-            />
-          </div>
-        </div>
+        <>
+          <BotaoModal
+            variante="secundario"
+            rotulo="Fechar"
+            aoClicar={aoFechar}
+          />
+          <BotaoModal
+            variante="primario"
+            rotulo={salvo ? 'Permissões Salvas!' : 'Salvar Alterações'}
+            carregando={salvando}
+            aoClicar={salvarAlteracoes}
+          />
+        </>
       }
-      className="!p-0 overflow-hidden bg-[#f5f7fb] rounded-[28px]" 
     >
       <div className="flex h-[560px] bg-[#f8fafc]">
         {/* Coluna Esquerda: Lista de Perfis */}
@@ -189,10 +193,10 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
               <button
                 key={perfil}
                 onClick={() => setPerfilAtivo(perfil)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all cursor-pointer border ${
+                className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl transition-all duration-200 cursor-pointer border select-none ${
                   perfilAtivo === perfil
-                    ? 'bg-blue-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.24)] border-blue-600'
-                    : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900 border-transparent'
+                    ? 'bg-gradient-to-r from-[#0066ff] to-[#0f6ae8] text-white shadow-[0_6px_18px_rgba(0,102,255,0.30)] border-blue-600/30 font-extrabold'
+                    : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900 border-transparent font-semibold'
                 }`}
               >
                 {perfil === 'ADMIN' && (

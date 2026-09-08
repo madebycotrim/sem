@@ -1,16 +1,18 @@
 import { type FC, type ReactElement, useState, useRef, useEffect } from 'react';
 import {
+  BarChart3,
   Building2,
-  Clock3,
-  FileText,
+  Clock,
+  FileBarChart,
+  Home,
   KeyRound,
-  LayoutDashboard,
   LogOut,
-  PieChart,
-  UserPlus,
-  UsersRound,
+  ShieldCheck,
+  Stethoscope,
+  Users,
 } from 'lucide-react';
 import catrakiLogo from '../assets/catraki.png';
+import sesiSaudeLogo from '../assets/SESI-SAUDE.png';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 
 export type SecaoMenu =
@@ -18,6 +20,7 @@ export type SecaoMenu =
   | 'filaDia'
   | 'consultas'
   | 'dashboard'
+  | 'bi'
   | 'escolas'
   | 'relatorios'
   | 'usuarios';
@@ -70,30 +73,62 @@ export const Sidebar: FC<SidebarProps> = ({
         className="fixed top-0 left-0 w-[68px] h-screen bg-white/95 backdrop-blur-md border-r border-slate-200/90 shadow-2xs flex flex-col justify-between items-center py-3.5 z-40 overflow-visible"
         aria-label="Navegação Lateral do Catraki"
       >
-        {/* ─── 1. Topo: Logo Oficial Catraki Limpa ───────────────────────── */}
-        <div className="flex items-center justify-center shrink-0 pb-1">
+        {/* ─── 1. Topo: Logos Oficiais Catraki + SESI Saúde (Parceria) ───── */}
+        <div className="flex flex-col items-center justify-center shrink-0 pt-0.5 pb-2 gap-1 group relative">
           <button
             type="button"
-            onClick={() => aoMudarSecao('pacientes')}
-            className="p-0.5 cursor-pointer"
+            onClick={() => aoMudarSecao('dashboard')}
+            className="p-0.5 cursor-pointer transition-transform hover:scale-105"
             aria-label="Catraki"
           >
             <img
               src={catrakiLogo}
               alt="Catraki"
-              className="w-9 h-9 object-contain"
+              className="w-8 h-8 object-contain"
+            />
+          </button>
+
+          {/* Símbolo de Parceria Estilizado: Linha x Linha */}
+          <div className="flex items-center justify-center w-full px-3.5 my-0.5 gap-1.5 opacity-85">
+            <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-slate-200 to-slate-400/80 rounded-full" />
+            <span className="text-[9px] font-black text-slate-400 select-none leading-none scale-90">
+              ×
+            </span>
+            <div className="flex-1 h-[1px] bg-gradient-to-l from-transparent via-slate-200 to-slate-400/80 rounded-full" />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => aoMudarSecao('dashboard')}
+            className="p-0.5 cursor-pointer transition-transform hover:scale-105"
+            aria-label="SESI Saúde"
+          >
+            <img
+              src={sesiSaudeLogo}
+              alt="SESI Saúde"
+              className="w-9 h-auto max-h-7 object-contain"
             />
           </button>
         </div>
 
         {/* ─── 2. Meio: Dock de Ícones Elegantes com Flyouts Instantâneos ──── */}
         <nav className="flex flex-col items-center justify-center space-y-1.5 w-full my-auto shrink-0">
-          {/* Grupo 1: Atendimento & Triagem */}
+          {/* Grupo 1: Início & Operação Clínico-Presencial */}
+          {(!temAcesso || temAcesso('dashboard')) && (
+            <ItemDock
+              rotulo="Página Inicial"
+              categoria="Visão Geral"
+              descricao="Resumo do dia, atendimentos do SESI Saúde e atalhos rápidos"
+              ativo={secaoAtiva === 'dashboard'}
+              aoClicar={() => aoMudarSecao('dashboard')}
+              icone={<IconeInicio />}
+            />
+          )}
           {(!temAcesso || temAcesso('pacientes')) && (
             <ItemDock
               rotulo="Pacientes"
-              categoria="Atendimento"
-              descricao="Cadastro e prontuário dos alunos"
+              categoria="Cadastro"
+              descricao="Prontuários gerais, histórico clínico e termos de consentimento"
               ativo={secaoAtiva === 'pacientes'}
               aoClicar={() => aoMudarSecao('pacientes')}
               icone={<IconePacientes />}
@@ -102,8 +137,8 @@ export const Sidebar: FC<SidebarProps> = ({
           {(!temAcesso || temAcesso('filaDia')) && (
             <ItemDock
               rotulo="Fila do Dia"
-              categoria="Atendimento"
-              descricao="Ordem de chegada e prioridades"
+              categoria="Recepção"
+              descricao="Painel de chamadas, ordem de chegada e triagem do dia"
               ativo={secaoAtiva === 'filaDia'}
               aoClicar={() => aoMudarSecao('filaDia')}
               icone={<IconeFila />}
@@ -111,9 +146,9 @@ export const Sidebar: FC<SidebarProps> = ({
           )}
           {(!temAcesso || temAcesso('consultas')) && (
             <ItemDock
-              rotulo="Fichas de Atendimento"
-              categoria="Atendimento"
-              descricao="Registro clínico das especialidades"
+              rotulo="Histórico Clínico"
+              categoria="Saúde"
+              descricao="Fichas clínicas, condutas médicas, exames e histórico completo de atendimentos"
               ativo={secaoAtiva === 'consultas'}
               aoClicar={() => aoMudarSecao('consultas')}
               icone={<IconeConsultas />}
@@ -121,36 +156,26 @@ export const Sidebar: FC<SidebarProps> = ({
           )}
 
           {/* Divisor Delicado */}
-          {(!temAcesso || temAcesso('pacientes') || temAcesso('filaDia') || temAcesso('consultas')) && (
+          {(!temAcesso || temAcesso('dashboard') || temAcesso('pacientes') || temAcesso('filaDia') || temAcesso('consultas')) && (
             <div className="w-7 h-[1.5px] bg-slate-100 rounded-full my-1 shrink-0" />
           )}
 
-          {/* Grupo 2: Operação & Gestão */}
-          {(!temAcesso || temAcesso('dashboard')) && (
+          {/* Grupo 2: BI & Analytics */}
+          {(!temAcesso || temAcesso('bi')) && (
             <ItemDock
-              rotulo="Dashboard do Dia"
-              categoria="Operação"
-              descricao="Métricas e gráficos em tempo real"
-              ativo={secaoAtiva === 'dashboard'}
-              aoClicar={() => aoMudarSecao('dashboard')}
-              icone={<IconeDashboard />}
-            />
-          )}
-          {(!temAcesso || temAcesso('escolas')) && (
-            <ItemDock
-              rotulo="Escolas"
-              categoria="Operação"
-              descricao="Polos escolares e unidades móveis"
-              ativo={secaoAtiva === 'escolas'}
-              aoClicar={() => aoMudarSecao('escolas')}
-              icone={<IconeEscolas />}
+              rotulo="Painel Analítico"
+              categoria="BI & Indicadores"
+              descricao="Indicadores operacionais, análise de demanda e gráficos temporais"
+              ativo={secaoAtiva === 'bi'}
+              aoClicar={() => aoMudarSecao('bi')}
+              icone={<IconeBi />}
             />
           )}
           {(!temAcesso || temAcesso('relatorios')) && (
             <ItemDock
-              rotulo="Relatórios"
-              categoria="Operação"
-              descricao="Consolidação e prestação de contas"
+              rotulo="Relatórios & Exportação"
+              categoria="Analytics"
+              descricao="Filtros avançados e exportação oficial para planilhas Excel (.xlsx)"
               ativo={secaoAtiva === 'relatorios'}
               aoClicar={() => aoMudarSecao('relatorios')}
               icone={<IconeRelatorios />}
@@ -158,16 +183,26 @@ export const Sidebar: FC<SidebarProps> = ({
           )}
 
           {/* Divisor Delicado */}
-          {(!temAcesso || temAcesso('dashboard') || temAcesso('escolas') || temAcesso('relatorios')) && (
+          {(!temAcesso || temAcesso('bi') || temAcesso('relatorios')) && (
             <div className="w-7 h-[1.5px] bg-slate-100 rounded-full my-1 shrink-0" />
           )}
 
-          {/* Grupo 3: Segurança & Controle */}
+          {/* Grupo 3: Gestão & Segurança */}
+          {(!temAcesso || temAcesso('escolas')) && (
+            <ItemDock
+              rotulo="Escola"
+              categoria="Instituições"
+              descricao="Gestão de escolas atendidas, polos e unidades móveis"
+              ativo={secaoAtiva === 'escolas'}
+              aoClicar={() => aoMudarSecao('escolas')}
+              icone={<IconeEscolas />}
+            />
+          )}
           {(!temAcesso || temAcesso('usuarios')) && (
             <ItemDock
-              rotulo="Usuários & Permissões"
+              rotulo="Usuários & Acessos"
               categoria="Segurança"
-              descricao="Controle de acesso da equipe (RBAC)"
+              descricao="Gerenciamento da equipe e permissões de perfil (RBAC)"
               ativo={secaoAtiva === 'usuarios'}
               aoClicar={() => aoMudarSecao('usuarios')}
               icone={<IconeUsuarios />}
@@ -351,19 +386,19 @@ const ItemDock: FC<ItemDockProps> = ({
 
       {/* ─── Tooltip Completo & Minimalista no Hover ──────────────────────── */}
       <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center z-50 pointer-events-none animate-in fade-in zoom-in-95 duration-100">
-        <div className="bg-[#0b1b33]/95 backdrop-blur-md text-white px-3 py-2 rounded-2xl shadow-xl shadow-slate-950/25 border border-slate-700/60 min-w-[190px] max-w-[240px] flex flex-col gap-0.5">
+        <div className="bg-[#0b1b33]/95 backdrop-blur-md text-white px-3.5 py-2.5 rounded-2xl shadow-xl shadow-slate-950/25 border border-slate-700/60 min-w-[220px] max-w-[320px] flex flex-col gap-1">
           {/* Linha Superior: Nome do Módulo + Categoria */}
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[12px] font-bold text-white tracking-tight">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[12px] font-bold text-white tracking-tight whitespace-nowrap">
               {rotulo}
             </span>
-            <span className="text-[9.5px] font-semibold text-sky-400 uppercase tracking-wider">
+            <span className="text-[9px] font-bold text-sky-400 uppercase tracking-wider shrink-0 px-1.5 py-0.5 rounded bg-sky-500/10 border border-sky-400/20">
               {categoria}
             </span>
           </div>
 
           {/* Linha Inferior: Breve Síntese Funcional */}
-          <p className="text-[10.5px] text-slate-300 font-normal leading-tight">
+          <p className="text-[11px] text-slate-300 font-normal leading-relaxed">
             {descricao}
           </p>
         </div>
@@ -375,19 +410,22 @@ const ItemDock: FC<ItemDockProps> = ({
   );
 };
 
-/* ─── Ícones SVG Vetoriais Modernos e Nítidos (20px) ─────────────────────── */
+/* ─── Ícones Lucide-React Nítidos (20px) ─────────────────────────────────── */
 
-const IconePacientes = () => <UsersRound className="w-5 h-5" />;
+const IconeInicio = () => <Home className="w-5 h-5" />;
 
-const IconeFila = () => <Clock3 className="w-5 h-5" />;
+const IconePacientes = () => <Users className="w-5 h-5" />;
 
-const IconeConsultas = () => <FileText className="w-5 h-5" />;
+const IconeFila = () => <Clock className="w-5 h-5" />;
 
-const IconeDashboard = () => <LayoutDashboard className="w-5 h-5" />;
+const IconeConsultas = () => <Stethoscope className="w-5 h-5" />;
+
+const IconeBi = () => <BarChart3 className="w-5 h-5" />;
+
+const IconeRelatorios = () => <FileBarChart className="w-5 h-5" />;
 
 const IconeEscolas = () => <Building2 className="w-5 h-5" />;
 
-const IconeRelatorios = () => <PieChart className="w-5 h-5" />;
+const IconeUsuarios = () => <ShieldCheck className="w-5 h-5" />;
 
-const IconeUsuarios = () => <UserPlus className="w-5 h-5" />;
 

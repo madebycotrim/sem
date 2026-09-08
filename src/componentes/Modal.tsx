@@ -4,14 +4,17 @@ import {
   type Ref,
   forwardRef,
   useEffect,
-  useLayoutEffect,
   useState,
   useRef,
   createContext,
   useContext,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, CircleAlert, LoaderCircle, Trash2, X } from 'lucide-react';
+import { CircleAlert, LoaderCircle, Trash2, X } from 'lucide-react';
+import { SeletorFiltroUniversal, type OpcaoFiltroItem, type CategoriaFiltro } from './SeletorFiltroUniversal.tsx';
+
+export { SeletorFiltroUniversal };
+export type { OpcaoFiltroItem, CategoriaFiltro };
 
 export type TamanhoModal = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
 
@@ -71,6 +74,9 @@ type SelectModalProps = {
   onBlur?: (...args: any[]) => void;
   className?: string;
   disabled?: boolean;
+  pesquisavel?: boolean;
+  permitirLimpar?: boolean;
+  posicaoPopover?: 'baixo' | 'cima' | 'auto';
 };
 
 export const SelectModal = forwardRef<HTMLInputElement, SelectModalProps>(function SelectModal(
@@ -84,128 +90,36 @@ export const SelectModal = forwardRef<HTMLInputElement, SelectModalProps>(functi
     onBlur,
     className = '',
     disabled = false,
+    pesquisavel,
+    permitirLimpar = false,
+    posicaoPopover = 'baixo',
   },
   ref: Ref<HTMLInputElement>,
 ) {
-  const [valor, setValor] = useState(defaultValue);
-  const [aberto, setAberto] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const botaoRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [posicaoMenu, setPosicaoMenu] = useState({ top: 0, left: 0, width: 0 });
-  const valorAtual = value ?? valor;
-  const opcaoSelecionada = opcoes.find((opcao) => opcao.valor === valorAtual);
-
-  useEffect(() => {
-    if (value !== undefined) setValor(value);
-  }, [value]);
-
-  useEffect(() => {
-    const fecharAoClicarFora = (evento: MouseEvent) => {
-      const alvo = evento.target as Node;
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(alvo) &&
-        !menuRef.current?.contains(alvo)
-      ) {
-        setAberto(false);
-      }
-    };
-    document.addEventListener('mousedown', fecharAoClicarFora);
-    return () => document.removeEventListener('mousedown', fecharAoClicarFora);
-  }, []);
-
-  useLayoutEffect(() => {
-    if (!aberto || !botaoRef.current) return undefined;
-
-    const atualizarPosicao = () => {
-      if (!botaoRef.current) return;
-      const retangulo = botaoRef.current.getBoundingClientRect();
-      const alturaEstimada = Math.min(Math.max((opcoes.length + 1) * 40 + 12, 92), 236);
-      const espacoAbaixo = window.innerHeight - retangulo.bottom;
-      const abrirAcima = espacoAbaixo < alturaEstimada + 12 && retangulo.top > alturaEstimada + 12;
-
-      setPosicaoMenu({
-        top: abrirAcima ? retangulo.top - alturaEstimada - 6 : retangulo.bottom + 6,
-        left: retangulo.left,
-        width: retangulo.width,
-      });
-    };
-
-    atualizarPosicao();
-    window.addEventListener('resize', atualizarPosicao);
-    window.addEventListener('scroll', atualizarPosicao, true);
-    return () => {
-      window.removeEventListener('resize', atualizarPosicao);
-      window.removeEventListener('scroll', atualizarPosicao, true);
-    };
-  }, [aberto, opcoes.length]);
-
-  const selecionar = (novoValor: string) => {
-    setValor(novoValor);
-    setAberto(false);
-    onChange?.({ target: { name, value: novoValor } });
-    onBlur?.();
-  };
+  const opcoesFiltro = opcoes.map((o) => ({
+    id: o.valor,
+    valor: o.valor,
+    nome: o.rotulo,
+    rotulo: o.rotulo,
+  }));
 
   return (
-    <div ref={containerRef} className="relative">
-      <input ref={ref} type="hidden" name={name} value={valorAtual} readOnly />
-      <button
-        type="button"
-        disabled={disabled}
-        ref={botaoRef}
-        onClick={() => setAberto((estado) => !estado)}
-        className={`${ESTILO_SELECT_MODAL} flex items-center justify-between text-left ${className}`}
-        style={{ backgroundImage: 'none', paddingRight: '16px' }}
-        aria-haspopup="listbox"
-        aria-expanded={aberto}
-      >
-        <span className={opcaoSelecionada ? 'text-slate-800' : 'text-slate-400'}>
-          {opcaoSelecionada?.rotulo || placeholder}
-        </span>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${aberto ? 'rotate-180' : ''}`} />
-      </button>
-
-      {aberto && posicaoMenu.width > 0 && (
-        createPortal(
-          <div
-            ref={menuRef}
-            role="listbox"
-            style={{
-              top: posicaoMenu.top,
-              left: posicaoMenu.left,
-              width: posicaoMenu.width,
-              zIndex: 99999,
-            }}
-            className="fixed z-[9999] max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10 ring-1 ring-black/5 animate-dropdown"
-          >
-            <button
-              type="button"
-              role="option"
-              aria-selected={!valorAtual}
-              onClick={() => selecionar('')}
-              className={`w-full rounded-lg px-3 py-2 text-left text-[13px] transition-colors ${!valorAtual ? 'bg-blue-50 font-semibold text-blue-700' : 'text-slate-500 hover:bg-slate-50'}`}
-            >
-              {placeholder}
-            </button>
-            {opcoes.map((opcao) => (
-              <button
-                key={opcao.valor}
-                type="button"
-                role="option"
-                aria-selected={opcao.valor === valorAtual}
-                onClick={() => selecionar(opcao.valor)}
-                className={`w-full rounded-lg px-3 py-2 text-left text-[13px] transition-colors ${opcao.valor === valorAtual ? 'bg-blue-50 font-semibold text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
-              >
-                {opcao.rotulo}
-              </button>
-            ))}
-          </div>,
-          document.body,
-        )
-      )}
-    </div>
+    <SeletorFiltroUniversal
+      ref={ref}
+      name={name}
+      valor={value}
+      defaultValue={defaultValue}
+      opcoes={opcoesFiltro}
+      placeholder={placeholder}
+      onChange={onChange}
+      onBlur={onBlur}
+      disabled={disabled}
+      className={className}
+      permitirLimpar={permitirLimpar}
+      mostrarLupaBotao={false}
+      pesquisavel={pesquisavel}
+      posicaoPopover={posicaoPopover}
+    />
   );
 });
 
@@ -322,7 +236,7 @@ export const Modal: FC<ModalProps> = ({
         <div className="min-h-full flex items-center justify-center p-4">
           <div
             ref={containerRef}
-            className={`w-full ${larguraClasse} bg-white rounded-[28px] shadow-[0_28px_80px_rgba(15,23,42,0.18)] border border-slate-200/80 flex flex-col animate-slide-up relative overflow-hidden ${className}`}
+            className={`w-full ${larguraClasse} bg-white rounded-[28px] shadow-[0_28px_80px_rgba(15,23,42,0.18)] border border-slate-200/80 flex flex-col animate-slide-up relative overflow-visible ${className}`}
             onClick={(evento) => evento.stopPropagation()}
           >
           {/* ─── 1. Cabeçalho do Modal ────────────────────────────────────── */}
@@ -493,10 +407,10 @@ export const BotaoModal: FC<BotaoModalProps> = ({
 
   const estilosVariante =
     variante === 'primario'
-      ? 'bg-[#0f6ae8] text-white border border-[#0f6ae8] shadow-[0_8px_18px_rgba(15,106,232,0.22)] hover:bg-[#0d5fd6] hover:border-[#0d5fd6] active:translate-y-[1px] active:shadow-[0_6px_14px_rgba(15,106,232,0.18)]'
+      ? 'bg-gradient-to-r from-[#0066ff] via-[#0f6ae8] to-[#0256d0] text-white border border-blue-500/30 shadow-[0_6px_20px_rgba(0,102,255,0.30)] hover:shadow-[0_8px_24px_rgba(0,102,255,0.42)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-2xl font-extrabold tracking-tight'
       : variante === 'perigo'
-        ? 'bg-[#dc2626] text-white border border-[#dc2626] shadow-[0_8px_18px_rgba(220,38,38,0.20)] hover:bg-[#c81f1f] hover:border-[#c81f1f] active:translate-y-[1px] active:shadow-[0_6px_14px_rgba(220,38,38,0.18)]'
-        : 'bg-white text-slate-700 border border-slate-200 shadow-[0_2px_8px_rgba(15,23,42,0.04)] hover:bg-slate-50 hover:border-slate-300 active:translate-y-[1px]';
+        ? 'bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white border border-rose-600/30 shadow-[0_6px_20px_rgba(225,29,72,0.28)] hover:shadow-[0_8px_24px_rgba(225,29,72,0.40)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-2xl font-extrabold tracking-tight'
+        : 'bg-white text-slate-700 border border-slate-200/90 shadow-sm hover:bg-slate-50 hover:border-slate-300 hover:text-slate-900 hover:scale-[1.01] active:scale-[0.98] transition-all duration-200 rounded-2xl font-bold tracking-tight';
 
   const tratarClique = () => {
     if (aoClicar) {
@@ -512,7 +426,7 @@ export const BotaoModal: FC<BotaoModalProps> = ({
       form={formId}
       disabled={desabilitado || carregando}
       onClick={tratarClique}
-      className={`h-11 min-w-[130px] px-5 text-[13px] font-bold rounded-xl transition-all duration-200 ease-out flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 ${estilosVariante} ${className}`}
+      className={`h-11 min-w-[130px] px-5 text-[13px] transition-all duration-200 ease-out flex items-center justify-center gap-2 cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 ${estilosVariante} ${className}`}
     >
       {carregando ? (
         <>
@@ -528,10 +442,17 @@ export const BotaoModal: FC<BotaoModalProps> = ({
 
 /* ─── Sub-componente: Select Customizado com Ícones ─────────────────────── */
 
+import type { LucideIcon } from 'lucide-react';
+
 export interface OpcaoSelectCustom {
   valor: string;
   rotulo: string;
-  icone?: ReactNode;
+  subtexto?: string;
+  textoBusca?: string;
+  icone?: LucideIcon | ReactNode;
+  corFundoIcone?: string;
+  corIcone?: string;
+  badge?: ReactNode;
 }
 
 export interface ModalSelectCustomProps {
@@ -540,6 +461,13 @@ export interface ModalSelectCustomProps {
   opcoes: OpcaoSelectCustom[];
   placeholder?: string;
   abreParaCima?: boolean;
+  pesquisavel?: boolean;
+  categoria?: CategoriaFiltro;
+  erro?: string;
+  rodapePopover?: ReactNode;
+  disabled?: boolean;
+  className?: string;
+  posicaoPopover?: 'baixo' | 'cima' | 'auto';
 }
 
 export const ModalSelectCustom: FC<ModalSelectCustomProps> = ({
@@ -547,63 +475,40 @@ export const ModalSelectCustom: FC<ModalSelectCustomProps> = ({
   aoMudar,
   opcoes,
   placeholder = 'Selecione...',
-  abreParaCima = false,
+  pesquisavel,
+  categoria = 'custom',
+  erro,
+  rodapePopover,
+  disabled = false,
+  className = '',
+  posicaoPopover = 'baixo',
 }) => {
-  const [aberto, setAberto] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickFora = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setAberto(false);
-      }
-    };
-    if (aberto) document.addEventListener('mousedown', handleClickFora);
-    return () => document.removeEventListener('mousedown', handleClickFora);
-  }, [aberto]);
-
-  const opcaoSelecionada = opcoes.find((o) => o.valor === valorAtual);
+  const opcoesFiltro: OpcaoFiltroItem[] = opcoes.map((o) => ({
+    id: o.valor,
+    valor: o.valor,
+    nome: o.rotulo,
+    rotulo: o.rotulo,
+    icone: o.icone,
+    corFundoIcone: o.corFundoIcone,
+    corIcone: o.corIcone,
+    subtexto: o.subtexto ?? o.textoBusca,
+    badge: o.badge,
+  }));
 
   return (
-    <div className="relative" ref={containerRef}>
-      <button
-        type="button"
-        onClick={() => setAberto(!aberto)}
-        className={`${ESTILO_INPUT_MODAL} flex items-center justify-between text-left`}
-      >
-        {opcaoSelecionada ? (
-          <div className="flex items-center gap-2.5">
-            {opcaoSelecionada.icone}
-            <span className="font-semibold text-slate-800 text-xs tracking-tight">
-              {opcaoSelecionada.rotulo}
-            </span>
-          </div>
-        ) : (
-          <span className="text-slate-400">{placeholder}</span>
-        )}
-        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${aberto ? 'rotate-180' : ''}`} />
-      </button>
-
-      {aberto && (
-        <div className={`absolute left-0 w-full bg-white border border-slate-200/90 rounded-2xl shadow-lg z-[100] overflow-hidden py-1.5 animate-fade-in ${abreParaCima ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}`}>
-          {opcoes.map((opcao) => (
-            <button
-              key={opcao.valor}
-              type="button"
-              onClick={() => {
-                aoMudar(opcao.valor);
-                setAberto(false);
-              }}
-              className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-50 transition-colors text-left"
-            >
-              {opcao.icone}
-              <span className="font-semibold text-slate-700 text-[11px] uppercase tracking-tight">
-                {opcao.rotulo}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <SeletorFiltroUniversal
+      valor={valorAtual}
+      aoMudar={aoMudar}
+      categoria={categoria}
+      opcoes={opcoesFiltro}
+      placeholder={placeholder}
+      pesquisavel={pesquisavel}
+      erro={erro}
+      permitirLimpar={false}
+      rodapePopover={rodapePopover}
+      disabled={disabled}
+      className={className}
+      posicaoPopover={posicaoPopover}
+    />
   );
 };

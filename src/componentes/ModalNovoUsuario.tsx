@@ -268,6 +268,7 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
              <ModalCampo rotulo="Perfil de Acesso (RBAC)" obrigatorio erro={errors.perfil?.message}>
                <input type="hidden" {...register('perfil')} />
                <ModalSelectCustom
+                 categoria="perfis"
                  valorAtual={perfilAtual as string}
                  aoMudar={(v) => setValue('perfil', v as PerfilAcesso, { shouldValidate: true })}
                  opcoes={OPCOES_PERFIL}
@@ -283,6 +284,7 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
                <ModalCampo rotulo="Conselho Profissional" obrigatorio erro={errors.conselhoProfissional?.message}>
                  <input type="hidden" {...register('conselhoProfissional')} />
                  <ModalSelectCustom
+                   categoria="conselhos"
                    valorAtual={conselhoAtual as string}
                    aoMudar={(v) => setValue('conselhoProfissional', v, { shouldValidate: true })}
                    opcoes={OPCOES_CONSELHO}
@@ -302,10 +304,11 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
                  </ModalCampo>
                )}
 
-               <div className="md:col-span-2">
+               <div className={conselhoAtual === ConselhoProfissional.NAO_INFORMADO ? 'md:col-span-1' : 'md:col-span-2'}>
                  <ModalCampo rotulo="Especialidade Principal" obrigatorio erro={errors.especialidade?.message}>
                    <input type="hidden" {...register('especialidade')} />
                    <ModalSelectCustom
+                     categoria="especialidades"
                      valorAtual={especialidadeAtual as string}
                      aoMudar={(v) => setValue('especialidade', v, { shouldValidate: true })}
                      opcoes={OPCOES_ESPECIALIDADE}

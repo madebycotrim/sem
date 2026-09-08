@@ -1,17 +1,14 @@
-import { type FC, useState, useEffect, useMemo, useRef } from 'react';
+import { type FC, useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import DOMPurify from 'dompurify';
 import {
   AlertTriangle,
-  Check,
   CircleAlert,
   CircleCheck,
-  ChevronDown,
   LoaderCircle,
   UsersRound,
-  X,
 } from 'lucide-react';
 import type { ItemPaciente } from './TabelaPacientes.tsx';
 import {
@@ -27,6 +24,7 @@ import {
   BotaoModal,
   ESTILO_INPUT_MODAL,
   SelectModal,
+  SeletorFiltroUniversal,
 } from './Modal.tsx';
 
 const formNovoPacienteSchema = z.object({
@@ -112,44 +110,11 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
     return Array.from(mapa.values());
   }, [escolas]);
 
-  const [buscaInstituicao, setBuscaInstituicao] = useState(instituicaoAtual || escolas[0]?.nome || '');
-  const [menuInstituicaoAberto, setMenuInstituicaoAberto] = useState(false);
-  const containerInstituicaoRef = useRef<HTMLDivElement>(null);
-  const inputBuscaInstituicaoRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (instituicaoAtual !== undefined && instituicaoAtual !== buscaInstituicao && !menuInstituicaoAberto) {
-      setBuscaInstituicao(instituicaoAtual);
-    }
-  }, [instituicaoAtual, menuInstituicaoAberto, buscaInstituicao]);
-
-  const instituicoesFiltradas = useMemo(() => {
-    if (!buscaInstituicao.trim()) return listaInstituicoes;
-    const termo = buscaInstituicao.toLowerCase().trim();
-    return listaInstituicoes.filter((inst) =>
-      inst.toLowerCase().includes(termo)
-    );
-  }, [listaInstituicoes, buscaInstituicao]);
-
-  useEffect(() => {
-    const handleClickFora = (e: MouseEvent) => {
-      if (
-        containerInstituicaoRef.current &&
-        !containerInstituicaoRef.current.contains(e.target as Node)
-      ) {
-        setMenuInstituicaoAberto(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickFora);
-    return () => document.removeEventListener('mousedown', handleClickFora);
-  }, []);
-
   useEffect(() => {
     if (aberto) {
       setErroGeral(null);
       setErroConsultaCpf(null);
       setSucessoConsultaCpf(null);
-      setMenuInstituicaoAberto(false);
 
       if (pacienteParaEditar) {
         const [anoEscolar, turma] = (pacienteParaEditar.turma || '').split(' — ', 2);
@@ -158,7 +123,6 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
         setValue('dataNascimento', pacienteParaEditar.dataNascimento || '', { shouldValidate: true });
         setValue('sexo', pacienteParaEditar.sexo || 'Feminino', { shouldValidate: true });
         setValue('instituicao', pacienteParaEditar.escolaNome || instituicaoPadrao, { shouldValidate: true });
-        setBuscaInstituicao(pacienteParaEditar.escolaNome || instituicaoPadrao);
         setValue('perfilUsuario', pacienteParaEditar.perfil || 'ESTUDANTE', { shouldValidate: true });
         setValue('telefone', pacienteParaEditar.telefone || '', { shouldValidate: true });
         setValue('anoEscolar', turma ? anoEscolar : '');
@@ -178,7 +142,6 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           turma: '',
         });
         setCpfConsultado('');
-        setBuscaInstituicao(escolaPadrao);
       }
     }
   }, [aberto, pacienteParaEditar, instituicaoPadrao, setValue, reset, escolas]);
@@ -247,7 +210,6 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
       turma: '',
     });
     setCpfConsultado('');
-    setBuscaInstituicao(escolaPadrao);
     setErroGeral(null);
     setErroConsultaCpf(null);
     setSucessoConsultaCpf(null);
@@ -316,112 +278,16 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
         {/* Seção DADOS PESSOAIS */}
         <ModalSecao titulo="Dados Pessoais">
           {/* Instituição */}
-          <div className="relative" ref={containerInstituicaoRef}>
-            <ModalCampo rotulo="Instituição" obrigatorio erro={errors.instituicao?.message}>
-              <div className="relative">
-                <input
-                  ref={inputBuscaInstituicaoRef}
-                  type="text"
-                  value={buscaInstituicao}
-                  onFocus={() => setMenuInstituicaoAberto(true)}
-                  onChange={(e) => {
-                    const novoValor = e.target.value.toUpperCase();
-                    setBuscaInstituicao(novoValor);
-                    setValue('instituicao', novoValor, { shouldValidate: true });
-                    setMenuInstituicaoAberto(true);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      setMenuInstituicaoAberto(false);
-                    } else if (e.key === 'Enter') {
-                      e.preventDefault();
-                      if (instituicoesFiltradas.length > 0) {
-                        const selecionada = instituicoesFiltradas[0];
-                        setValue('instituicao', selecionada, { shouldValidate: true });
-                        setBuscaInstituicao(selecionada);
-                        setMenuInstituicaoAberto(false);
-                      }
-                    } else if (e.key === 'ArrowDown') {
-                      setMenuInstituicaoAberto(true);
-                    }
-                  }}
-                  placeholder="DIGITE O NOME DA ESCOLA OU POLO..."
-                  className={`${ESTILO_INPUT_MODAL} pl-3 pr-16 font-semibold uppercase`}
-                />
-
-                <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center gap-1 text-slate-400">
-                  {buscaInstituicao && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setBuscaInstituicao('');
-                        setValue('instituicao', '', { shouldValidate: true });
-                        inputBuscaInstituicaoRef.current?.focus();
-                        setMenuInstituicaoAberto(true);
-                      }}
-                      className="p-1 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
-                      title="Limpar campo"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuInstituicaoAberto(!menuInstituicaoAberto);
-                      inputBuscaInstituicaoRef.current?.focus();
-                    }}
-                    className="p-1 hover:text-blue-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
-                  >
-                    <ChevronDown className={`w-4 h-4 transition-transform duration-150 ${menuInstituicaoAberto ? 'rotate-180 text-blue-600' : ''}`} />
-                  </button>
-                </div>
-
-                {menuInstituicaoAberto && (
-                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200/95 rounded-2xl shadow-xl z-50 py-1.5 max-h-56 overflow-y-auto animate-dropdown origin-top ring-1 ring-black/5">
-                    <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 flex items-center justify-between">
-                      <span>Instituições Disponíveis</span>
-                      <span>{instituicoesFiltradas.length} encontradas</span>
-                    </div>
-
-                    {instituicoesFiltradas.length === 0 ? (
-                      <div className="px-3.5 py-4 text-center text-xs text-slate-500">
-                        <p className="font-semibold text-slate-700">Nenhuma instituição encontrada</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          Você pode manter o nome digitado para cadastrar uma nova unidade.
-                        </p>
-                      </div>
-                    ) : (
-                      instituicoesFiltradas.map((nomeEscola) => {
-                        const estaSelecionada = instituicaoAtual?.toUpperCase() === nomeEscola.toUpperCase();
-                        return (
-                          <button
-                            key={nomeEscola}
-                            type="button"
-                            onClick={() => {
-                              setValue('instituicao', nomeEscola, { shouldValidate: true });
-                              setBuscaInstituicao(nomeEscola);
-                              setMenuInstituicaoAberto(false);
-                            }}
-                            className={`w-full px-3.5 py-2.5 text-left text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer ${
-                              estaSelecionada
-                                ? 'bg-blue-50 text-blue-700 font-bold'
-                                : 'text-slate-800 hover:bg-slate-50'
-                            }`}
-                          >
-                            <span className="truncate">{nomeEscola.toUpperCase()}</span>
-                            {estaSelecionada && (
-                              <Check className="w-4 h-4 text-blue-600 shrink-0" />
-                            )}
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-              </div>
-            </ModalCampo>
-          </div>
+          <ModalCampo rotulo="Instituição de Ensino / Polo" obrigatorio erro={errors.instituicao?.message}>
+            <SeletorFiltroUniversal
+              categoria="instituicoes"
+              valor={instituicaoAtual}
+              aoMudar={(v) => setValue('instituicao', v, { shouldValidate: true })}
+              placeholder="Selecione ou busque a instituição..."
+              opcoes={listaInstituicoes.map((inst) => ({ id: inst, valor: inst, nome: inst, rotulo: inst }))}
+              permitirLimpar={true}
+            />
+          </ModalCampo>
 
           {/* Nome, CPF, Nascimento */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">

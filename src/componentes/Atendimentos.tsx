@@ -139,8 +139,8 @@ export const Atendimentos: FC<AtendimentosProps> = ({
     <div className="flex flex-col flex-1 animate-fade-in font-sans">
       {/* ─── Cabeçalho Fixo Modular ───────────────────────────────────────── */}
       <CabecalhoPagina
-        titulo="Atendimentos Clínicos"
-        subtitulo="REGISTRO CLÍNICO, CONDUTAS E PROCEDIMENTOS EM FLUXO LIVRE"
+        titulo="Histórico Clínico"
+        subtitulo="REGISTRO HISTÓRICO DE ATENDIMENTOS — FICHAS, CONDUTAS E PROCEDIMENTOS"
         busca={{
           valor: busca,
           aoMudar: setBusca,
@@ -165,7 +165,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         }
         aoExportar={() => alert(`Exportando ${dadosFiltrados.length} atendimentos em formato CSV.`)}
         acaoPrimaria={{
-          rotulo: 'Novo Atendimento',
+          rotulo: 'Nova Ficha Clínica',
           aoClicar: aoNovoAtendimento,
         }}
         fixo={true}

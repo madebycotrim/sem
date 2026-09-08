@@ -35,7 +35,7 @@ rotasUsuarios.get('/', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'DPO']), async (c)
     },
   });
 
-  const mapeados = usuarios.map((u) => ({
+  const mapeados = (usuarios as any[]).map((u: any) => ({
     id: u.id,
     nome: u.nomeCompleto,
     email: u.email,

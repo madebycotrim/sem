@@ -93,7 +93,7 @@ export function censurarCpf(cpf: string | null | undefined): string {
   if (!cpf) return '';
   const limpo = cpf.replace(/\D/g, '');
   if (limpo.length !== 11) return cpf;
-  return `${limpo.substring(0, 3)}.${limpo.substring(3, 6)}.***-${limpo.substring(9, 11)}`;
+  return `${limpo.substring(0, 3)}.***.***-${limpo.substring(9, 11)}`;
 }
 
 interface TabelaPacientesProps {

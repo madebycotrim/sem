@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type FC } from 'react';
+import { useEffect, useMemo, useState, type FC } from 'react';
 import {
-  ArrowDown,
   Brain,
   CalendarCheck2,
   CalendarClock,
@@ -11,8 +10,7 @@ import {
   Ear,
   Eye,
   FileBarChart2,
-  FileText,
-  Leaf,
+  Apple,
   ListFilter,
   LoaderCircle,
   RotateCcw,
@@ -29,7 +27,7 @@ import {
   BarraFiltrosAtivos,
   type ConfiguracaoColuna,
 } from './tabelaExcel/index.ts';
-import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
+import { SeletorFiltroUniversal } from './SeletorFiltroUniversal.tsx';
 
 export interface RelatoriosProps {
   escolas?: Array<{ id: string; nome: string }>;
@@ -63,6 +61,15 @@ const formatarDataBrasileira = (data: string) => {
   return new Date(`${data}T00:00:00`).toLocaleDateString('pt-BR');
 };
 
+const obterDiaSemanaExtenso = (dataIso: string): string => {
+  if (!dataIso) return '';
+  const [ano, mes, dia] = dataIso.split('-').map(Number);
+  if (!ano || !mes || !dia) return '';
+  const data = new Date(ano, mes - 1, dia);
+  const dias = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+  return dias[data.getDay()] || '';
+};
+
 export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   const [escolaFiltro, setEscolaFiltro] = useState('');
   const [especialidadeFiltro, setEspecialidadeFiltro] = useState('');
@@ -74,19 +81,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   const [indicePico, setIndicePico] = useState<number | null>(null);
   const [painelRecolhido, setPainelRecolhido] = useState(false);
   const [relatorioGerado, setRelatorioGerado] = useState(false);
-  const [profissionalAberto, setProfissionalAberto] = useState(false);
-  const [especialidadeAberta, setEspecialidadeAberta] = useState(false);
-  const [statusAberto, setStatusAberto] = useState(false);
-  const [instituicaoAberta, setInstituicaoAberta] = useState(false);
-  const [buscaProfissional, setBuscaProfissional] = useState('');
-  const [buscaEspecialidade, setBuscaEspecialidade] = useState('');
-  const [buscaStatus, setBuscaStatus] = useState('');
-  const [buscaInstituicao, setBuscaInstituicao] = useState('');
   const [buscaTabela, setBuscaTabela] = useState('');
-  const refDropdownProfissional = useRef<HTMLDivElement | null>(null);
-  const refDropdownEspecialidade = useRef<HTMLDivElement | null>(null);
-  const refDropdownStatus = useRef<HTMLDivElement | null>(null);
-  const refDropdownInstituicao = useRef<HTMLDivElement | null>(null);
   const [tooltipPosicao, setTooltipPosicao] = useState<{ x: number; y: number } | null>(null);
   const [dados, setDados] = useState<RelatorioDados>({
     total: 0,
@@ -310,7 +305,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       case 'AUDIOMETRIA':
         return { icone: Ear, barra: '#3b82f6', texto: '#1d4ed8', fundoIcone: 'bg-[#e0f2fe] text-[#1d4ed8]', badge: 'bg-[#dbeafe] text-[#1d4ed8]' };
       case 'NUTRICAO':
-        return { icone: Leaf, barra: '#22c55e', texto: '#15803d', fundoIcone: 'bg-[#dcfce7] text-[#15803d]', badge: 'bg-[#dcfce7] text-[#15803d]' };
+        return { icone: Apple, barra: '#22c55e', texto: '#15803d', fundoIcone: 'bg-[#dcfce7] text-[#15803d]', badge: 'bg-[#dcfce7] text-[#15803d]' };
       case 'PSICOLOGIA':
         return { icone: Brain, barra: '#4f46e5', texto: '#4338ca', fundoIcone: 'bg-[#eef2ff] text-[#4338ca]', badge: 'bg-[#e0e7ff] text-[#4338ca]' };
       case 'ODONTOLOGIA':
@@ -413,12 +408,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     setRelatorioGerado(true);
   };
 
-  const profissionalSelecionado = profissionaisDisponiveis.find((profissional) => profissional.id === profissionalFiltro) ?? null;
-  const profissionaisFiltrados = profissionaisDisponiveis.filter((profissional) => {
-    const termo = buscaProfissional.toLocaleLowerCase();
-    return !termo || profissional.nome.toLocaleLowerCase().includes(termo);
-  });
-
   const resumoCards = useMemo(() => {
     return [
       { label: 'Total', valor: totalGeral, detalhe: `${totalGeral === 1 ? 'atendimento' : 'atendimentos'}` },
@@ -449,78 +438,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
 
     return alertas;
   }, [dados.porEspecialidade]);
-
-  const opcoesEspecialidade = useMemo(
-    () => [
-      { id: '', nome: 'Todas as especialidades', icone: Search },
-      ...Object.entries(ESPECIALIDADE_LABELS).map(([id, nome]) => ({
-        id,
-        nome,
-        icone: id === 'OFTALMOLOGIA' ? Eye : id === 'AUDIOMETRIA' ? Ear : id === 'ODONTOLOGIA' ? Sparkles : id === 'PSICOLOGIA' ? Brain : Leaf,
-      })),
-    ],
-    [],
-  );
-
-  const instituicoesFiltradas = useMemo(() => {
-    const termo = buscaInstituicao.toLowerCase();
-    const lista = [{ id: '', nome: 'Todas as instituições' }, ...escolas.map((escola) => ({ id: escola.id, nome: escola.nome }))];
-    return lista.filter((opcao) => !termo || opcao.nome.toLowerCase().includes(termo));
-  }, [buscaInstituicao, escolas]);
-
-  const instituicaoSelecionada = instituicoesFiltradas.find((opcao) => opcao.id === escolaFiltro) ?? instituicoesFiltradas[0] ?? { id: '', nome: 'Todas as instituições' };
-
-  const opcoesStatus = useMemo(
-    () => [
-      { id: '', nome: 'Todos os status', icone: Search, cor: 'bg-slate-200 text-slate-500' },
-      { id: 'agendado', nome: 'Agendado', icone: CalendarClock, cor: 'bg-[#fff7ed] text-[#d97706]' },
-      { id: 'confirmado', nome: 'Confirmado', icone: CalendarCheck2, cor: 'bg-[#e0f2fe] text-[#0284c7]' },
-      { id: 'reagendado', nome: 'Reagendado', icone: RotateCcw, cor: 'bg-[#f3e8ff] text-[#7c3aed]' },
-      { id: 'em_atendimento', nome: 'Em Atendimento', icone: FileText, cor: 'bg-[#fdf2f8] text-[#db2777]' },
-      { id: 'concluido', nome: 'Concluído', icone: CalendarCheck2, cor: 'bg-[#dcfce7] text-[#15803d]' },
-      { id: 'cancelado', nome: 'Cancelado', icone: ArrowDown, cor: 'bg-[#fee2e2] text-[#dc2626]' },
-      { id: 'nao_compareceu', nome: 'Não Compareceu (Falta)', icone: Search, cor: 'bg-[#f1f5f9] text-[#334155]' },
-    ],
-    [],
-  );
-
-  const especialidadeSelecionada = opcoesEspecialidade.find((opcao) => opcao.id === especialidadeFiltro) ?? opcoesEspecialidade[0];
-  const especialidadesFiltradas = opcoesEspecialidade.filter((opcao) => {
-    const termo = buscaEspecialidade.toLocaleLowerCase();
-    if (!termo) return true;
-    return opcao.nome.toLocaleLowerCase().includes(termo);
-  });
-  const statusSelecionado = opcoesStatus.find((opcao) => opcao.id === statusFiltro) ?? opcoesStatus[0];
-  const statusFiltrados = opcoesStatus.filter((opcao) => {
-    const termo = buscaStatus.toLocaleLowerCase();
-    if (!termo) return true;
-    return opcao.nome.toLocaleLowerCase().includes(termo);
-  });
-
-  useEffect(() => {
-    const tratarCliqueFora = (evento: Event) => {
-      if (!profissionalAberto && !especialidadeAberta && !statusAberto && !instituicaoAberta) return;
-
-      if (profissionalAberto && refDropdownProfissional.current && !refDropdownProfissional.current.contains(evento.target as Node)) {
-        setProfissionalAberto(false);
-      }
-
-      if (especialidadeAberta && refDropdownEspecialidade.current && !refDropdownEspecialidade.current.contains(evento.target as Node)) {
-        setEspecialidadeAberta(false);
-      }
-
-      if (statusAberto && refDropdownStatus.current && !refDropdownStatus.current.contains(evento.target as Node)) {
-        setStatusAberto(false);
-      }
-
-      if (instituicaoAberta && refDropdownInstituicao.current && !refDropdownInstituicao.current.contains(evento.target as Node)) {
-        setInstituicaoAberta(false);
-      }
-    };
-
-    document.addEventListener('mousedown', tratarCliqueFora);
-    return () => document.removeEventListener('mousedown', tratarCliqueFora);
-  }, [especialidadeAberta, instituicaoAberta, profissionalAberto, statusAberto]);
 
   const opcoesPeriodo = [
     { chave: '7', label: '7 dias', icone: CalendarClock },
@@ -561,8 +478,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   };
 
   const campoFiltroBase = 'flex h-11 w-full items-center gap-2 rounded-xl border border-[#dfe7ee] bg-[#f7fafc] px-3 text-[15px] text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-200 hover:border-[#cfe1ee] focus-within:border-[#0d4d7a] focus-within:shadow-[0_0_0_3px_rgba(13,77,122,0.08)]';
-  const botaoFiltroBase = 'flex h-11 w-full items-center justify-between rounded-xl border border-[#dfe7ee] bg-[#f7fafc] px-3 text-left text-[15px] text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-200 hover:border-[#cfe1ee] focus:border-[#0d4d7a] focus:shadow-[0_0_0_3px_rgba(13,77,122,0.08)]';
-  const iconeTodosBase = 'h-4 w-4 text-slate-500';
 
   return (
     <div className="flex flex-1 flex-col bg-[#f4f7fb] p-0 text-slate-800">
@@ -591,7 +506,12 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Início</label>
             <div className={campoFiltroBase}>
               <CalendarDays className="h-4 w-4 shrink-0 text-slate-500" />
-              <input type="date" value={dataInicio} onChange={(event) => setDataInicio(event.target.value)} className="h-full min-h-0 w-full bg-transparent text-[15px] leading-none text-slate-700 outline-none appearance-none" aria-label="Data inicial" />
+              <input type="date" value={dataInicio} onChange={(event) => setDataInicio(event.target.value)} className="h-full min-h-0 flex-1 bg-transparent text-[14px] font-medium leading-none text-slate-700 outline-none appearance-none cursor-pointer" aria-label="Data inicial" />
+              {dataInicio && (
+                <span className="shrink-0 rounded-lg bg-blue-50/90 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wider text-blue-700 border border-blue-200/80 shadow-2xs select-none pointer-events-none">
+                  {obterDiaSemanaExtenso(dataInicio)}
+                </span>
+              )}
             </div>
           </div>
 
@@ -599,272 +519,56 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Fim</label>
             <div className={campoFiltroBase}>
               <CalendarDays className="h-4 w-4 shrink-0 text-slate-500" />
-              <input type="date" value={dataFim} onChange={(event) => setDataFim(event.target.value)} className="h-full min-h-0 w-full bg-transparent text-[15px] leading-none text-slate-700 outline-none appearance-none" aria-label="Data final" />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Status</label>
-            <div ref={refDropdownStatus} className="relative">
-              <button
-                type="button"
-                onClick={() => setStatusAberto((aberto) => !aberto)}
-                className={`${botaoFiltroBase} ${statusAberto ? 'border-[#0d4d7a] shadow-[0_0_0_3px_rgba(13,77,122,0.08)]' : ''}`}
-                aria-label="Status"
-              >
-                <span className="flex items-center gap-2 truncate text-left">
-                  {statusSelecionado.id === '' ? (
-                    <Search className={iconeTodosBase} />
-                  ) : (
-                    (() => {
-                      const Icone = statusSelecionado.icone;
-                      return <Icone className={iconeTodosBase} />;
-                    })()
-                  )}
-                  <span className="truncate">{statusSelecionado.nome}</span>
+              <input type="date" value={dataFim} onChange={(event) => setDataFim(event.target.value)} className="h-full min-h-0 flex-1 bg-transparent text-[14px] font-medium leading-none text-slate-700 outline-none appearance-none cursor-pointer" aria-label="Data final" />
+              {dataFim && (
+                <span className="shrink-0 rounded-lg bg-blue-50/90 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wider text-blue-700 border border-blue-200/80 shadow-2xs select-none pointer-events-none">
+                  {obterDiaSemanaExtenso(dataFim)}
                 </span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />
-              </button>
-
-              {statusAberto && (
-                <div className="absolute z-40 mt-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
-                  <div className="flex items-center gap-2 border-b border-slate-200 bg-[#f8fafc] px-3 py-2.5">
-                    <Search className="h-4 w-4 text-slate-400" />
-                    <input
-                      type="text"
-                      value={buscaStatus}
-                      onChange={(event) => setBuscaStatus(event.target.value)}
-                      placeholder="Buscar..."
-                      className="w-full bg-transparent text-[15px] text-slate-700 placeholder:text-slate-400 outline-none"
-                    />
-                  </div>
-
-                  <div className="max-h-72 overflow-y-auto">
-                    {statusFiltrados.map((opcao) => {
-                      const Icone = opcao.icone;
-                      const selecionado = opcao.id === statusFiltro;
-
-                      return (
-                        <button
-                          key={opcao.id || 'todos'}
-                          type="button"
-                          onClick={() => {
-                            setStatusFiltro(opcao.id);
-                            setBuscaStatus('');
-                            setStatusAberto(false);
-                          }}
-                          className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-slate-50 ${selecionado ? 'bg-slate-50' : ''}`}
-                        >
-                          <span className={`flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 ${opcao.cor}`}>
-                            <Icone className="h-3.5 w-3.5" />
-                          </span>
-                          <span className="text-[15px] font-medium text-slate-700">{opcao.nome}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
               )}
             </div>
           </div>
+
+          <SeletorFiltroUniversal
+            categoria="status"
+            rotulo="Status"
+            valor={statusFiltro}
+            aoMudar={setStatusFiltro}
+            placeholder="Todos os status"
+          />
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <div>
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Instituição</label>
-            <div ref={refDropdownInstituicao} className="relative">
-              <button
-                type="button"
-                onClick={() => setInstituicaoAberta((aberto) => !aberto)}
-                className={`${botaoFiltroBase} ${instituicaoAberta ? 'border-[#0d4d7a] shadow-[0_0_0_3px_rgba(13,77,122,0.08)]' : ''}`}
-                aria-label="Instituição"
-              >
-                <span className="flex items-center gap-2 truncate text-left">
-                  {instituicaoSelecionada.id === '' ? <Search className={iconeTodosBase} /> : null}
-                  <span className="truncate">{instituicaoSelecionada.nome}</span>
-                </span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />
-              </button>
+          <SeletorFiltroUniversal
+            categoria="instituicoes"
+            rotulo="Instituição"
+            valor={escolaFiltro}
+            aoMudar={setEscolaFiltro}
+            placeholder="Todas as instituições"
+            opcoes={(escolas || []).map((e) => ({ id: e.nome, valor: e.nome, nome: e.nome, rotulo: e.nome }))}
+          />
 
-              {instituicaoAberta && (
-                <div className="absolute z-40 mt-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
-                  <div className="flex items-center gap-2 border-b border-slate-200 bg-[#f8fafc] px-3 py-2.5">
-                    <Search className="h-4 w-4 text-slate-400" />
-                    <input
-                      type="text"
-                      value={buscaInstituicao}
-                      onChange={(event) => setBuscaInstituicao(event.target.value)}
-                      placeholder="Buscar..."
-                      className="w-full bg-transparent text-[15px] text-slate-700 placeholder:text-slate-400 outline-none"
-                    />
-                  </div>
+          <SeletorFiltroUniversal
+            categoria="especialidades"
+            rotulo="Especialidade"
+            valor={especialidadeFiltro}
+            aoMudar={setEspecialidadeFiltro}
+            placeholder="Todas as especialidades"
+          />
 
-                  <div className="max-h-72 overflow-y-auto">
-                    {instituicoesFiltradas.map((opcao) => (
-                      <button
-                        key={opcao.id || 'todos'}
-                        type="button"
-                        onClick={() => {
-                          setEscolaFiltro(opcao.id);
-                          setBuscaInstituicao('');
-                          setInstituicaoAberta(false);
-                        }}
-                        className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-slate-50 ${opcao.id === escolaFiltro ? 'bg-slate-50' : ''}`}
-                      >
-                        <span className="text-[15px] font-medium text-slate-700">{opcao.nome}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Especialidade</label>
-            <div ref={refDropdownEspecialidade} className="relative">
-              <button
-                type="button"
-                onClick={() => setEspecialidadeAberta((aberta) => !aberta)}
-                className={`${botaoFiltroBase} ${especialidadeAberta ? 'border-[#0d4d7a] shadow-[0_0_0_3px_rgba(13,77,122,0.08)]' : ''}`}
-                aria-label="Especialidade"
-              >
-                <span className="flex items-center gap-2 truncate text-left">
-                  {especialidadeSelecionada.id === '' ? (
-                    <Search className={iconeTodosBase} />
-                  ) : (
-                    (() => {
-                      const Icone = especialidadeSelecionada.icone;
-                      return <Icone className={iconeTodosBase} />;
-                    })()
-                  )}
-                  <span className="truncate">{especialidadeSelecionada.nome}</span>
-                </span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />
-              </button>
-
-              {especialidadeAberta && (
-                <div className="absolute z-40 mt-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
-                  <div className="flex items-center gap-2 border-b border-slate-200 bg-[#f8fafc] px-3 py-2.5">
-                    <Search className="h-4 w-4 text-slate-400" />
-                    <input
-                      type="text"
-                      value={buscaEspecialidade}
-                      onChange={(event) => setBuscaEspecialidade(event.target.value)}
-                      placeholder="Buscar..."
-                      className="w-full bg-transparent text-[15px] text-slate-700 placeholder:text-slate-400 outline-none"
-                    />
-                  </div>
-
-                  <div className="max-h-72 overflow-y-auto">
-                    {especialidadesFiltradas.map((opcao) => {
-                      const Icone = opcao.icone;
-                      const selecionado = opcao.id === especialidadeFiltro;
-                      const corIcone =
-                        opcao.id === 'AUDIOMETRIA'
-                          ? 'bg-[#dbeafe] text-[#1d4ed8]'
-                          : opcao.id === 'PSICOLOGIA'
-                            ? 'bg-[#e0f2fe] text-[#0f766e]'
-                            : opcao.id === 'NUTRICAO'
-                              ? 'bg-[#dcfce7] text-[#15803d]'
-                              : opcao.id === 'ODONTOLOGIA'
-                                ? 'bg-[#fce7f3] text-[#be185d]'
-                                : 'bg-[#f3e8ff] text-[#7c3aed]';
-
-                      return (
-                        <button
-                          key={opcao.id || 'todos'}
-                          type="button"
-                          onClick={() => {
-                            setEspecialidadeFiltro(opcao.id);
-                            setBuscaEspecialidade('');
-                            setEspecialidadeAberta(false);
-                          }}
-                          className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-slate-50 ${selecionado ? 'bg-slate-50' : ''}`}
-                        >
-                          <span className={`flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 ${corIcone}`}>
-                            <Icone className="h-3.5 w-3.5" />
-                          </span>
-                          <span className="text-[15px] font-medium text-slate-700">{opcao.nome}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Profissional</label>
-            <div ref={refDropdownProfissional} className="relative">
-              <button
-                type="button"
-                onClick={() => setProfissionalAberto((aberto) => !aberto)}
-                className={`${botaoFiltroBase} ${profissionalAberto ? 'border-[#0d4d7a] shadow-[0_0_0_3px_rgba(13,77,122,0.08)]' : ''}`}
-                aria-label="Profissional"
-              >
-                <span className="flex items-center gap-2 truncate text-left font-medium text-slate-700">
-                  {!profissionalSelecionado ? <Search className={iconeTodosBase} /> : null}
-                  <span className="truncate">{profissionalSelecionado ? profissionalSelecionado.nome : 'Todos os profissionais'}</span>
-                </span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />
-              </button>
-
-              {profissionalAberto && (
-                <div className="absolute z-40 mt-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
-                  <div className="flex items-center gap-2 border-b border-slate-200 bg-[#f8fafc] px-3 py-2.5">
-                    <Search className="h-4 w-4 text-slate-400" />
-                    <input
-                      type="text"
-                      value={buscaProfissional}
-                      onChange={(event) => setBuscaProfissional(event.target.value)}
-                      placeholder="Buscar..."
-                      className="w-full bg-transparent text-[15px] text-slate-700 placeholder:text-slate-400 outline-none"
-                    />
-                  </div>
-
-                  <div className="max-h-72 overflow-y-auto bg-white">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfissionalFiltro('');
-                        setBuscaProfissional('');
-                        setProfissionalAberto(false);
-                      }}
-                      className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-[15px] transition ${
-                        profissionalFiltro === '' ? 'bg-slate-50 text-slate-800' : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span className="font-medium">Todos os profissionais</span>
-                    </button>
-
-                    {profissionaisFiltrados.map((profissional) => {
-                      return (
-                        <button
-                          key={profissional.id}
-                          type="button"
-                          onClick={() => {
-                            setProfissionalFiltro(profissional.id);
-                            setBuscaProfissional('');
-                            setProfissionalAberto(false);
-                          }}
-                          className={`flex w-full items-center justify-between gap-3 border-t border-slate-100 px-3 py-3 text-left transition ${
-                            profissional.id === profissionalFiltro ? 'bg-[#f8fbff]' : 'hover:bg-slate-50'
-                          }`}
-                        >
-                          <span className="truncate text-[15px] font-semibold tracking-[-0.01em] text-slate-700">
-                            {profissional.nome}
-                          </span>
-                          <EspecialidadeBadge especialidade={profissional.especialidade} compacto />
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <SeletorFiltroUniversal
+            categoria="profissionais"
+            rotulo="Profissional"
+            valor={profissionalFiltro}
+            aoMudar={setProfissionalFiltro}
+            placeholder="Todos os profissionais"
+            opcoes={profissionaisDisponiveis.map((p) => ({
+              id: p.id,
+              valor: p.id,
+              nome: p.nome,
+              rotulo: p.nome,
+              subtexto: p.especialidade ? (ESPECIALIDADE_LABELS[p.especialidade as Especialidade] ?? p.especialidade) : undefined,
+            }))}
+          />
         </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">

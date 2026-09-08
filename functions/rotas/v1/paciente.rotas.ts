@@ -119,7 +119,7 @@ rotasPaciente.get('/', async (c) => {
   const kekHex = c.env.KEK_HEX;
 
   const pacientesDescriptografados = await Promise.all(
-    pacientes.map(async (p) => {
+    (pacientes as any[]).map(async (p: any) => {
       try {
         const piiJson = await descriptografarPii(
           p.nomeEnc,

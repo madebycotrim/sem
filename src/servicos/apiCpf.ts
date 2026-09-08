@@ -88,6 +88,16 @@ export function formatarCpf(cpf: string): string {
 }
 
 /**
+ * Mascara o CPF para conformidade com a LGPD (ex: 042.***.***-91)
+ */
+export function mascararCpf(cpf?: string | null): string {
+  if (!cpf) return 'Não informado';
+  const limpo = cpf.replace(/\D/g, '');
+  if (limpo.length !== 11) return cpf;
+  return `${limpo.slice(0, 3)}.***.***-${limpo.slice(9, 11)}`;
+}
+
+/**
  * Helper seguro para acesso ao LocalStorage (funciona em browser e node/testes).
  */
 function getStorage(): Storage | null {

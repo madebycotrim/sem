@@ -154,7 +154,7 @@ rotasAtendimento.get('/profissionais', async (c) => {
   });
 
   return c.json({
-    dados: profissionais.map((profissional) => ({
+    dados: profissionais.map((profissional: any) => ({
       id: profissional.id,
       nome: profissional.nomeCompleto,
       especialidade: profissional.especialidade,
@@ -234,11 +234,11 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
       .sort((a, b) => b.total - a.total),
     porEscola: Array.from(porEscola.values()).sort((a, b) => b.total - a.total),
     porProfissional: Array.from(porProfissional.values()).sort((a, b) => b.total - a.total),
-    serie: atendimentos.reduce<Record<string, number>>((acc, atendimento) => {
+    serie: (atendimentos as any[]).reduce((acc: Record<string, number>, atendimento: any) => {
       const dia = atendimento.criadoEm.toISOString().slice(0, 10);
       acc[dia] = (acc[dia] ?? 0) + 1;
       return acc;
-    }, {}),
+    }, {} as Record<string, number>),
   });
 });
 
@@ -283,7 +283,7 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
   const kekHex = c.env.KEK_HEX;
 
   const atendimentosMapeados = await Promise.all(
-    atendimentos.map(async (a) => {
+    (atendimentos as any[]).map(async (a: any) => {
       let pacienteNome = 'Paciente Desconhecido';
       try {
         const piiJson = await descriptografarPii(

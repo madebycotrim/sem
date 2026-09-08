@@ -205,8 +205,6 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
               />
             )}
 
-            {/* Ações Extras Personalizadas */}
-            {acoesExtras}
 
             {/* Indicador Discreto de Sincronização em Segundo Plano com o Catraki */}
             {statusSincronizacaoCatraki && (
@@ -260,6 +258,9 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
                 <Download className="w-4 h-4" />
               </button>
             )}
+
+            {/* Ações Extras Customizadas */}
+            {acoesExtras}
 
             {/* Botão de Ação Primária */}
             {acaoPrimaria && (

@@ -12,7 +12,7 @@ import {
   BotaoModal,
   ESTILO_INPUT_MODAL,
 } from './Modal.tsx';
-import { Building2 } from 'lucide-react';
+import { Building2, LoaderCircle } from 'lucide-react';
 
 export interface ModalNovaEscolaProps {
   aberto: boolean;
@@ -238,7 +238,9 @@ export const ModalNovaEscola: FC<ModalNovaEscolaProps> = ({
                   placeholder="00.000.000/0000-00"
                 />
                 {consultandoCnpj && (
-                  <span className="absolute right-3 top-2.5 h-4 w-4 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin" />
+                  <div className="absolute right-3 top-3 flex items-center text-blue-600">
+                    <LoaderCircle className="w-4 h-4 animate-spin" />
+                  </div>
                 )}
               </div>
             </ModalCampo>
