@@ -1,7 +1,9 @@
+import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 import { type FC, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ItemPaciente } from './TabelaPacientes.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
+import { CalendarDays, Check, ChevronRight, CircleAlert, Clock3, FileText, UserRound, X } from 'lucide-react';
 
 export interface ItemHistoricoAtendimento {
   id: string;
@@ -123,13 +125,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
             <div className="flex items-center gap-3 min-w-0">
               {/* Ícone de Documento em Badge Azul */}
               <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100 shadow-2xs">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                  <polyline points="10 9 9 9 8 9" />
-                </svg>
+                <FileText className="w-5 h-5" />
               </div>
 
               <div className="min-w-0">
@@ -155,10 +151,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                 className="w-8 h-8 rounded-2xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
                 title="Fechar histórico (Esc)"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -169,11 +162,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
               /* Estado Vazio Minimalista */
               <div className="text-center max-w-xs mx-auto -mt-10">
                 <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                  </svg>
+                  <CircleAlert className="w-5 h-5" />
                 </div>
                 <h3 className="text-sm font-semibold text-slate-700">Nenhum atendimento registrado</h3>
                 <p className="text-[13px] text-slate-500 mt-1">
@@ -238,14 +227,9 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                         }`}
                       >
                         {isConcluido ? (
-                          <svg className="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
+                          <Check className="w-4 h-4 stroke-[2.5]" />
                         ) : (
-                          <svg className="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <circle cx="12" cy="12" r="10" />
-                            <polyline points="12 6 12 12 16 14" />
-                          </svg>
+                          <Clock3 className="w-4 h-4 stroke-[2.5]" />
                         )}
                       </div>
 
@@ -257,9 +241,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
 
                         {/* Topo do Card: Especialidade e Status */}
                         <div className="flex items-center justify-between gap-2 relative z-10">
-                          <span className="px-3 py-1 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-100/60 rounded-full text-[10px] font-extrabold uppercase tracking-widest shadow-2xs">
-                            {item.especialidade}
-                          </span>
+                          <EspecialidadeBadge especialidade={item.especialidade} compacto />
 
                           <span
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-widest border ${
@@ -290,10 +272,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                                   {item.profissionalNome}
                                 </span>
                                 <span className="text-[10px] font-semibold text-slate-500 mt-0.5 flex items-center gap-1.5">
-                                  <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                                    <circle cx="12" cy="7" r="4" />
-                                  </svg>
+                                  <UserRound className="w-3 h-3 text-slate-400" />
                                   {item.profissionalRegistro}
                                 </span>
                             </div>
@@ -301,19 +280,11 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
 
                           <div className="flex flex-col items-end gap-1.5 shrink-0 bg-slate-50/80 p-2 rounded-xl border border-slate-100/80">
                             <div className="flex items-center gap-1.5 text-[10.5px] text-slate-700 font-bold">
-                              <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                                <line x1="16" y1="2" x2="16" y2="6" />
-                                <line x1="8" y1="2" x2="8" y2="6" />
-                                <line x1="3" y1="10" x2="21" y2="10" />
-                              </svg>
+                              <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
                               {item.data}
                             </div>
                             <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500 font-semibold">
-                              <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                <circle cx="12" cy="12" r="10" />
-                                <polyline points="12 6 12 12 16 14" />
-                              </svg>
+                              <Clock3 className="w-3.5 h-3.5 text-slate-400" />
                               {item.hora}
                             </div>
                           </div>
@@ -322,10 +293,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                         {/* Bloco Motivo da Consulta (Citacão destacada) */}
                         <div className="relative pl-3.5 py-2.5 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-blue-300 before:rounded-full bg-gradient-to-r from-blue-50/40 to-transparent rounded-r-2xl border-y border-r border-slate-100/50 relative z-10">
                           <p className="text-[9.5px] font-extrabold text-blue-500/80 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                              <polyline points="14 2 14 8 20 8" />
-                            </svg>
+                            <FileText className="w-3 h-3" />
                             MOTIVO DA CONSULTA
                           </p>
                           <p className="font-medium text-slate-700 text-[13px]">
@@ -356,9 +324,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-blue-50 text-blue-600 font-bold rounded-xl transition-colors cursor-pointer text-[11px] group-hover/card:bg-blue-50 group-hover/card:text-blue-700"
                           >
                             <span>Ver Prontuário</span>
-                            <svg className="w-3.5 h-3.5 transition-transform group-hover/card:translate-x-0.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                              <polyline points="9 18 15 12 9 6" />
-                            </svg>
+                            <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover/card:translate-x-0.5" />
                           </button>
                         </div>
                       </div>

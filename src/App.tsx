@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import { CircleAlert, CircleCheck, Info, LoaderCircle, LockKeyhole } from 'lucide-react';
+import { ProvedorPermissoes } from './contextos/ContextoPermissoes.tsx';
 import { Sidebar, type SecaoMenu } from './componentes/Sidebar.tsx';
 import { CabecalhoPagina } from './componentes/CabecalhoPagina.tsx';
 import { TabelaPacientes, type ItemPaciente } from './componentes/TabelaPacientes.tsx';
@@ -9,13 +11,14 @@ import { Dashboard } from './componentes/Dashboard.tsx';
 import { Escolas, type EscolaPolo } from './componentes/Escolas.tsx';
 import { Usuarios } from './componentes/Usuarios.tsx';
 import { Relatorios } from './componentes/Relatorios.tsx';
-import { GovernancaAuditoria } from './componentes/GovernancaAuditoria.tsx';
 import { FichaAtendimento } from './paginas/FichaAtendimento.tsx';
 import { Login } from './paginas/Login.tsx';
 import { TimeoutSessao } from './componentes/TimeoutSessao.tsx';
 import { DrawerHistoricoPaciente } from './componentes/DrawerHistoricoPaciente.tsx';
+import { ModalAlterarSenha } from './componentes/ModalAlterarSenha.tsx';
 import { requisicaoApi } from './servicos/api.ts';
 import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCatraki.ts';
+import { PERMISSOES_PADRAO, type PermissoesPerfil, type PerfilAcesso } from '../compartilhado/index.ts';
 
 interface RespostaListaPacientes {
   dados: Array<{
@@ -31,6 +34,7 @@ interface RespostaListaPacientes {
     atendimentosCount?: number;
     termoConsentimentoStatus?: ItemPaciente['termoConsentimentoStatus'];
   }>;
+  totalPaginas: number;
 }
 
 const normalizarTexto = (valor?: string) =>
@@ -46,7 +50,6 @@ const SECOES_VALIDAS: SecaoMenu[] = [
   'escolas',
   'relatorios',
   'usuarios',
-  'governanca',
 ];
 
 const converterPacienteApi = (paciente: RespostaListaPacientes['dados'][number]): ItemPaciente => ({
@@ -68,27 +71,73 @@ const obterSecaoInicial = (): SecaoMenu => {
   if (SECOES_VALIDAS.includes(hash)) {
     return hash;
   }
-  const salva = localStorage.getItem('catraki_secao_ativa') as SecaoMenu;
-  if (SECOES_VALIDAS.includes(salva)) {
-    return salva;
-  }
-  return 'pacientes';
+  return 'dashboard';
 };
 
 export function App() {
   // Navegação Persistente
   const [autenticado, setAutenticado] = useState(false);
-  const [usuarioLogado, setUsuarioLogado] = useState<{ nomeCompleto: string; email: string; perfil: string } | null>(null);
+  const [usuarioLogado, setUsuarioLogado] = useState<{ nomeCompleto: string; email: string; perfil: PerfilAcesso } | null>(null);
   const [carregandoSessao, setCarregandoSessao] = useState(true);
+
+  // Permissões RBAC dinâmicas
+  const [permissoesRbac, setPermissoesRbac] = useState<Record<PerfilAcesso, PermissoesPerfil>>(() => {
+    const salva = localStorage.getItem('permissoes_rbac');
+    return salva ? JSON.parse(salva) : PERMISSOES_PADRAO;
+  });
+
+  useEffect(() => {
+    const handleAtualizacao = (event: Event) => {
+      if ('detail' in event && event.detail) {
+        setPermissoesRbac((event as CustomEvent).detail);
+      } else {
+        const salva = localStorage.getItem('permissoes_rbac');
+        if (salva) setPermissoesRbac(JSON.parse(salva));
+      }
+    };
+    window.addEventListener('permissoes_atualizadas', handleAtualizacao);
+    return () => window.removeEventListener('permissoes_atualizadas', handleAtualizacao);
+  }, []);
+
+  const temAcesso = (secao: SecaoMenu) => {
+    const perfil = usuarioLogado?.perfil || '';
+    if (perfil === 'BOOTSTRAP') return true;
+    if (perfil === 'ADMIN') return true;
+    if (perfil && permissoesRbac[perfil as PerfilAcesso]) {
+      return permissoesRbac[perfil as PerfilAcesso].modulos[secao] === 'LIVRE';
+    }
+    return false;
+  };
+
+  const temPermissao = (acao: keyof PermissoesPerfil['acoes']) => {
+    const perfil = usuarioLogado?.perfil || '';
+    if (perfil === 'BOOTSTRAP') return true;
+    if (perfil === 'ADMIN') return true;
+    if (perfil && permissoesRbac[perfil as PerfilAcesso]) {
+      return permissoesRbac[perfil as PerfilAcesso].acoes[acao] === 'LIVRE';
+    }
+    return false;
+  };
 
   useEffect(() => {
     let ativo = true;
     const verificarSessao = async () => {
       try {
-        const res = await requisicaoApi<{ usuario: { nomeCompleto: string; email: string; perfil: string } }>('/auth/me');
+        const res = await requisicaoApi<{
+          usuario: { nomeCompleto: string; email: string; perfil: PerfilAcesso };
+          trocaSenhaObrigatoria?: boolean;
+        }>('/auth/me');
         if (ativo) {
-          setAutenticado(true);
-          setUsuarioLogado(res.usuario);
+          setAutenticado(!res.trocaSenhaObrigatoria);
+          setUsuarioLogado(res.trocaSenhaObrigatoria ? null : res.usuario);
+          
+          try {
+            const rbacRes = await requisicaoApi<{ permissoes: Record<PerfilAcesso, PermissoesPerfil> }>('/rbac/permissoes');
+            setPermissoesRbac(rbacRes.permissoes);
+            localStorage.setItem('permissoes_rbac', JSON.stringify(rbacRes.permissoes));
+          } catch (e) {
+            console.error('Erro ao carregar permissões', e);
+          }
         }
       } catch (erro) {
         if (ativo) {
@@ -106,7 +155,7 @@ export function App() {
   const [modoNovaFicha, setModoNovaFicha] = useState(false);
   const [pacienteSelecionadoParaFicha, setPacienteSelecionadoParaFicha] = useState<ItemPaciente | null>(null);
   const [pacienteHistoricoDrawer, setPacienteHistoricoDrawer] = useState<ItemPaciente | null>(null);
-  const [escolaAtivaId, setEscolaAtivaId] = useState('0a62d5b0-0d57-4f75-8969-8a0c2c5f7e01');
+  const [escolaAtivaId, setEscolaAtivaId] = useState('');
 
   // Sincronização Automática em Segundo Plano com a API Catraki
   const [statusSincronizacaoCatraki, setStatusSincronizacaoCatraki] = useState<{
@@ -123,6 +172,7 @@ export function App() {
 
   // Modais
   const [modalNovoPacienteAberto, setModalNovoPacienteAberto] = useState(false);
+  const [modalAlterarSenhaAberto, setModalAlterarSenhaAberto] = useState(false);
   const [pacienteParaEditar, setPacienteParaEditar] = useState<ItemPaciente | null>(null);
 
   // Notificações Toast
@@ -134,6 +184,26 @@ export function App() {
   // Lista de Escolas Global
   const [escolasGlobais, setEscolasGlobais] = useState<EscolaPolo[]>([]);
 
+  const limparNavegacaoAoDeslogar = () => {
+    localStorage.removeItem('catraki_secao_ativa');
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    setSecaoAtiva('dashboard');
+    setUsuarioLogado(null);
+    setAutenticado(false);
+    setModalAlterarSenhaAberto(false);
+    setModoNovaFicha(false);
+    setPacienteSelecionadoParaFicha(null);
+  };
+
+  const deslogar = async () => {
+    try {
+      await requisicaoApi('/auth/logout', { metodo: 'POST' });
+    } catch (e) {
+      // A sessão local deve ser encerrada mesmo se a API estiver indisponível.
+    }
+    limparNavegacaoAoDeslogar();
+  };
+
   const navegarParaSecao = (secao: SecaoMenu) => {
     setSecaoAtiva(secao);
     setModoNovaFicha(false);
@@ -144,8 +214,11 @@ export function App() {
 
   useEffect(() => {
     const secaoInicial = obterSecaoInicial();
-    if (window.location.hash !== `#${secaoInicial}`) {
-      window.history.replaceState(null, '', `#${secaoInicial}`);
+    const possuiSecaoExplicita = SECOES_VALIDAS.includes(
+      window.location.hash.replace(/^#/, '') as SecaoMenu
+    );
+    if (!possuiSecaoExplicita && window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
     }
     localStorage.setItem('catraki_secao_ativa', secaoInicial);
 
@@ -169,7 +242,10 @@ export function App() {
     const carregarEscolas = async () => {
       try {
         const resposta = await requisicaoApi<{ dados: EscolaPolo[] }>('/escolas');
-        if (ativo) setEscolasGlobais(resposta.dados);
+        if (ativo) {
+          setEscolasGlobais(resposta.dados);
+          setEscolaAtivaId((atual) => atual && resposta.dados.some((escola) => escola.id === atual) ? atual : '');
+        }
       } catch (erro) {
         console.error('Erro ao carregar escolas:', erro);
       }
@@ -188,8 +264,15 @@ export function App() {
     let ativo = true;
     const carregarPacientes = async () => {
       try {
-        const resposta = await requisicaoApi<RespostaListaPacientes>('/pacientes?porPagina=100');
-        if (ativo) setPacientes(resposta.dados.map(converterPacienteApi));
+        const primeiraPagina = await requisicaoApi<RespostaListaPacientes>('/pacientes?pagina=1&porPagina=100');
+        const paginasRestantes = Array.from({ length: Math.max(0, primeiraPagina.totalPaginas - 1) }, (_, indice) => indice + 2);
+        const respostasRestantes = await Promise.all(
+          paginasRestantes.map((pagina) => requisicaoApi<RespostaListaPacientes>(`/pacientes?pagina=${pagina}&porPagina=100`))
+        );
+        if (ativo) {
+          const dados = [primeiraPagina, ...respostasRestantes].flatMap((resposta) => resposta.dados);
+          setPacientes(dados.map(converterPacienteApi));
+        }
       } catch (erro) {
         if (ativo) {
           mostrarToast(erro instanceof Error ? `Não foi possível carregar os pacientes: ${erro.message}` : 'Não foi possível carregar os pacientes.', 'erro');
@@ -401,9 +484,7 @@ export function App() {
     return (
       <div className="flex h-screen items-center justify-center bg-[#f4f7fb]">
         <div className="flex flex-col items-center gap-4">
-          <svg className="w-8 h-8 animate-spin text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <circle cx="12" cy="12" r="10" strokeWidth="3" strokeDasharray="32" strokeDashoffset="10" />
-          </svg>
+          <LoaderCircle className="w-8 h-8 animate-spin text-blue-600" />
           <span className="text-slate-500 font-medium text-sm">Carregando sessão...</span>
         </div>
       </div>
@@ -412,15 +493,22 @@ export function App() {
 
   if (!autenticado) {
     return (
-      <Login aoLogar={() => {
+      <Login aoLogar={(usuario, trocaSenhaObrigatoria) => {
         setAutenticado(true);
+        setUsuarioLogado({
+          nomeCompleto: usuario.nomeCompleto,
+          email: usuario.email,
+          perfil: usuario.perfil as PerfilAcesso,
+        });
+        setModalAlterarSenhaAberto(trocaSenhaObrigatoria);
         mostrarToast(`Bem-vindo de volta!`, 'sucesso');
       }} />
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-[#f4f7fb] text-slate-800 font-sans">
+    <ProvedorPermissoes perfilLogado={usuarioLogado?.perfil || null}>
+      <div className="flex min-h-screen bg-[#f4f7fb] text-slate-800 font-sans">
       {/* ─── Sidebar Lateral (8 Módulos Essenciais) ────────────────────────── */}
       <Sidebar
         secaoAtiva={secaoAtiva}
@@ -428,14 +516,12 @@ export function App() {
         emailUsuario={usuarioLogado?.email ?? ''}
         cargoUsuario={usuarioLogado?.perfil ?? 'Membro'}
         perfilUsuario={usuarioLogado?.perfil}
+        temAcesso={temAcesso}
         aoMudarSecao={(secao) => {
           navegarParaSecao(secao);
         }}
         aoDeslogar={async () => {
-          try {
-            await requisicaoApi('/auth/logout', { metodo: 'POST' });
-          } catch (e) {}
-          setAutenticado(false);
+          await deslogar();
           setToastNotificacao({
             texto: 'Sessão encerrada com sucesso.',
             tipo: 'info',
@@ -458,21 +544,11 @@ export function App() {
             role="status"
           >
             {toastNotificacao.tipo === 'sucesso' ? (
-              <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
+              <CircleCheck className="w-4 h-4 text-emerald-600 shrink-0" />
             ) : toastNotificacao.tipo === 'erro' ? (
-              <svg className="w-4 h-4 text-red-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="15" y1="9" x2="9" y2="15" />
-                <line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
+              <CircleAlert className="w-4 h-4 text-red-600 shrink-0" />
             ) : (
-              <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="16" x2="12" y2="12" />
-                <line x1="12" y1="8" x2="12.01" y2="8" />
-              </svg>
+              <Info className="w-4 h-4 text-blue-600 shrink-0" />
             )}
             <span>{toastNotificacao.texto}</span>
           </div>
@@ -481,14 +557,6 @@ export function App() {
         {/* ─── Renderização dos 8 Módulos Essenciais ────────────────────────── */}
         {(() => {
           const perfil = usuarioLogado?.perfil || '';
-          const temAcesso = (secao: SecaoMenu) => {
-            if (perfil === 'BOOTSTRAP') return true;
-            if (perfil === 'ADMIN') return true;
-            if (perfil === 'TRIAGEM_RECEPCAO') return ['filaDia', 'pacientes', 'dashboard'].includes(secao);
-            if (perfil === 'PROFISSIONAL_SAUDE') return ['filaDia', 'consultas', 'pacientes', 'dashboard'].includes(secao);
-            if (perfil === 'DPO') return ['governanca', 'relatorios', 'dashboard'].includes(secao);
-            return false;
-          };
 
           if (modoNovaFicha && ['BOOTSTRAP', 'ADMIN', 'PROFISSIONAL_SAUDE'].includes(perfil)) {
             return (
@@ -507,10 +575,7 @@ export function App() {
             return (
               <div className="flex-1 flex flex-col items-center justify-center text-center animate-fade-in p-8">
                 <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mb-6">
-                  <svg className="w-10 h-10 text-rose-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
+                  <LockKeyhole className="w-10 h-10 text-rose-500" />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-800 mb-2">Acesso Restrito</h2>
                 <p className="text-slate-500 max-w-md">
@@ -537,10 +602,10 @@ export function App() {
                 aoMudar: setBuscaPaciente,
                 placeholder: 'Buscar por nome, CPF, telefone, turma ou responsável...',
               }}
-              acaoPrimaria={{
+              acaoPrimaria={temPermissao('criarPaciente') ? {
                 rotulo: 'Novo Paciente',
                 aoClicar: () => setModalNovoPacienteAberto(true),
-              }}
+              } : undefined}
               statusSincronizacaoCatraki={statusSincronizacaoCatraki}
               fixo={true}
             />
@@ -559,9 +624,14 @@ export function App() {
               aoVerDetalhes={(paciente) => {
                 setPacienteHistoricoDrawer(paciente);
               }}
-              aoEditarPaciente={(paciente) => {
-                setPacienteParaEditar(paciente);
-                setModalNovoPacienteAberto(true);
+              aoEditarPaciente={async (paciente) => {
+                try {
+                  const resposta = await requisicaoApi<{ dados: RespostaListaPacientes['dados'][number] }>(`/pacientes/${paciente.id}`);
+                  setPacienteParaEditar(converterPacienteApi(resposta.dados));
+                  setModalNovoPacienteAberto(true);
+                } catch (erro) {
+                  mostrarToast('Não foi possível carregar os dados protegidos do paciente.', 'erro');
+                }
               }}
               aoExcluirPaciente={handleExcluirPaciente}
               ehAdminGeral={true}
@@ -585,7 +655,7 @@ export function App() {
                   });
                   setModoNovaFicha(true);
                 }}
-                aoNovoPaciente={() => setModalNovoPacienteAberto(true)}
+                aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}
               />
             );
           }
@@ -595,10 +665,10 @@ export function App() {
               <Atendimentos
                 atendimentos={atendimentos}
                 statusSincronizacaoCatraki={statusSincronizacaoCatraki}
-                aoNovoAtendimento={() => {
+                aoNovoAtendimento={temPermissao('criarPaciente') ? () => {
                   setModoNovaFicha(true);
                   setPacienteSelecionadoParaFicha(null);
-                }}
+                } : () => {}}
               />
             );
           }
@@ -608,7 +678,7 @@ export function App() {
               <Dashboard
                 totalPacientes={pacientes.length}
                 totalAtendimentos={atendimentos.length}
-                aoNovoPaciente={() => setModalNovoPacienteAberto(true)}
+                aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}
                 aoNovoAtendimento={() => {
                   setModoNovaFicha(true);
                   setPacienteSelecionadoParaFicha(null);
@@ -622,6 +692,7 @@ export function App() {
               <Escolas
                 escolas={escolasGlobais}
                 escolaAtivaId={escolaAtivaId}
+                podeGerenciar={usuarioLogado?.perfil === 'ADMIN' || usuarioLogado?.perfil === 'BOOTSTRAP'}
                 aoSelecionarEscolaAtiva={(id) => {
                   setEscolaAtivaId(id);
                   setToastNotificacao({
@@ -648,7 +719,15 @@ export function App() {
             return <Usuarios />;
           }
           
-          return <GovernancaAuditoria />;
+          return <Dashboard
+            totalPacientes={pacientes.length}
+            totalAtendimentos={atendimentos.length}
+            aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}
+            aoNovoAtendimento={() => {
+              setModoNovaFicha(true);
+              setPacienteSelecionadoParaFicha(null);
+            }}
+          />;
         })()}
       </main>
 
@@ -679,20 +758,27 @@ export function App() {
         }}
         aoSalvar={handleSalvarPaciente}
         escolas={escolasGlobais}
+        instituicaoPadrao={
+          escolaAtivaId
+            ? escolasGlobais.find((escola) => escola.id === escolaAtivaId)?.nome || ''
+            : ''
+        }
         pacienteParaEditar={pacienteParaEditar}
+      />
+
+      <ModalAlterarSenha
+        aberto={modalAlterarSenhaAberto}
+        aoFechar={() => setModalAlterarSenhaAberto(false)}
       />
 
       {/* ─── Modal de Timeout de Sessão por Inatividade (LGPD) ───────────── */}
       <TimeoutSessao
         tempoLimiteMinutos={15}
         tempoAvisoSegundos={120}
-        aoExpirar={async () => {
-          try {
-             await requisicaoApi('/auth/logout', { metodo: 'POST' });
-          } catch (e) {}
-          window.location.reload();
-        }}
+        imune={usuarioLogado?.perfil === 'BOOTSTRAP'}
+        aoExpirar={deslogar}
       />
     </div>
+    </ProvedorPermissoes>
   );
 }

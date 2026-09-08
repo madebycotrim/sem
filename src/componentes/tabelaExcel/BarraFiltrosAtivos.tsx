@@ -1,4 +1,5 @@
 import type { RetornoFiltroExcel } from './useFiltroExcel.ts';
+import { Filter, X } from 'lucide-react';
 
 export interface BarraFiltrosAtivosProps<T> {
   estado: RetornoFiltroExcel<T>;
@@ -27,9 +28,7 @@ export function BarraFiltrosAtivos<T>({
     >
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 text-slate-800 font-bold text-[11px]">
-          <svg className="w-3.5 h-3.5 text-slate-700" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-          </svg>
+          <Filter className="w-3.5 h-3.5 text-slate-700" />
           <span>Filtros Ativos:</span>
         </div>
 
@@ -54,10 +53,7 @@ export function BarraFiltrosAtivos<T>({
                 className="p-0.5 text-slate-400 hover:text-red-600 rounded-2xl hover:bg-red-50 transition-colors"
                 title={`Limpar filtro da coluna ${rotulo}`}
               >
-                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+                <X className="w-3 h-3" />
               </button>
             </span>
           );
@@ -75,10 +71,7 @@ export function BarraFiltrosAtivos<T>({
               className="p-0.5 text-slate-400 hover:text-red-600 rounded-2xl hover:bg-red-50 transition-colors"
               title="Remover ordenação"
             >
-              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
+              <X className="w-3 h-3" />
             </button>
           </span>
         )}

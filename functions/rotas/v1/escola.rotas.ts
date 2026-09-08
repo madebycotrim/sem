@@ -19,7 +19,10 @@ rotasEscola.get('/', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 
     where: { ativo: true },
     include: {
       _count: {
-        select: { pacientes: true, atendimentos: true }
+        select: {
+          pacientes: { where: { ativo: true } },
+          atendimentos: true,
+        }
       }
     },
     orderBy: { nome: 'asc' }
@@ -117,6 +120,9 @@ rotasEscola.put(
     const prisma = getPrisma(c.env.DB);
     const usuario = c.get('usuario');
 
+    const existente = await prisma.escolaLocal.findUnique({ where: { id } });
+    if (!existente) return c.json({ erro: 'Instituição não encontrada' }, 404);
+
     const escola = await prisma.escolaLocal.update({
       where: { id },
       data: {
@@ -147,6 +153,9 @@ rotasEscola.delete('/:id', autorizarPerfis(['BOOTSTRAP', 'ADMIN']), async (c) =>
   const id = c.req.param('id');
   const prisma = getPrisma(c.env.DB);
   const usuario = c.get('usuario');
+
+  const existente = await prisma.escolaLocal.findUnique({ where: { id } });
+  if (!existente || !existente.ativo) return c.json({ erro: 'Instituição não encontrada' }, 404);
 
   await prisma.escolaLocal.update({
     where: { id },

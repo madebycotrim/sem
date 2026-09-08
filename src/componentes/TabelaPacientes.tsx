@@ -11,6 +11,8 @@ import { Paginacao } from './Paginacao.tsx';
 
 import { ModalValidacaoCatraki } from './ModalValidacaoCatraki.tsx';
 import { CardHoverPaciente } from './CardHoverPaciente.tsx';
+import { usePermissoes } from '../contextos/ContextoPermissoes.tsx';
+import { Archive, ChevronDown, Clock3, FilePlus2, LoaderCircle, Pencil, Plus, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
 
 export interface ItemPaciente {
   id: string;
@@ -91,7 +93,7 @@ export function censurarCpf(cpf: string | null | undefined): string {
   if (!cpf) return '';
   const limpo = cpf.replace(/\D/g, '');
   if (limpo.length !== 11) return cpf;
-  return `***.***.***-${limpo.substring(9)}`;
+  return `${limpo.substring(0, 3)}.${limpo.substring(3, 6)}.***-${limpo.substring(9, 11)}`;
 }
 
 interface TabelaPacientesProps {
@@ -113,13 +115,13 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
   aoVerDetalhes,
   aoEditarPaciente,
   aoExcluirPaciente,
-  ehAdminGeral = true,
 }) => {
   const [paginaAtual, setPaginaAtual] = useState(1);
   const itensPorPagina = 10;
   const [menuAcoesAbertoId, setMenuAcoesAbertoId] = useState<string | null>(null);
   const [pacienteConfirmarExclusao, setPacienteConfirmarExclusao] = useState<ItemPaciente | null>(null);
   const [pacienteParaComprovante, setPacienteParaComprovante] = useState<ItemPaciente | null>(null);
+  const { temPermissaoAcao } = usePermissoes();
 
   // Configuração das colunas para o Sistema Excel
   const colunasConfig = useMemo<ConfiguracaoColuna<ItemPaciente>[]>(
@@ -237,10 +239,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                 <tr>
                   <td colSpan={6} className="py-20 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
-                      <svg className="w-7 h-7 animate-spin text-slate-600" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
+                      <LoaderCircle className="w-7 h-7 animate-spin text-slate-600" />
                       <span className="text-xs font-medium text-slate-500">Carregando pacientes...</span>
                     </div>
                   </td>
@@ -251,12 +250,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                   <td colSpan={6} className="py-20 text-center">
                     <div className="flex flex-col items-center justify-center max-w-md mx-auto px-4">
                       <div className="w-14 h-14 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mb-3 ring-8 ring-slate-100/60 shadow-xs">
-                        <svg className="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
-                          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                          <circle cx="8.5" cy="7" r="4" />
-                          <line x1="20" y1="8" x2="20" y2="14" />
-                          <line x1="23" y1="11" x2="17" y2="11" />
-                        </svg>
+                        <UserPlus className="w-7 h-7 text-slate-500" />
                       </div>
 
                       <h3 className="text-base font-bold text-slate-800 mb-1">
@@ -275,23 +269,17 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                           onClick={() => filtroExcel.limparTodosFiltros()}
                           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition-all cursor-pointer"
                         >
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="1 4 1 10 7 10" />
-                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-                          </svg>
+                          <Clock3 className="w-3.5 h-3.5" />
                           <span>Limpar Filtros das Colunas</span>
                         </button>
-                      ) : (
+                      ) : temPermissaoAcao('criarPaciente') && (
                         <button
                           type="button"
                           onClick={aoNovoPaciente}
                           className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-xl shadow-xs transition-all active:scale-[0.98] cursor-pointer"
                           style={{ background: 'linear-gradient(135deg, #034b7f 0%, #14438f 100%)', boxShadow: '0 2px 8px rgba(3,75,127,0.25)' }}
                         >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                            <line x1="12" y1="5" x2="12" y2="19" />
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                          </svg>
+                          <Plus className="w-3.5 h-3.5" />
                           <span>Cadastrar Novo Paciente</span>
                         </button>
                       )}
@@ -372,13 +360,9 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                     {/* Escola / Instituição */}
                     <td className="py-3 px-3.5">
                       <div
-                        className="flex items-center gap-1.5 text-slate-700 text-[12px] font-medium truncate max-w-[220px]"
+                        className="flex items-center text-slate-700 text-[12px] font-medium truncate max-w-[220px]"
                         title={paciente.escolaNome}
                       >
-                        <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#74c4d7' }}>
-                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                          <polyline points="9 22 9 12 15 12 15 22" />
-                        </svg>
                         <span className="truncate">{paciente.escolaNome}</span>
                       </div>
                     </td>
@@ -409,9 +393,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                           } no histórico`}
                         >
                           <span className="inline-flex items-center gap-1">
-                            <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ color: '#034b7f' }}>
-                              <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                            <Clock3 className="w-3 h-3 shrink-0" style={{ color: '#034b7f' }} />
                             <span>Histórico</span>
                           </span>
                           <span
@@ -444,17 +426,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                             title="Mais opções do paciente"
                           >
                             <span>Opções</span>
-                            <svg
-                              className={`w-3 h-3 text-slate-400 transition-transform ${
-                                menuAcoesAbertoId === paciente.id ? 'rotate-180 text-slate-700' : ''
-                              }`}
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            >
-                              <polyline points="6 9 12 15 18 9" />
-                            </svg>
+                            <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${menuAcoesAbertoId === paciente.id ? 'rotate-180 text-slate-700' : ''}`} />
                           </button>
 
                           {menuAcoesAbertoId === paciente.id && (
@@ -475,26 +447,22 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                                   }}
                                   className="w-full px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer font-medium"
                                 >
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ color: '#034b7f' }}>
-                                    <line x1="12" y1="5" x2="12" y2="19" />
-                                    <line x1="5" y1="12" x2="19" y2="12" />
-                                  </svg>
+                                  <FilePlus2 className="w-3.5 h-3.5" style={{ color: '#034b7f' }} />
                                   <span>Novo Atendimento</span>
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setMenuAcoesAbertoId(null);
-                                    if (aoEditarPaciente) aoEditarPaciente(paciente);
-                                  }}
-                                  className="w-full px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer font-medium"
-                                >
-                                  <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                  </svg>
-                                  <span>Editar Paciente</span>
-                                </button>
+                                {temPermissaoAcao('editarPaciente') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMenuAcoesAbertoId(null);
+                                      if (aoEditarPaciente) aoEditarPaciente(paciente);
+                                    }}
+                                    className="w-full px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer font-medium"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5 text-amber-600" />
+                                    <span>Editar Paciente</span>
+                                  </button>
+                                )}
                                 {paciente.termoConsentimentoStatus === 'ACEITO' && (
                                   <button
                                     type="button"
@@ -504,16 +472,13 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                                     }}
                                     className="w-full px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer font-medium"
                                   >
-                                    <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                                      <path d="m9 12 2 2 4-4" />
-                                    </svg>
+                                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                                     <span>Comprovante Catraki</span>
                                   </button>
                                 )}
 
-                                {/* Opção Excluir Paciente — Apenas para Administrador Geral */}
-                                {ehAdminGeral && (
+                                {/* Opção Excluir Paciente — Apenas com permissão */}
+                                {temPermissaoAcao('arquivarPaciente') && (
                                   <>
                                     <div className="h-px bg-slate-100 my-1" />
                                     <button
@@ -524,12 +489,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                                       }}
                                       className="w-full px-3 py-2 text-red-600 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 cursor-pointer font-medium transition-colors"
                                     >
-                                      <svg className="w-3.5 h-3.5 text-red-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <polyline points="3 6 5 6 21 6" />
-                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                        <line x1="10" y1="11" x2="10" y2="17" />
-                                        <line x1="14" y1="11" x2="14" y2="17" />
-                                      </svg>
+                                      <Archive className="w-3.5 h-3.5 text-red-600" />
                                       <span>Arquivar Paciente</span>
                                     </button>
                                   </>
@@ -569,10 +529,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
             <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xl w-full max-w-md p-6 animate-modal">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center shrink-0 border border-red-100 shadow-2xs">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  </svg>
+                  <Trash2 className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="text-sm sm:text-base font-bold text-slate-900">Arquivar Cadastro de Paciente</h3>

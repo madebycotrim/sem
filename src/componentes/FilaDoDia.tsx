@@ -9,8 +9,10 @@ import {
 } from './tabelaExcel/index.ts';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { Paginacao } from './Paginacao.tsx';
+import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 import { CardHoverPaciente } from './CardHoverPaciente.tsx';
 import { censurarCpf } from './TabelaPacientes.tsx';
+import { Check, Clock3, Megaphone, Moon, RotateCcw, Sun } from 'lucide-react';
 
 export type StatusPresenca = 'AGUARDANDO' | 'EM_ATENDIMENTO' | 'CONCLUIDO';
 
@@ -46,69 +48,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   const [turnoSelecionado, setTurnoSelecionado] = useState<string>('TODOS');
   const [especialidadeSelecionada, setEspecialidadeSelecionada] = useState<string>('TODAS');
 
-  // Dados Mockados da Fila de Espera em Fluxo Livre
-  const [fila, setFila] = useState<ItemFila[]>([
-    {
-      id: 'fila-01',
-      pacienteNome: 'GABRIEL HENRIQUE SANTOS',
-      cpf: '078.432.191-04',
-      idade: 12,
-      escolaNome: 'CEMEIT DE TAGUATINGA',
-      turno: Turno.MANHA,
-      especialidade: Especialidade.ODONTOLOGIA,
-      status: 'AGUARDANDO',
-      horarioChegada: '08:15',
-      prioridade: true,
-    },
-    {
-      id: 'fila-02',
-      pacienteNome: 'BEATRIZ LIMA DE OLIVEIRA',
-      cpf: '065.912.331-88',
-      idade: 10,
-      escolaNome: 'CEMEIT DE TAGUATINGA',
-      turno: Turno.MANHA,
-      especialidade: Especialidade.OFTALMOLOGIA,
-      status: 'AGUARDANDO',
-      horarioChegada: '08:30',
-      prioridade: false,
-    },
-    {
-      id: 'fila-03',
-      pacienteNome: 'MATHEUS COSTA RIBEIRO',
-      cpf: '088.231.990-11',
-      idade: 9,
-      escolaNome: 'CEMEIT DE TAGUATINGA',
-      turno: Turno.MANHA,
-      especialidade: Especialidade.AUDIOMETRIA,
-      status: 'EM_ATENDIMENTO',
-      horarioChegada: '08:45',
-      prioridade: false,
-    },
-    {
-      id: 'fila-04',
-      pacienteNome: 'SOPHIA ALMEIDA ROCHA',
-      cpf: '091.223.445-90',
-      idade: 13,
-      escolaNome: 'CEMEIT DE TAGUATINGA',
-      turno: Turno.TARDE,
-      especialidade: Especialidade.PSICOLOGIA,
-      status: 'AGUARDANDO',
-      horarioChegada: '13:10',
-      prioridade: false,
-    },
-    {
-      id: 'fila-05',
-      pacienteNome: 'LUCAS ALVES FERREIRA',
-      cpf: '034.887.129-33',
-      idade: 11,
-      escolaNome: 'CEMEIT DE TAGUATINGA',
-      turno: Turno.TARDE,
-      especialidade: Especialidade.NUTRICAO,
-      status: 'CONCLUIDO',
-      horarioChegada: '13:00',
-      prioridade: false,
-    },
-  ]);
+  const [fila, setFila] = useState<ItemFila[]>([]);
 
   const alternarStatus = (id: string, novoStatus: StatusPresenca) => {
     setFila((prev) =>
@@ -251,17 +191,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="5" />
-              <line x1="12" y1="1" x2="12" y2="3" />
-              <line x1="12" y1="21" x2="12" y2="23" />
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-              <line x1="1" y1="12" x2="3" y2="12" />
-              <line x1="21" y1="12" x2="23" y2="12" />
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-            </svg>
+            <Sun className="w-3.5 h-3.5" />
             {TURNO_LABELS[Turno.MANHA]}
           </button>
           <button
@@ -273,9 +203,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
-            </svg>
+            <Moon className="w-3.5 h-3.5" />
             {TURNO_LABELS[Turno.TARDE]}
           </button>
         </div>
@@ -344,10 +272,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                   <td colSpan={6} className="py-20 text-center">
                     <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
                       <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-3 ring-8 ring-blue-50/60 shadow-xs">
-                        <svg className="w-7 h-7 text-blue-500" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                          <circle cx="12" cy="12" r="10" />
-                          <polyline points="12 6 12 12 16 14" />
-                        </svg>
+                        <Clock3 className="w-7 h-7 text-blue-500" />
                       </div>
                       <h4 className="text-base font-bold text-slate-800 mb-1">
                         {temAlgumFiltroAtivo ? 'Nenhum aluno corresponde aos filtros aplicados' : 'Fila vazia para este filtro'}
@@ -363,10 +288,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                           onClick={() => filtroExcel.limparTodosFiltros()}
                           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl transition-all cursor-pointer"
                         >
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="1 4 1 10 7 10" />
-                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-                          </svg>
+                          <RotateCcw className="w-3.5 h-3.5" />
                           <span>Limpar Filtros das Colunas</span>
                         </button>
                       ) : (
@@ -453,9 +375,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                     </td>
 
                     <td className="py-3 px-3">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-2xl text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                        {ESPECIALIDADE_LABELS[item.especialidade]}
-                      </span>
+                      <EspecialidadeBadge especialidade={item.especialidade} compacto />
                     </td>
 
                     <td className="py-3 px-3 text-slate-600 font-medium">
@@ -497,10 +417,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                             }}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-2xl shadow-2xs transition-all active:scale-95 cursor-pointer"
                           >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path d="M11 5L6 9H2v6h4l5 4V5z" />
-                              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-                            </svg>
+                            <Megaphone className="w-3.5 h-3.5" />
                             Chamar & Atender
                           </button>
                         )}
@@ -510,9 +427,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                             onClick={() => alternarStatus(item.id, 'CONCLUIDO')}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-2xl transition-all active:scale-95 cursor-pointer"
                           >
-                            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
                             Concluir
                           </button>
                         )}

@@ -3,6 +3,16 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import DOMPurify from 'dompurify';
+import {
+  AlertTriangle,
+  Check,
+  CircleAlert,
+  CircleCheck,
+  ChevronDown,
+  LoaderCircle,
+  UsersRound,
+  X,
+} from 'lucide-react';
 import type { ItemPaciente } from './TabelaPacientes.tsx';
 import {
   consultarCpf,
@@ -16,7 +26,7 @@ import {
   ModalSecao,
   BotaoModal,
   ESTILO_INPUT_MODAL,
-  ESTILO_SELECT_MODAL,
+  SelectModal,
 } from './Modal.tsx';
 
 const formNovoPacienteSchema = z.object({
@@ -43,6 +53,7 @@ interface ModalNovoPacienteProps {
   aoFechar: () => void;
   aoSalvar: (dados: FormNovoPaciente) => Promise<void>;
   escolas: Array<{ id: string; nome: string }>;
+  instituicaoPadrao?: string;
   pacienteParaEditar?: ItemPaciente | null;
 }
 
@@ -51,6 +62,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
   aoFechar,
   aoSalvar,
   escolas,
+  instituicaoPadrao = '',
   pacienteParaEditar,
 }) => {
   const [salvando, setSalvando] = useState(false);
@@ -74,7 +86,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
   } = useForm<FormNovoPaciente>({
     resolver: zodResolver(formNovoPacienteSchema),
     defaultValues: {
-      instituicao: escolas[0]?.nome || '',
+      instituicao: instituicaoPadrao,
       nomeCompleto: '',
       cpf: '',
       dataNascimento: '',
@@ -140,19 +152,20 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
       setMenuInstituicaoAberto(false);
 
       if (pacienteParaEditar) {
+        const [anoEscolar, turma] = (pacienteParaEditar.turma || '').split(' — ', 2);
         setValue('nomeCompleto', pacienteParaEditar.nome, { shouldValidate: true });
-        setValue('cpf', pacienteParaEditar.cpf || '', { shouldValidate: true });
+        setValue('cpf', formatarCpf(pacienteParaEditar.cpf || ''), { shouldValidate: true });
         setValue('dataNascimento', pacienteParaEditar.dataNascimento || '', { shouldValidate: true });
         setValue('sexo', pacienteParaEditar.sexo || 'Feminino', { shouldValidate: true });
-        setValue('instituicao', pacienteParaEditar.escolaNome || escolas[0]?.nome || '', { shouldValidate: true });
-        setBuscaInstituicao(pacienteParaEditar.escolaNome || escolas[0]?.nome || '');
-        setValue('perfilUsuario', pacienteParaEditar.perfil || 'ALUNO', { shouldValidate: true });
+        setValue('instituicao', pacienteParaEditar.escolaNome || instituicaoPadrao, { shouldValidate: true });
+        setBuscaInstituicao(pacienteParaEditar.escolaNome || instituicaoPadrao);
+        setValue('perfilUsuario', pacienteParaEditar.perfil || 'ESTUDANTE', { shouldValidate: true });
         setValue('telefone', pacienteParaEditar.telefone || '', { shouldValidate: true });
-        setValue('anoEscolar', '');
-        setValue('turma', pacienteParaEditar.turma || '');
+        setValue('anoEscolar', turma ? anoEscolar : '');
+        setValue('turma', turma || pacienteParaEditar.turma || '');
         setCpfConsultado((pacienteParaEditar.cpf || '').replace(/\D/g, ''));
       } else {
-        const escolaPadrao = escolas[0]?.nome || '';
+        const escolaPadrao = instituicaoPadrao;
         reset({
           instituicao: escolaPadrao,
           nomeCompleto: '',
@@ -160,7 +173,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           dataNascimento: '',
           sexo: '',
           telefone: '',
-          perfilUsuario: 'ALUNO',
+          perfilUsuario: 'ESTUDANTE',
           anoEscolar: '',
           turma: '',
         });
@@ -168,7 +181,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
         setBuscaInstituicao(escolaPadrao);
       }
     }
-  }, [aberto, pacienteParaEditar, setValue, reset, escolas]);
+  }, [aberto, pacienteParaEditar, instituicaoPadrao, setValue, reset, escolas]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -221,7 +234,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
   }, [cpfAtual, cpfConsultado, aberto, setValue, setError, clearErrors]);
 
   const resetarFormulario = () => {
-    const escolaPadrao = escolas[0]?.nome || '';
+    const escolaPadrao = instituicaoPadrao;
     reset({
       instituicao: escolaPadrao,
       nomeCompleto: '',
@@ -274,14 +287,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           : 'Formulário para cadastro e identificação do paciente.'
       }
       tamanho="2xl"
-      icone={
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-        </svg>
-      }
+      icone={<UsersRound className="w-5 h-5" />}
       rodape={
         <>
           <BotaoModal
@@ -302,11 +308,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
       <form id="form-paciente" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         {erroGeral && (
           <div className="p-3 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
-            <svg className="w-4 h-4 text-red-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
+            <CircleAlert className="w-4 h-4 text-red-500 shrink-0" />
             <span>{erroGeral}</span>
           </div>
         )}
@@ -344,15 +346,8 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
                     }
                   }}
                   placeholder="DIGITE O NOME DA ESCOLA OU POLO..."
-                  className={`${ESTILO_INPUT_MODAL} pl-9 pr-16 font-semibold uppercase`}
+                  className={`${ESTILO_INPUT_MODAL} pl-3 pr-16 font-semibold uppercase`}
                 />
-
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                </div>
 
                 <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center gap-1 text-slate-400">
                   {buscaInstituicao && (
@@ -367,10 +362,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
                       className="p-1 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
                       title="Limpar campo"
                     >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   )}
                   <button
@@ -381,15 +373,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
                     }}
                     className="p-1 hover:text-blue-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
                   >
-                    <svg
-                      className={`w-4 h-4 transition-transform duration-150 ${menuInstituicaoAberto ? 'rotate-180 text-blue-600' : ''}`}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <polyline points="6 9 12 15 18 9" />
-                    </svg>
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-150 ${menuInstituicaoAberto ? 'rotate-180 text-blue-600' : ''}`} />
                   </button>
                 </div>
 
@@ -425,18 +409,9 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
                                 : 'text-slate-800 hover:bg-slate-50'
                             }`}
                           >
-                            <div className="flex items-center gap-2 truncate">
-                              <svg className={`w-3.5 h-3.5 shrink-0 ${estaSelecionada ? 'text-blue-600' : 'text-slate-400'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <path d="M3 21h18" />
-                                <path d="M5 21V7l8-4v18" />
-                                <path d="M19 21V11l-6-4" />
-                              </svg>
-                              <span className="truncate">{nomeEscola.toUpperCase()}</span>
-                            </div>
+                            <span className="truncate">{nomeEscola.toUpperCase()}</span>
                             {estaSelecionada && (
-                              <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
+                              <Check className="w-4 h-4 text-blue-600 shrink-0" />
                             )}
                           </button>
                         );
@@ -477,27 +452,20 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
                   />
                   {consultandoCpf && (
                     <div className="absolute right-3 top-2.5 flex items-center text-blue-600">
-                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
+                      <LoaderCircle className="w-4 h-4 animate-spin" />
                     </div>
                   )}
                 </div>
               </ModalCampo>
               {erroConsultaCpf && (
                 <div className="mt-1 text-[11px] font-medium text-amber-600 leading-tight flex items-start gap-1 animate-fade-in">
-                  <svg className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
                   <span>{erroConsultaCpf}</span>
                 </div>
               )}
               {sucessoConsultaCpf && (
                 <div className="mt-1 text-[11px] font-medium text-emerald-600 leading-tight flex items-start gap-1 animate-fade-in">
-                  <svg className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
+                  <CircleCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
                   <span>{sucessoConsultaCpf}</span>
                 </div>
               )}
@@ -517,13 +485,16 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           {/* Sexo e Telefone */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <ModalCampo rotulo="Sexo" obrigatorio erro={errors.sexo?.message}>
-              <select {...register('sexo')} className={ESTILO_SELECT_MODAL}>
-                <option value="">Selecione o sexo</option>
-                <option value="Masculino">Masculino</option>
-                <option value="Feminino">Feminino</option>
-                <option value="Outro">Outro</option>
-                <option value="Não informado">Não informado</option>
-              </select>
+              <SelectModal
+                {...register('sexo')}
+                placeholder="Selecione o sexo"
+                opcoes={[
+                  { valor: 'Masculino', rotulo: 'Masculino' },
+                  { valor: 'Feminino', rotulo: 'Feminino' },
+                  { valor: 'Outro', rotulo: 'Outro' },
+                  { valor: 'Não informado', rotulo: 'Não informado' },
+                ]}
+              />
             </ModalCampo>
 
             <ModalCampo rotulo="Telefone" obrigatorio erro={errors.telefone?.message}>
@@ -542,12 +513,17 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
             <div className={ehAluno ? 'md:col-span-4' : 'md:col-span-12'}>
               <ModalCampo rotulo="Perfil do Usuário" obrigatorio erro={errors.perfilUsuario?.message}>
-                <select {...register('perfilUsuario')} className={`${ESTILO_SELECT_MODAL} font-semibold uppercase`}>
-                  <option value="ESTUDANTE">ESTUDANTE</option>
-                  <option value="PROFESSOR">PROFESSOR</option>
-                  <option value="FUNCIONARIO">FUNCIONÁRIO</option>
-                  <option value="COMUNIDADE">COMUNIDADE</option>
-                </select>
+                <SelectModal
+                  {...register('perfilUsuario')}
+                  defaultValue="ESTUDANTE"
+                  className="font-semibold uppercase"
+                  opcoes={[
+                    { valor: 'ESTUDANTE', rotulo: 'ESTUDANTE' },
+                    { valor: 'PROFESSOR', rotulo: 'PROFESSOR' },
+                    { valor: 'FUNCIONARIO', rotulo: 'FUNCIONÁRIO' },
+                    { valor: 'COMUNIDADE', rotulo: 'COMUNIDADE' },
+                  ]}
+                />
               </ModalCampo>
             </div>
 
@@ -555,23 +531,13 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
               <>
                 <div className="md:col-span-4">
                   <ModalCampo rotulo="Ano Escolar">
-                    <select {...register('anoEscolar')} className={ESTILO_SELECT_MODAL}>
-                      <option value="">Selecione...</option>
-                      <option value="1º Ano EF">1º Ano EF</option>
-                      <option value="2º Ano EF">2º Ano EF</option>
-                      <option value="3º Ano EF">3º Ano EF</option>
-                      <option value="4º Ano EF">4º Ano EF</option>
-                      <option value="5º Ano EF">5º Ano EF</option>
-                      <option value="6º Ano EF">6º Ano EF</option>
-                      <option value="7º Ano EF">7º Ano EF</option>
-                      <option value="8º Ano EF">8º Ano EF</option>
-                      <option value="9º Ano EF">9º Ano EF</option>
-                      <option value="1º Ano EM">1º Ano EM</option>
-                      <option value="2º Ano EM">2º Ano EM</option>
-                      <option value="3º Ano EM">3º Ano EM</option>
-                      <option value="EJA">EJA</option>
-                      <option value="Outro">Outro</option>
-                    </select>
+                    <SelectModal
+                      {...register('anoEscolar')}
+                      placeholder="Selecione..."
+                      opcoes={[
+                        '8º Ano EF', '9º Ano EF', '1º Ano EM', '2º Ano EM', '3º Ano EM',
+                      ].map((ano) => ({ valor: ano, rotulo: ano }))}
+                    />
                   </ModalCampo>
                 </div>
 

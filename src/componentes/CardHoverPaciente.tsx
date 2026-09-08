@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { ItemPaciente } from './TabelaPacientes.tsx';
-import { calcularIdade, formatarSubtituloPaciente } from './TabelaPacientes.tsx';
+import { formatarSubtituloPaciente } from './TabelaPacientes.tsx';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { formatarCpf } from '../servicos/apiCpf.ts';
+import { BookOpen, Building2, Phone } from 'lucide-react';
 
 interface CardHoverPacienteProps {
   paciente: ItemPaciente;
@@ -25,22 +26,8 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
   const timerAbrirRef = useRef<number | null>(null);
   const timerFecharRef = useRef<number | null>(null);
 
-  const idade = calcularIdade(paciente.dataNascimento);
-
-  // Fallbacks inteligentes caso algum campo não venha preenchido no mock
-  const turma =
-    paciente.turma ||
-    (idade <= 5
-      ? 'Educação Infantil'
-      : idade <= 10
-      ? `${idade - 5}º Ano — Fundamental I`
-      : idade <= 14
-      ? `${idade - 5}º Ano — Fundamental II`
-      : idade <= 17
-      ? `${idade - 14}ª Série — Ensino Médio`
-      : 'EJA / Comunidade');
-
-  const telefone = paciente.telefone || '(61) 98452-1190';
+  const turma = paciente.turma || 'Não informada';
+  const telefone = paciente.telefone || 'Não informado';
 
   const atualizarPosicao = () => {
     if (!triggerRef.current) return;
@@ -146,10 +133,7 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
               {/* Série e Turma */}
               <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50/80 border border-slate-100/90">
                 <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                  </svg>
+                  <BookOpen className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Série / Turma</span>
@@ -160,9 +144,7 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
               {/* Telefone / Contato */}
               <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50/80 border border-slate-100/90">
                 <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-                  </svg>
+                  <Phone className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Celular</span>
@@ -175,10 +157,7 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
               {/* Escola / Polo */}
               <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50/80 border border-slate-100/90">
                 <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                    <polyline points="9 22 9 12 15 12 15 22" />
-                  </svg>
+                  <Building2 className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Escola / Polo de Atendimento</span>

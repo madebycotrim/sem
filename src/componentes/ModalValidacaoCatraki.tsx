@@ -6,6 +6,7 @@ import {
   sanitizarCpf,
 } from '../servicos/servicoCatraki.ts';
 import { Modal, BotaoModal } from './Modal.tsx';
+import { Check, CircleAlert, ExternalLink, LoaderCircle, ShieldCheck } from 'lucide-react';
 
 interface ModalValidacaoCatrakiProps {
   aberto: boolean;
@@ -78,10 +79,7 @@ export function ModalValidacaoCatraki({
       tamanho="lg"
       icone={
         <div className={validadoComSucesso ? 'text-emerald-600' : 'text-amber-600'}>
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            {validadoComSucesso ? <path d="m9 12 2 2 4-4" /> : <line x1="12" y1="8" x2="12" y2="12" />}
-          </svg>
+          <ShieldCheck className="w-5 h-5" />
         </div>
       }
       rodape={
@@ -123,10 +121,7 @@ export function ModalValidacaoCatraki({
 
         {carregando ? (
           <div className="py-8 flex flex-col items-center justify-center gap-3 text-slate-500">
-            <svg className="w-6 h-6 animate-spin text-blue-600" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+            <LoaderCircle className="w-6 h-6 animate-spin text-blue-600" />
             <p className="text-xs font-medium">Consultando API oficial do Catraki por CPF...</p>
           </div>
         ) : validadoComSucesso && detalhes ? (
@@ -148,11 +143,7 @@ export function ModalValidacaoCatraki({
                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-2xl text-[11px] transition-colors shadow-2xs whitespace-nowrap flex items-center gap-1 cursor-pointer"
               >
                 <span>Conferir no Portal</span>
-                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                  <polyline points="15 3 21 3 21 9" />
-                  <line x1="10" y1="14" x2="21" y2="3" />
-                </svg>
+                <ExternalLink className="w-3 h-3" />
               </a>
             </div>
 
@@ -161,9 +152,7 @@ export function ModalValidacaoCatraki({
               <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                 <span className="text-slate-500">Status da Assinatura:</span>
                 <span className="font-semibold text-emerald-700 flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
+                  <Check className="w-3.5 h-3.5" />
                   Válida & Homologada
                 </span>
               </div>
@@ -193,11 +182,7 @@ export function ModalValidacaoCatraki({
           <div className="space-y-4 animate-fade-in text-xs text-slate-700">
             <div className="p-4 bg-amber-50/70 border border-amber-200/90 rounded-2xl text-xs text-amber-900 space-y-2">
               <div className="flex items-center gap-2 text-amber-800 font-bold">
-                <svg className="w-4.5 h-4.5 text-amber-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                  <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
+                <CircleAlert className="w-4.5 h-4.5 text-amber-600 shrink-0" />
                 <span>Nenhum Termo Assinado Localizado no Catraki</span>
               </div>
               <p className="text-[11.5px] text-amber-800/90 leading-relaxed">
@@ -219,11 +204,7 @@ export function ModalValidacaoCatraki({
                 className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl text-xs transition-colors shadow-xs cursor-pointer"
               >
                 <span>Abrir Portal Catraki para Assinar Autorização</span>
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                  <polyline points="15 3 21 3 21 9" />
-                  <line x1="10" y1="14" x2="21" y2="3" />
-                </svg>
+                <ExternalLink className="w-3.5 h-3.5" />
               </a>
             </div>
           </div>

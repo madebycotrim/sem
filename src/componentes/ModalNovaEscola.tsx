@@ -12,6 +12,7 @@ import {
   BotaoModal,
   ESTILO_INPUT_MODAL,
 } from './Modal.tsx';
+import { Building2 } from 'lucide-react';
 
 export interface ModalNovaEscolaProps {
   aberto: boolean;
@@ -188,9 +189,7 @@ export const ModalNovaEscola: FC<ModalNovaEscolaProps> = ({
       subtitulo={escolaParaEditar ? "Altere os dados da instituição conforme necessário" : "Preencha os dados abaixo para cadastrar um novo polo ou instituição"}
       tamanho="xl"
       icone={
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9h1M9 13h1" />
-        </svg>
+        <Building2 className="w-5 h-5" />
       }
       rodape={
         <>

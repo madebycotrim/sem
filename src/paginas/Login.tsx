@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { ArrowRight, CircleAlert, KeyRound, LoaderCircle, Mail } from 'lucide-react';
 import { requisicaoApi } from '../servicos/api.ts';
 import catrakiLogo from '../assets/catraki.png';
 
@@ -13,11 +14,22 @@ const formLoginSchema = z.object({
 type FormLogin = z.infer<typeof formLoginSchema>;
 
 interface LoginProps {
-  aoLogar: (email: string) => void;
+  aoLogar: (
+    usuario: { nomeCompleto: string; email: string; perfil: string },
+    trocaSenhaObrigatoria: boolean
+  ) => void;
 }
 
 export function Login({ aoLogar }: LoginProps) {
   const [carregando, setCarregando] = useState(false);
+  const [trocaObrigatoria, setTrocaObrigatoria] = useState<{
+    usuario: { nomeCompleto: string; email: string; perfil: string };
+    senhaAtual: string;
+  } | null>(null);
+  const [novaSenha, setNovaSenha] = useState('');
+  const [confirmarSenha, setConfirmarSenha] = useState('');
+  const [erroTroca, setErroTroca] = useState<string | null>(null);
+  const [salvandoTroca, setSalvandoTroca] = useState(false);
 
   const {
     register,
@@ -31,19 +43,54 @@ export function Login({ aoLogar }: LoginProps) {
   const onSubmit = async (dados: FormLogin) => {
     setCarregando(true);
     try {
-      await requisicaoApi('/auth/login', {
+      const resposta = await requisicaoApi<{
+        usuario: { nomeCompleto: string; email: string; perfil: string };
+        trocaSenhaObrigatoria?: boolean;
+      }>('/auth/login', {
         metodo: 'POST',
         corpo: {
           email: dados.email,
           senha: dados.senha
         }
       });
-      aoLogar(dados.email);
+      if (resposta.trocaSenhaObrigatoria) {
+        setTrocaObrigatoria({ usuario: resposta.usuario, senhaAtual: dados.senha });
+      } else {
+        aoLogar(resposta.usuario, false);
+      }
     } catch (erro) {
       const mensagem = erro instanceof Error ? erro.message : 'Erro ao autenticar';
       setError('root', { type: 'manual', message: mensagem });
     } finally {
       setCarregando(false);
+    }
+  };
+
+  const handleTrocarSenha = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!trocaObrigatoria) return;
+
+    if (novaSenha.length < 8) {
+      setErroTroca('A nova senha deve ter pelo menos 8 caracteres.');
+      return;
+    }
+    if (novaSenha !== confirmarSenha) {
+      setErroTroca('As senhas não conferem.');
+      return;
+    }
+
+    setSalvandoTroca(true);
+    setErroTroca(null);
+    try {
+      await requisicaoApi('/auth/alterar-senha', {
+        metodo: 'POST',
+        corpo: { senhaAtual: trocaObrigatoria.senhaAtual, novaSenha },
+      });
+      aoLogar(trocaObrigatoria.usuario, false);
+    } catch (erro) {
+      setErroTroca(erro instanceof Error ? erro.message : 'Não foi possível alterar a senha.');
+    } finally {
+      setSalvandoTroca(false);
     }
   };
 
@@ -84,6 +131,55 @@ export function Login({ aoLogar }: LoginProps) {
              <img src={catrakiLogo} alt="Catraki" className="h-14 drop-shadow-sm" />
           </div>
 
+          {trocaObrigatoria ? (
+            <>
+              <div className="text-center lg:text-left mb-10">
+                <h2 className="text-3xl font-extrabold text-[#0b2545] tracking-tight mb-2">Crie sua nova senha</h2>
+                <p className="text-slate-500 font-medium">Por segurança, defina uma senha permanente antes de acessar o sistema.</p>
+              </div>
+
+              <form onSubmit={handleTrocarSenha} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">Nova senha</label>
+                  <input
+                    type="password"
+                    value={novaSenha}
+                    onChange={(event) => setNovaSenha(event.target.value)}
+                    placeholder="Mínimo de 8 caracteres"
+                    autoFocus
+                    className="w-full h-12 px-4 text-sm font-medium tracking-widest text-slate-800 bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-xl outline-none transition-all duration-200 focus:bg-white focus:ring-4"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">Confirmar nova senha</label>
+                  <input
+                    type="password"
+                    value={confirmarSenha}
+                    onChange={(event) => setConfirmarSenha(event.target.value)}
+                    placeholder="Repita a nova senha"
+                    className="w-full h-12 px-4 text-sm font-medium tracking-widest text-slate-800 bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-xl outline-none transition-all duration-200 focus:bg-white focus:ring-4"
+                  />
+                </div>
+
+                {erroTroca && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-semibold flex items-center gap-2 animate-fade-in">
+                    <CircleAlert className="w-4 h-4 shrink-0" />
+                    {erroTroca}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={salvandoTroca}
+                  className="w-full h-12 mt-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-[14px] rounded-xl shadow-lg shadow-blue-600/30 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {salvandoTroca ? <LoaderCircle className="w-5 h-5 animate-spin text-white" /> : <span>Salvar nova senha</span>}
+                </button>
+              </form>
+            </>
+          ) : (
+          <>
           <div className="text-center lg:text-left mb-10">
             <h2 className="text-3xl font-extrabold text-[#0b2545] tracking-tight mb-2">Bem-vindo de volta!</h2>
             <p className="text-slate-500 font-medium">Insira suas credenciais para acessar o painel.</p>
@@ -105,15 +201,12 @@ export function Login({ aoLogar }: LoginProps) {
                   } rounded-xl outline-none transition-all duration-200 focus:bg-white focus:ring-4 placeholder:text-slate-400`}
                 />
                 <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-400">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                    <polyline points="22,6 12,13 2,6" />
-                  </svg>
+                  <Mail className="w-5 h-5" />
                 </div>
               </div>
               {errors.email && (
                 <p className="text-[12px] font-semibold text-red-600 flex items-center gap-1 animate-fade-in">
-                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <CircleAlert className="w-3.5 h-3.5 shrink-0" />
                   {errors.email.message}
                 </p>
               )}
@@ -136,15 +229,12 @@ export function Login({ aoLogar }: LoginProps) {
                   } rounded-xl outline-none transition-all duration-200 focus:bg-white focus:ring-4 placeholder:text-slate-400 placeholder:tracking-normal`}
                 />
                 <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-400">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
+                  <KeyRound className="w-5 h-5" />
                 </div>
               </div>
               {errors.senha && (
                 <p className="text-[12px] font-semibold text-red-600 flex items-center gap-1 animate-fade-in">
-                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <CircleAlert className="w-3.5 h-3.5 shrink-0" />
                   {errors.senha.message}
                 </p>
               )}
@@ -152,7 +242,7 @@ export function Login({ aoLogar }: LoginProps) {
 
             {errors.root && (
               <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-semibold flex items-center gap-2 animate-fade-in">
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <CircleAlert className="w-4 h-4 shrink-0" />
                 {errors.root.message}
               </div>
             )}
@@ -165,30 +255,20 @@ export function Login({ aoLogar }: LoginProps) {
             >
               {carregando ? (
                 <>
-                  <svg className="w-5 h-5 animate-spin text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <circle cx="12" cy="12" r="10" strokeWidth="3" strokeDasharray="32" strokeDashoffset="10" />
-                  </svg>
+                  <LoaderCircle className="w-5 h-5 animate-spin text-white" />
                   <span>Autenticando...</span>
                 </>
               ) : (
                 <>
                   <span>Entrar no Sistema</span>
-                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                    <polyline points="12 5 19 12 12 19" />
-                  </svg>
+                  <ArrowRight className="w-4 h-4 ml-1" />
                 </>
               )}
             </button>
           </form>
+          </>
+          )}
 
-          {/* Dica Mock */}
-          <div className="mt-8 text-center p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
-             <p className="text-xs text-blue-800 font-medium leading-relaxed">
-               <strong className="font-bold">Acesso de Demonstração:</strong><br />
-               Qualquer e-mail/senha válidos darão acesso.
-             </p>
-          </div>
         </div>
       </div>
     </div>

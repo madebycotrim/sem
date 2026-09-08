@@ -7,11 +7,16 @@ import {
   descriptografarPii,
 } from '../../infraestrutura/criptografia/crypto.js';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
-import { autorizarPerfis } from '../../middlewares/autorizacao.js';
+import { autorizarPerfis, autorizarAcao } from '../../middlewares/autorizacao.js';
 import { registrarAuditoria } from '../../middlewares/auditoria.js';
 import type { Bindings } from '../../config/env.js';
 
 export const rotasPaciente = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
+
+const mascararCpf = (cpf: string) => {
+  const digitos = cpf.replace(/\D/g, '');
+  return digitos.length === 11 ? `***.***.***-${digitos.slice(-2)}` : '***';
+};
 
 // Proteção global do grupo de rotas de pacientes
 rotasPaciente.use('*', middlewareAutenticacao);
@@ -24,11 +29,16 @@ rotasPaciente.use(
  * POST /pacientes
  * Cadastra um novo paciente com dados PII criptografados (AES-256-GCM Envelope).
  */
-rotasPaciente.post('/', zValidator('json', criarPacienteSchema), async (c) => {
+rotasPaciente.post('/', autorizarAcao('criarPaciente'), zValidator('json', criarPacienteSchema), async (c) => {
   const dados = c.req.valid('json');
   const usuario = c.get('usuario');
   const prisma = getPrisma(c.env.DB);
   const kekHex = c.env.KEK_HEX;
+
+  const escola = await prisma.escolaLocal.findFirst({ where: { id: dados.escolaLocalId, ativo: true } });
+  if (!escola) {
+    return c.json({ erro: 'A instituição selecionada não está ativa.' }, 422);
+  }
 
   const piiTextoPlano = JSON.stringify({
     nome: dados.nome,
@@ -129,9 +139,9 @@ rotasPaciente.get('/', async (c) => {
         return {
           id: p.id,
           nome: pii.nome,
-          cpf: pii.cpf,
+          cpf: mascararCpf(pii.cpf),
           dataNascimento: pii.dataNascimento,
-          telefone: pii.telefone,
+          telefone: null,
           sexo: pii.sexo ?? undefined,
           turma: p.turma,
           escolaLocal: p.escolaLocal.nome,
@@ -171,13 +181,18 @@ rotasPaciente.get('/', async (c) => {
  * PATCH /pacientes/:id
  * Atualiza dados cadastrais sem expor ou duplicar campos PII em texto plano.
  */
-rotasPaciente.patch('/:id', zValidator('json', atualizarPacienteSchema), async (c) => {
+rotasPaciente.patch('/:id', autorizarAcao('editarPaciente'), zValidator('json', atualizarPacienteSchema), async (c) => {
   const id = c.req.param('id');
   const dados = c.req.valid('json');
   const usuario = c.get('usuario');
   const prisma = getPrisma(c.env.DB);
   const existente = await prisma.paciente.findFirst({ where: { id, ativo: true } });
   if (!existente) return c.json({ erro: 'Paciente não encontrado.' }, 404);
+
+  if (dados.escolaLocalId) {
+    const escola = await prisma.escolaLocal.findFirst({ where: { id: dados.escolaLocalId, ativo: true } });
+    if (!escola) return c.json({ erro: 'A instituição selecionada não está ativa.' }, 422);
+  }
 
   let piiAtual: { nome: string; cpf: string; dataNascimento: string; telefone: string | null; sexo?: string | null };
   try {
@@ -214,9 +229,8 @@ rotasPaciente.patch('/:id', zValidator('json', atualizarPacienteSchema), async (
 });
 
 /** Arquiva, sem apagar o prontuário ou o histórico clínico. */
-rotasPaciente.post('/:id/arquivar', async (c) => {
+rotasPaciente.post('/:id/arquivar', autorizarAcao('arquivarPaciente'), async (c) => {
   const usuario = c.get('usuario');
-  if (usuario.perfil !== 'ADMIN') return c.json({ erro: 'Apenas administradores podem arquivar pacientes.' }, 403);
   const prisma = getPrisma(c.env.DB);
   const id = c.req.param('id');
   const existente = await prisma.paciente.findFirst({ where: { id, ativo: true } });
@@ -268,18 +282,18 @@ rotasPaciente.get('/:id', async (c) => {
       sexo?: string | null;
     };
 
-    return c.json({
-      id: paciente.id,
-      nome: pii.nome,
-      cpf: pii.cpf,
-      dataNascimento: pii.dataNascimento,
-      telefone: pii.telefone,
-      sexo: pii.sexo ?? undefined,
-      turma: paciente.turma,
-      escolaLocal: paciente.escolaLocal.nome,
-      consentimentos: paciente.consentimentos,
-      criadoEm: paciente.criadoEm,
-    });
+    return c.json({ dados: {
+        id: paciente.id,
+        nome: pii.nome,
+        cpf: pii.cpf,
+        dataNascimento: pii.dataNascimento,
+        telefone: pii.telefone,
+        sexo: pii.sexo ?? undefined,
+        turma: paciente.turma,
+        escolaLocal: paciente.escolaLocal.nome,
+        consentimentos: paciente.consentimentos,
+        criadoEm: paciente.criadoEm,
+      } });
   } catch {
     return c.json({ erro: 'Erro ao descriptografar dados do paciente.' }, 500);
   }

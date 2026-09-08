@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { TriangleAlert } from 'lucide-react';
 
 /**
  * Timeout de Sessão por Inatividade.
@@ -23,17 +24,21 @@ interface TimeoutSessaoProps {
   tempoAvisoSegundos?: number;
   /** Callback executado no logout automático */
   aoExpirar: () => void;
+  /** Desabilita completamente o timeout para perfis de operação permanente. */
+  imune?: boolean;
 }
 
 export function TimeoutSessao({
   tempoLimiteMinutos = 10,
   tempoAvisoSegundos = 120,
   aoExpirar,
+  imune = false,
 }: TimeoutSessaoProps) {
   const [mostrarAviso, setMostrarAviso] = useState(false);
   const [segundosRestantes, setSegundosRestantes] = useState(tempoAvisoSegundos);
   const timerInatividade = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timerContagem = useRef<ReturnType<typeof setInterval> | null>(null);
+  const avisoAtivoRef = useRef(false);
 
   const tempoLimiteMs = tempoLimiteMinutos * 60 * 1000;
   const tempoAvisoMs = tempoAvisoSegundos * 1000;
@@ -50,6 +55,7 @@ export function TimeoutSessao({
   }, []);
 
   const iniciarContagem = useCallback(() => {
+    avisoAtivoRef.current = true;
     setSegundosRestantes(tempoAvisoSegundos);
     setMostrarAviso(true);
 
@@ -57,6 +63,7 @@ export function TimeoutSessao({
       setSegundosRestantes((prev) => {
         if (prev <= 1) {
           limparTimers();
+          avisoAtivoRef.current = false;
           setMostrarAviso(false);
           aoExpirar();
           return 0;
@@ -67,21 +74,30 @@ export function TimeoutSessao({
   }, [tempoAvisoSegundos, aoExpirar, limparTimers]);
 
   const resetarTimer = useCallback(() => {
+    if (imune) return;
     limparTimers();
+    avisoAtivoRef.current = false;
     setMostrarAviso(false);
 
     // Timer principal: dispara aviso quando faltam `tempoAvisoMs`
     timerInatividade.current = setTimeout(() => {
       iniciarContagem();
     }, tempoLimiteMs - tempoAvisoMs);
-  }, [tempoLimiteMs, tempoAvisoMs, limparTimers, iniciarContagem]);
+  }, [imune, tempoLimiteMs, tempoAvisoMs, limparTimers, iniciarContagem]);
 
   useEffect(() => {
+    if (imune) return;
+
     const eventos = ['mousedown', 'mousemove', 'keydown', 'touchstart', 'scroll'];
+    let ultimaAtividade = Date.now();
 
     const handleAtividade = () => {
-      if (!mostrarAviso) {
-        resetarTimer();
+      if (!avisoAtivoRef.current) {
+        const agora = Date.now();
+        if (agora - ultimaAtividade > 1000) {
+          ultimaAtividade = agora;
+          resetarTimer();
+        }
       }
     };
 
@@ -98,8 +114,7 @@ export function TimeoutSessao({
         document.removeEventListener(evento, handleAtividade)
       );
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [imune]);
 
   const handleContinuar = () => {
     resetarTimer();
@@ -111,7 +126,7 @@ export function TimeoutSessao({
     return `${min}:${seg.toString().padStart(2, '0')}`;
   };
 
-  if (!mostrarAviso) return null;
+  if (imune || !mostrarAviso) return null;
 
   return createPortal(
     <div
@@ -129,20 +144,7 @@ export function TimeoutSessao({
       >
         {/* Ícone de alerta */}
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100">
-          <svg
-            className="h-6 w-6 text-amber-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"
-            />
-          </svg>
+          <TriangleAlert className="h-6 w-6 text-amber-600" aria-hidden="true" />
         </div>
 
         <h2

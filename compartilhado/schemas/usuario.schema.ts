@@ -14,7 +14,7 @@ export const usuarioSchema = z.object({
 
   senha: z
     .string()
-    .min(12, 'Senha deve ter no mínimo 12 caracteres')
+    .min(8, 'Senha deve ter no mínimo 8 caracteres')
     .max(128, 'Senha deve ter no máximo 128 caracteres'),
 
   nomeCompleto: z

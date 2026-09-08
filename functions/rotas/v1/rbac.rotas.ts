@@ -1,0 +1,94 @@
+import { Hono } from 'hono';
+import { z } from 'zod';
+import { zValidator } from '@hono/zod-validator';
+import { getPrisma } from '../../infraestrutura/banco/prisma.js';
+import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
+import { autorizarPerfis } from '../../middlewares/autorizacao.js';
+import { registrarAuditoria } from '../../middlewares/auditoria.js';
+import type { Bindings } from '../../config/env.js';
+import { PERMISSOES_PADRAO, type PerfilAcesso, type PermissoesPerfil } from '../../../compartilhado/index.js';
+
+export const rotasRbac = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
+
+rotasRbac.use('*', middlewareAutenticacao);
+
+/**
+ * GET /rbac/permissoes
+ * Retorna as configurações de RBAC atuais de todos os perfis.
+ */
+rotasRbac.get('/permissoes', async (c) => {
+  try {
+    const prisma = getPrisma(c.env.DB);
+    const permissoes: Record<string, PermissoesPerfil> = { ...PERMISSOES_PADRAO };
+    
+    if (prisma && (prisma as any).configuracaoRbac) {
+      const configuracoes = await prisma.configuracaoRbac.findMany();
+      
+      for (const config of configuracoes) {
+        if (permissoes[config.perfil as PerfilAcesso]) {
+          try {
+            permissoes[config.perfil as PerfilAcesso] = {
+              modulos: typeof config.modulos === 'string' ? JSON.parse(config.modulos) : config.modulos,
+              acoes: typeof config.acoes === 'string' ? JSON.parse(config.acoes) : config.acoes,
+            };
+          } catch {
+            // Em caso de JSON inválido, mantém a permissão padrão
+          }
+        }
+      }
+    }
+
+    return c.json({ permissoes });
+  } catch (err) {
+    console.error('Erro ao buscar configurações RBAC do banco:', err);
+    // Fallback seguro em caso de erro na consulta ao banco
+    return c.json({ permissoes: PERMISSOES_PADRAO });
+  }
+});
+
+const permissoesSchema = z.record(z.string(), z.object({
+  modulos: z.record(z.string(), z.enum(['LIVRE', 'BLOQUEADO', 'RESTRITO'])),
+  acoes: z.record(z.string(), z.enum(['LIVRE', 'BLOQUEADO', 'RESTRITO'])),
+}));
+
+/**
+ * PUT /rbac/permissoes
+ * Atualiza as configurações de RBAC de todos os perfis (Somente ADMIN).
+ */
+rotasRbac.put('/permissoes', autorizarPerfis(['ADMIN', 'BOOTSTRAP']), zValidator('json', permissoesSchema), async (c) => {
+  const dados = c.req.valid('json');
+  const usuario = c.get('usuario');
+  const prisma = getPrisma(c.env.DB);
+  
+  // Atualiza no banco
+  for (const [perfil, permissoes] of Object.entries(dados)) {
+    if (perfil === 'ADMIN' || perfil === 'BOOTSTRAP') continue; // Não salva restrições para admins
+    
+    await prisma.configuracaoRbac.upsert({
+      where: { perfil },
+      update: {
+        modulos: JSON.stringify(permissoes.modulos),
+        acoes: JSON.stringify(permissoes.acoes),
+        atualizadoPor: usuario.userId,
+      },
+      create: {
+        perfil,
+        modulos: JSON.stringify(permissoes.modulos),
+        acoes: JSON.stringify(permissoes.acoes),
+        atualizadoPor: usuario.userId,
+      }
+    });
+  }
+
+  const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1';
+  await registrarAuditoria(prisma, {
+    userId: usuario.userId,
+    acao: 'UPDATE',
+    entidade: 'ConfiguracaoRbac',
+    entidadeId: 'global',
+    diffPosterior: dados,
+    ip,
+  });
+
+  return c.json({ sucesso: true, mensagem: 'Permissões atualizadas com sucesso' });
+});

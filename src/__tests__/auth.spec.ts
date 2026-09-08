@@ -26,6 +26,7 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
           ativo: true,
           mfaAtivo: false,
         }),
+        update: vi.fn().mockResolvedValue({}),
       },
     };
 

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, forwardRef, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { useEffect, useCallback, forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import DOMPurify from 'dompurify';
@@ -12,6 +12,8 @@ import {
 } from '../../compartilhado/index.ts';
 import { requisicaoApi, ErroApi } from '../servicos/api.ts';
 import { CabecalhoPagina } from '../componentes/CabecalhoPagina.tsx';
+import { SelectModal } from '../componentes/Modal.tsx';
+import { CheckCircle2, FileText, HeartPulse, LoaderCircle, UserRound } from 'lucide-react';
 
 interface FichaAtendimentoProps {
   pacientePreSelecionado?: { id: string; nome: string } | null;
@@ -138,10 +140,7 @@ export function FichaAtendimento({
       {isSubmitSuccessful && (
         <div className="mb-4 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between animate-fade-in shadow-2xs">
           <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-emerald-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <polyline points="22 4 12 14.01 9 11.01" />
-            </svg>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>Atendimento registrado com sucesso! Idempotência assegurada.</span>
           </div>
         </div>
@@ -156,10 +155,7 @@ export function FichaAtendimento({
         {/* Identificação do Paciente e Polo */}
         <div>
           <h3 className="text-xs font-bold text-[#0b2545] uppercase tracking-wider mb-3 pb-1.5 border-b border-slate-100 flex items-center gap-2">
-            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
+            <UserRound className="w-4 h-4 text-blue-600" />
             <span>Identificação do Estudante & Polo</span>
           </h3>
 
@@ -184,13 +180,8 @@ export function FichaAtendimento({
                 rotulo="Escola / Polo de Atendimento *"
                 erro={errors.escolaLocalId?.message}
                 {...register('escolaLocalId')}
-              >
-                {escolas.map((esc) => (
-                  <option key={esc.id} value={esc.id}>
-                    {esc.nome}
-                  </option>
-                ))}
-              </CampoSelect>
+                opcoes={escolas.map((esc) => ({ valor: esc.id, rotulo: esc.nome }))}
+                />
             </div>
           </div>
         </div>
@@ -198,9 +189,7 @@ export function FichaAtendimento({
         {/* Especialidade e Turno */}
         <div>
           <h3 className="text-xs font-bold text-[#0b2545] uppercase tracking-wider mb-3 pb-1.5 border-b border-slate-100 flex items-center gap-2">
-            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-            </svg>
+            <HeartPulse className="w-4 h-4 text-blue-600" />
             <span>Especialidade & Turno</span>
           </h3>
 
@@ -210,38 +199,23 @@ export function FichaAtendimento({
               rotulo="Especialidade *"
               erro={errors.especialidade?.message}
               {...register('especialidade')}
-            >
-              {Object.entries(ESPECIALIDADE_LABELS).map(([valor, rotulo]) => (
-                <option key={valor} value={valor}>
-                  {rotulo}
-                </option>
-              ))}
-            </CampoSelect>
+                opcoes={Object.entries(ESPECIALIDADE_LABELS).map(([valor, rotulo]) => ({ valor, rotulo }))}
+                />
 
             <CampoSelect
               id="turno"
               rotulo="Turno do Atendimento *"
               erro={errors.turno?.message}
               {...register('turno')}
-            >
-              {Object.entries(TURNO_LABELS).map(([valor, rotulo]) => (
-                <option key={valor} value={valor}>
-                  {rotulo}
-                </option>
-              ))}
-            </CampoSelect>
+                opcoes={Object.entries(TURNO_LABELS).map(([valor, rotulo]) => ({ valor, rotulo }))}
+                />
           </div>
         </div>
 
         {/* Resumo Clínico e Conduta */}
         <div>
           <h3 className="text-xs font-bold text-[#0b2545] uppercase tracking-wider mb-3 pb-1.5 border-b border-slate-100 flex items-center gap-2">
-            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-            </svg>
+            <FileText className="w-4 h-4 text-blue-600" />
             <span>Registro Clínico e Conduta</span>
           </h3>
 
@@ -310,10 +284,7 @@ export function FichaAtendimento({
             >
               {isSubmitting ? (
                 <>
-                  <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
+                  <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
                   <span>Registrando...</span>
                 </>
               ) : (
@@ -361,24 +332,20 @@ const CampoTexto = forwardRef<HTMLInputElement, CampoBaseProps & InputHTMLAttrib
 );
 CampoTexto.displayName = 'CampoTexto';
 
-const CampoSelect = forwardRef<HTMLSelectElement, CampoBaseProps & SelectHTMLAttributes<HTMLSelectElement>>(
-  ({ id, rotulo, erro, children, ...props }, ref) => (
+const CampoSelect = forwardRef<HTMLInputElement, CampoBaseProps & { opcoes: Array<{ valor: string; rotulo: string }> }>(
+  ({ id, rotulo, erro, opcoes, ...props }, ref) => (
     <div>
       <label htmlFor={id} className="mb-1.5 block text-xs font-semibold text-slate-700">
         {rotulo}
       </label>
-      <select
-        id={id}
+      <SelectModal
         ref={ref}
-        className={`w-full px-3 py-2 bg-white border rounded-2xl text-xs sm:text-sm text-slate-800 focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all shadow-2xs ${
-          erro ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-slate-200'
-        }`}
-        aria-invalid={!!erro}
-        aria-describedby={erro ? `${id}-erro` : undefined}
+        opcoes={opcoes}
+        className={erro ?
+          erro ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : ''
+        : ''}
         {...props}
-      >
-        {children}
-      </select>
+      />
       {erro && (
         <p id={`${id}-erro`} className="mt-1 text-[11px] text-red-600" role="alert">
           {erro}

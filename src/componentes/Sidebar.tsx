@@ -1,4 +1,15 @@
 import { type FC, type ReactElement, useState, useRef, useEffect } from 'react';
+import {
+  Building2,
+  Clock3,
+  FileText,
+  KeyRound,
+  LayoutDashboard,
+  LogOut,
+  PieChart,
+  UserPlus,
+  UsersRound,
+} from 'lucide-react';
 import catrakiLogo from '../assets/catraki.png';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 
@@ -9,8 +20,7 @@ export type SecaoMenu =
   | 'dashboard'
   | 'escolas'
   | 'relatorios'
-  | 'usuarios'
-  | 'governanca';
+  | 'usuarios';
 
 export type AbaNavegacao = SecaoMenu;
 
@@ -22,6 +32,8 @@ export interface SidebarProps {
   emailUsuario?: string;
   cargoUsuario?: string;
   perfilUsuario?: string;
+  temAcesso?: (secao: SecaoMenu) => boolean;
+  aoMudarSenha?: () => void;
 }
 
 export const Sidebar: FC<SidebarProps> = ({
@@ -33,7 +45,8 @@ export const Sidebar: FC<SidebarProps> = ({
   nomeUsuario = 'Usuário',
   emailUsuario = '',
   cargoUsuario = 'Membro',
-  perfilUsuario = 'ADMIN',
+  temAcesso,
+  aoMudarSenha,
 }) => {
   const [confirmandoSaida, setConfirmandoSaida] = useState(false);
   const containerSairRef = useRef<HTMLDivElement>(null);
@@ -76,7 +89,7 @@ export const Sidebar: FC<SidebarProps> = ({
         {/* ─── 2. Meio: Dock de Ícones Elegantes com Flyouts Instantâneos ──── */}
         <nav className="flex flex-col items-center justify-center space-y-1.5 w-full my-auto shrink-0">
           {/* Grupo 1: Atendimento & Triagem */}
-          {['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
+          {(!temAcesso || temAcesso('pacientes')) && (
             <ItemDock
               rotulo="Pacientes"
               categoria="Atendimento"
@@ -86,7 +99,7 @@ export const Sidebar: FC<SidebarProps> = ({
               icone={<IconePacientes />}
             />
           )}
-          {['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
+          {(!temAcesso || temAcesso('filaDia')) && (
             <ItemDock
               rotulo="Fila do Dia"
               categoria="Atendimento"
@@ -96,7 +109,7 @@ export const Sidebar: FC<SidebarProps> = ({
               icone={<IconeFila />}
             />
           )}
-          {['BOOTSTRAP', 'ADMIN', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
+          {(!temAcesso || temAcesso('consultas')) && (
             <ItemDock
               rotulo="Fichas de Atendimento"
               categoria="Atendimento"
@@ -108,20 +121,22 @@ export const Sidebar: FC<SidebarProps> = ({
           )}
 
           {/* Divisor Delicado */}
-          {['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE'].includes(perfilUsuario) && (
+          {(!temAcesso || temAcesso('pacientes') || temAcesso('filaDia') || temAcesso('consultas')) && (
             <div className="w-7 h-[1.5px] bg-slate-100 rounded-full my-1 shrink-0" />
           )}
 
           {/* Grupo 2: Operação & Gestão */}
-          <ItemDock
-            rotulo="Dashboard do Dia"
-            categoria="Operação"
-            descricao="Métricas e gráficos em tempo real"
-            ativo={secaoAtiva === 'dashboard'}
-            aoClicar={() => aoMudarSecao('dashboard')}
-            icone={<IconeDashboard />}
-          />
-          {['BOOTSTRAP', 'ADMIN'].includes(perfilUsuario) && (
+          {(!temAcesso || temAcesso('dashboard')) && (
+            <ItemDock
+              rotulo="Dashboard do Dia"
+              categoria="Operação"
+              descricao="Métricas e gráficos em tempo real"
+              ativo={secaoAtiva === 'dashboard'}
+              aoClicar={() => aoMudarSecao('dashboard')}
+              icone={<IconeDashboard />}
+            />
+          )}
+          {(!temAcesso || temAcesso('escolas')) && (
             <ItemDock
               rotulo="Escolas"
               categoria="Operação"
@@ -131,7 +146,7 @@ export const Sidebar: FC<SidebarProps> = ({
               icone={<IconeEscolas />}
             />
           )}
-          {['BOOTSTRAP', 'ADMIN', 'DPO'].includes(perfilUsuario) && (
+          {(!temAcesso || temAcesso('relatorios')) && (
             <ItemDock
               rotulo="Relatórios"
               categoria="Operação"
@@ -143,12 +158,12 @@ export const Sidebar: FC<SidebarProps> = ({
           )}
 
           {/* Divisor Delicado */}
-          {['BOOTSTRAP', 'ADMIN', 'DPO'].includes(perfilUsuario) && (
+          {(!temAcesso || temAcesso('dashboard') || temAcesso('escolas') || temAcesso('relatorios')) && (
             <div className="w-7 h-[1.5px] bg-slate-100 rounded-full my-1 shrink-0" />
           )}
 
           {/* Grupo 3: Segurança & Controle */}
-          {['BOOTSTRAP', 'ADMIN'].includes(perfilUsuario) && (
+          {(!temAcesso || temAcesso('usuarios')) && (
             <ItemDock
               rotulo="Usuários & Permissões"
               categoria="Segurança"
@@ -156,16 +171,6 @@ export const Sidebar: FC<SidebarProps> = ({
               ativo={secaoAtiva === 'usuarios'}
               aoClicar={() => aoMudarSecao('usuarios')}
               icone={<IconeUsuarios />}
-            />
-          )}
-          {['BOOTSTRAP', 'ADMIN', 'DPO'].includes(perfilUsuario) && (
-            <ItemDock
-              rotulo="Auditoria & Governança"
-              categoria="Segurança"
-              descricao="Trilha de auditoria e conformidade"
-              ativo={secaoAtiva === 'governanca'}
-              aoClicar={() => aoMudarSecao('governanca')}
-              icone={<IconeGovernanca />}
             />
           )}
         </nav>
@@ -208,6 +213,26 @@ export const Sidebar: FC<SidebarProps> = ({
             </div>
           </div>
 
+          {/* Botão Alterar Senha */}
+          <div className="relative group">
+            <button
+              type="button"
+              onClick={aoMudarSenha}
+              className="w-10 h-8 rounded-2xl flex items-center justify-center transition-all duration-200 cursor-pointer active:scale-95 border border-transparent text-slate-400 hover:text-blue-600 hover:bg-blue-50/80 active:bg-blue-100 hover:border-blue-200"
+              aria-label="Alterar Senha"
+            >
+              <KeyRound className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" />
+            </button>
+
+            {/* Tooltip do Botão Alterar Senha */}
+            <div className="absolute left-full ml-3.5 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center z-50 pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+              <div className="bg-blue-50 text-blue-700 text-[11px] font-bold px-3 py-1.5 rounded-2xl shadow-lg shadow-slate-900/5 border border-blue-200 whitespace-nowrap flex items-center">
+                <span>Alterar Senha</span>
+              </div>
+              <div className="w-2 h-2 bg-blue-50 border-l border-b border-blue-200 rotate-45 -ml-1 absolute left-0 top-1/2 -translate-y-1/2" />
+            </div>
+          </div>
+
           {/* Botão Deslogar / Sair */}
           <div className="relative group" ref={containerSairRef}>
             <button
@@ -227,11 +252,7 @@ export const Sidebar: FC<SidebarProps> = ({
               }`}
               aria-label="Encerrar Sessão"
             >
-              <svg className={`w-4 h-4 transition-transform duration-200 ${!confirmandoSaida ? 'group-hover:translate-x-0.5' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
+              <LogOut className={`w-4 h-4 transition-transform duration-200 ${!confirmandoSaida ? 'group-hover:translate-x-0.5' : ''}`} />
             </button>
 
             {/* Tooltip do Botão Deslogar */}
@@ -356,68 +377,17 @@ const ItemDock: FC<ItemDockProps> = ({
 
 /* ─── Ícones SVG Vetoriais Modernos e Nítidos (20px) ─────────────────────── */
 
-const IconePacientes = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24">
-    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-    <circle cx="9" cy="7" r="4" />
-    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-  </svg>
-);
+const IconePacientes = () => <UsersRound className="w-5 h-5" />;
 
-const IconeFila = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="10" />
-    <polyline points="12 6 12 12 16 14" />
-  </svg>
-);
+const IconeFila = () => <Clock3 className="w-5 h-5" />;
 
-const IconeConsultas = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-    <polyline points="14 2 14 8 20 8" />
-    <line x1="16" y1="13" x2="8" y2="13" />
-    <line x1="16" y1="17" x2="8" y2="17" />
-  </svg>
-);
+const IconeConsultas = () => <FileText className="w-5 h-5" />;
 
-const IconeDashboard = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24">
-    <rect x="3" y="3" width="7" height="7" rx="1.5" />
-    <rect x="14" y="3" width="7" height="7" rx="1.5" />
-    <rect x="14" y="14" width="7" height="7" rx="1.5" />
-    <rect x="3" y="14" width="7" height="7" rx="1.5" />
-  </svg>
-);
+const IconeDashboard = () => <LayoutDashboard className="w-5 h-5" />;
 
-const IconeEscolas = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24">
-    <path d="M3 21h18" />
-    <path d="M5 21V7l8-4v18" />
-    <path d="M19 21V11l-6-4" />
-    <path d="M9 9h1" />
-    <path d="M9 13h1" />
-  </svg>
-);
+const IconeEscolas = () => <Building2 className="w-5 h-5" />;
 
-const IconeRelatorios = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="10" />
-    <path d="M12 2a10 10 0 0 1 10 10h-10z" />
-  </svg>
-);
+const IconeRelatorios = () => <PieChart className="w-5 h-5" />;
 
-const IconeUsuarios = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24">
-    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-    <circle cx="8.5" cy="7" r="4" />
-    <line x1="20" y1="8" x2="20" y2="14" />
-    <line x1="23" y1="11" x2="17" y2="11" />
-  </svg>
-);
+const IconeUsuarios = () => <UserPlus className="w-5 h-5" />;
 
-const IconeGovernanca = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24">
-    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-  </svg>
-);

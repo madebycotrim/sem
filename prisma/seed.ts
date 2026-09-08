@@ -22,7 +22,7 @@ async function main() {
   console.log(`✅ ${escolas.length} polos criados ou atualizados.`);
 
   // --- Usuário ADMIN padrão (senha: Admin@12345678) ---
-  const { gerarHashSenha } = await import('../src/infraestrutura/criptografia/senha.js');
+  const { gerarHashSenha } = await import('../functions/infraestrutura/criptografia/senha.js');
   const senhaHashDev = await gerarHashSenha('Admin@12345678');
 
   const admin = await prisma.usuario.upsert({

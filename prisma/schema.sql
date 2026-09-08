@@ -8,6 +8,12 @@ CREATE TABLE IF NOT EXISTS usuarios (
   senha_hash TEXT NOT NULL,
   nome_completo TEXT NOT NULL,
   perfil TEXT NOT NULL,
+  conselho_profissional TEXT,
+  registro_profissional TEXT,
+  especialidade TEXT,
+  senha_temporaria INTEGER NOT NULL DEFAULT 0,
+  senha_temporaria_expira_em DATETIME,
+  ultimo_acesso DATETIME,
   mfa_secret TEXT,
   mfa_ativo INTEGER DEFAULT 0,
   ativo INTEGER DEFAULT 1,
@@ -79,4 +85,13 @@ CREATE TABLE IF NOT EXISTS atendimentos (
   FOREIGN KEY (paciente_id) REFERENCES pacientes(id),
   FOREIGN KEY (escola_local_id) REFERENCES escolas_locais(id),
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+);
+
+CREATE TABLE IF NOT EXISTS configuracoes_rbac (
+  id TEXT PRIMARY KEY,
+  perfil TEXT UNIQUE NOT NULL,
+  modulos TEXT NOT NULL,
+  acoes TEXT NOT NULL,
+  atualizado_por TEXT,
+  atualizado_em DATETIME NOT NULL
 );

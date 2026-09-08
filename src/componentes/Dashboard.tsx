@@ -1,5 +1,6 @@
 import { type FC } from 'react';
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
+import { BarChart3, Building2, ClipboardCheck, FileText, Lightbulb, Target, UserPlus, UsersRound, Check } from 'lucide-react';
 
 export interface DashboardProps {
   totalPacientes: number;
@@ -44,21 +45,14 @@ export const Dashboard: FC<DashboardProps> = ({
               Estudantes Cadastrados
             </span>
             <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
+              <UsersRound className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-3">
             <p className="text-3xl font-extrabold text-[#0b2545] tracking-tight">{totalPacientes}</p>
             <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5 font-medium">
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-2xl text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <svg className="w-2.5 h-2.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+                <Check className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
                 Art. 14 LGPD
               </span>
               <span>Termos válidos</span>
@@ -73,11 +67,7 @@ export const Dashboard: FC<DashboardProps> = ({
               Atendimentos Realizados
             </span>
             <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-                <rect x="9" y="3" width="6" height="4" rx="1" />
-                <path d="m9 14 2 2 4-4" />
-              </svg>
+              <ClipboardCheck className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-3">
@@ -95,13 +85,7 @@ export const Dashboard: FC<DashboardProps> = ({
               Polos Escolares
             </span>
             <div className="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                <path d="M3 21h18" />
-                <path d="M5 21V7l8-4v18" />
-                <path d="M19 21V11l-6-4" />
-                <path d="M9 9h1" />
-                <path d="M9 13h1" />
-              </svg>
+              <Building2 className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-3">
@@ -119,11 +103,7 @@ export const Dashboard: FC<DashboardProps> = ({
               Taxa de Cobertura
             </span>
             <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" />
-                <circle cx="12" cy="12" r="6" />
-                <circle cx="12" cy="2" />
-              </svg>
+              <Target className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-3">
@@ -142,9 +122,7 @@ export const Dashboard: FC<DashboardProps> = ({
           <div>
             <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
               <h3 className="text-xs font-bold text-[#0b2545] uppercase tracking-wider flex items-center gap-2">
-                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                </svg>
+                <Lightbulb className="w-4 h-4 text-blue-600" />
                 <span>Ações Rápidas do Sistema</span>
               </h3>
               <span className="text-[11px] text-slate-400 font-medium">Atalhos Operacionais</span>
@@ -157,12 +135,7 @@ export const Dashboard: FC<DashboardProps> = ({
                 className="p-4 rounded-2xl border border-blue-200/90 bg-gradient-to-br from-blue-50/60 to-white hover:from-blue-100/70 hover:to-blue-50/40 text-left transition-all cursor-pointer group shadow-2xs active:scale-[0.99]"
               >
                 <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center mb-2.5 shadow-2xs group-hover:scale-105 transition-transform">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="8.5" cy="7" r="4" />
-                    <line x1="20" y1="8" x2="20" y2="14" />
-                    <line x1="23" y1="11" x2="17" y2="11" />
-                  </svg>
+                  <UserPlus className="w-5 h-5" />
                 </div>
                 <h4 className="text-xs font-bold text-blue-900 group-hover:text-blue-700">
                   Cadastrar Novo Paciente
@@ -181,12 +154,7 @@ export const Dashboard: FC<DashboardProps> = ({
                 className="p-4 rounded-2xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/60 to-white hover:from-emerald-100/70 hover:to-emerald-50/40 text-left transition-all cursor-pointer group shadow-2xs active:scale-[0.99]"
               >
                 <div className="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center mb-2.5 shadow-2xs group-hover:scale-105 transition-transform">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="12" y1="18" x2="12" y2="12" />
-                    <line x1="9" y1="15" x2="15" y2="15" />
-                  </svg>
+                  <FileText className="w-5 h-5" />
                 </div>
                 <h4 className="text-xs font-bold text-emerald-900 group-hover:text-emerald-700">
                   Registrar Atendimento Clínico
@@ -212,11 +180,7 @@ export const Dashboard: FC<DashboardProps> = ({
           <div>
             <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
               <h3 className="text-xs font-bold text-[#0b2545] uppercase tracking-wider flex items-center gap-2">
-                <svg className="w-4 h-4 text-[#0066ff]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M12 20V10" />
-                  <path d="M18 20V4" />
-                  <path d="M6 20v-4" />
-                </svg>
+                <BarChart3 className="w-4 h-4 text-[#0066ff]" />
                 <span>Atendimentos por Especialidade</span>
               </h3>
               <span className="text-[11px] text-slate-400 font-medium">Hoje</span>

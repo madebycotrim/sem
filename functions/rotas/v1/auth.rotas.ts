@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { setCookie, deleteCookie } from 'hono/cookie';
 import { sign } from 'hono/jwt';
@@ -6,10 +7,16 @@ import * as OTPAuth from 'otpauth';
 import { loginSchema, verificarMfaSchema } from '../../../compartilhado/index.js';
 import { getPrisma } from '../../infraestrutura/banco/prisma.js';
 import { verificarSenha } from '../../infraestrutura/criptografia/senha.js';
+import { gerarHashSenha } from '../../infraestrutura/criptografia/senha.js';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import type { Bindings } from '../../config/env.js';
 
 export const rotasAuth = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
+
+const alterarSenhaSchema = z.object({
+  senhaAtual: z.string().min(1),
+  novaSenha: z.string().min(8, 'A nova senha deve ter pelo menos 8 caracteres'),
+});
 
 /**
  * POST /auth/login
@@ -44,7 +51,7 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
       usuario: {
         id: '00000000-0000-0000-0000-000000000000',
         email: body.email,
-        nomeCompleto: 'Super Admin (Bootstrap)',
+        nomeCompleto: 'MATEUS R F COTRIM',
         perfil: 'BOOTSTRAP',
         mfaAtivo: false,
         mfaVerificado: true,
@@ -65,6 +72,12 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
   if (!senhaValida) {
     return c.json({ erro: 'Credenciais inválidas.' }, 401);
   }
+
+  if (usuario.senhaTemporaria && (!usuario.senhaTemporariaExpiraEm || usuario.senhaTemporariaExpiraEm < new Date())) {
+    return c.json({ erro: 'A senha temporária expirou. Solicite uma nova senha.', codigo: 'SENHA_TEMPORARIA_EXPIRADA' }, 403);
+  }
+
+  await prisma.usuario.update({ where: { id: usuario.id }, data: { ultimoAcesso: new Date() } });
 
   const mfaVerificado = !usuario.mfaAtivo;
 
@@ -95,8 +108,31 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
       mfaAtivo: usuario.mfaAtivo,
       mfaVerificado,
     },
+    trocaSenhaObrigatoria: usuario.senhaTemporaria,
     token, // Para clientes que usam Header Authorization (mobile / SSR)
   });
+});
+
+rotasAuth.post('/alterar-senha', middlewareAutenticacao, zValidator('json', alterarSenhaSchema), async (c) => {
+  const usuarioLogado = c.get('usuario');
+  const dados = c.req.valid('json');
+  const prisma = getPrisma(c.env.DB);
+  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioLogado.userId } });
+
+  if (!usuario || !(await verificarSenha(dados.senhaAtual, usuario.senhaHash))) {
+    return c.json({ erro: 'Senha atual inválida.' }, 401);
+  }
+
+  await prisma.usuario.update({
+    where: { id: usuario.id },
+    data: {
+      senhaHash: await gerarHashSenha(dados.novaSenha),
+      senhaTemporaria: false,
+      senhaTemporariaExpiraEm: null,
+    },
+  });
+
+  return c.json({ mensagem: 'Senha alterada com sucesso.' });
 });
 
 /**
@@ -174,10 +210,11 @@ rotasAuth.get('/me', middlewareAutenticacao, async (c) => {
       usuario: {
         id: usuarioLogado.userId,
         email: usuarioLogado.email,
-        nomeCompleto: 'Super Admin (Bootstrap)',
+        nomeCompleto: 'MATEUS R F COTRIM',
         perfil: 'BOOTSTRAP',
         mfaAtivo: false,
         ativo: true,
+        trocaSenhaObrigatoria: false,
         criadoEm: new Date(),
         mfaVerificado: usuarioLogado.mfaVerificado,
       },
@@ -194,6 +231,7 @@ rotasAuth.get('/me', middlewareAutenticacao, async (c) => {
       mfaAtivo: true,
       ativo: true,
       criadoEm: true,
+      senhaTemporaria: true,
     },
   });
 
@@ -204,6 +242,7 @@ rotasAuth.get('/me', middlewareAutenticacao, async (c) => {
   return c.json({
     usuario: {
       ...usuario,
+      trocaSenhaObrigatoria: usuario.senhaTemporaria,
       mfaVerificado: usuarioLogado.mfaVerificado,
     },
   });

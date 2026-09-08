@@ -23,6 +23,12 @@ model Usuario {
   senhaHash     String   @map("senha_hash")
   nomeCompleto  String   @map("nome_completo")
   perfil        String   // ADMIN | TRIAGEM_RECEPCAO | PROFISSIONAL_SAUDE | DPO
+  conselhoProfissional String? @map("conselho_profissional")
+  registroProfissional String? @map("registro_profissional")
+  especialidade String?
+  senhaTemporaria Boolean @default(false) @map("senha_temporaria")
+  senhaTemporariaExpiraEm DateTime? @map("senha_temporaria_expira_em")
+  ultimoAcesso DateTime? @map("ultimo_acesso")
   mfaSecret     String?  @map("mfa_secret")
   mfaAtivo      Boolean  @default(false) @map("mfa_ativo")
   ativo         Boolean  @default(true)
@@ -145,4 +151,21 @@ model Atendimento {
   atualizadoEm          DateTime @updatedAt @map("atualizado_em")
 
   @@map("atendimentos")
+}
+
+// ─── Configuração RBAC (Dinâmica) ────────────────────────────────────────────
+// Armazena as permissões (módulos e ações) atreladas a cada perfil.
+// Os campos `modulos` e `acoes` armazenam o JSON em texto.
+
+model ConfiguracaoRbac {
+  id            String   @id @default(uuid())
+  perfil        String   @unique // ADMIN, TRIAGEM_RECEPCAO, PROFISSIONAL_SAUDE, DPO
+  
+  modulos       String   // JSON string
+  acoes         String   // JSON string
+
+  atualizadoPor String?  @map("atualizado_por")
+  atualizadoEm  DateTime @updatedAt @map("atualizado_em")
+
+  @@map("configuracoes_rbac")
 }

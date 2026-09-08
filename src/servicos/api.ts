@@ -55,7 +55,14 @@ export async function requisicaoApi<T = unknown>(
 
         // Não fazer retry em erros de validação/autenticação (4xx)
         if (resposta.status >= 400 && resposta.status < 500) {
-          throw new ErroApi(resposta.status, erroBody.erro ?? 'Erro na requisição', erroBody.detalhes);
+          const detalhes = erroBody.detalhes
+            ? Object.values(erroBody.detalhes).flat().join(' ')
+            : undefined;
+          throw new ErroApi(
+            resposta.status,
+            [erroBody.erro ?? 'Erro na requisição', detalhes].filter(Boolean).join(' '),
+            erroBody.detalhes
+          );
         }
 
         throw new ErroApi(resposta.status, erroBody.erro ?? 'Erro no servidor');

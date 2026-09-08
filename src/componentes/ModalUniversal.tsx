@@ -10,6 +10,7 @@ import {
   BotaoModal,
   type TamanhoModal,
 } from './Modal.tsx';
+import { CircleAlert, CircleCheck, Info, TriangleAlert } from 'lucide-react';
 
 export type TipoModalUniversal = 'confirmacao' | 'alerta' | 'formulario' | 'detalhes';
 export type VarianteModalUniversal = 'primario' | 'sucesso' | 'perigo' | 'alerta' | 'info';
@@ -35,52 +36,23 @@ export interface PropsModalUniversal {
 const MAPA_ICONES_VARIANTE: Record<VarianteModalUniversal, { icone: ReactNode; corIcone: string }> = {
   primario: {
     corIcone: 'bg-blue-50 border-blue-100 text-blue-600',
-    icone: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="16" x2="12" y2="12" />
-        <line x1="12" y1="8" x2="12.01" y2="8" />
-      </svg>
-    ),
+    icone: <Info className="w-5 h-5" />,
   },
   sucesso: {
     corIcone: 'bg-emerald-50 border-emerald-100 text-emerald-600',
-    icone: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-        <polyline points="22 4 12 14.01 9 11.01" />
-      </svg>
-    ),
+    icone: <CircleCheck className="w-5 h-5" />,
   },
   perigo: {
     corIcone: 'bg-red-50 border-red-100 text-red-600',
-    icone: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-        <line x1="12" y1="9" x2="12" y2="13" />
-        <line x1="12" y1="17" x2="12.01" y2="17" />
-      </svg>
-    ),
+    icone: <TriangleAlert className="w-5 h-5" />,
   },
   alerta: {
     corIcone: 'bg-amber-50 border-amber-100 text-amber-600',
-    icone: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="8" x2="12" y2="12" />
-        <line x1="12" y1="16" x2="12.01" y2="16" />
-      </svg>
-    ),
+    icone: <CircleAlert className="w-5 h-5" />,
   },
   info: {
     corIcone: 'bg-sky-50 border-sky-100 text-sky-600',
-    icone: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="16" x2="12" y2="12" />
-        <line x1="12" y1="8" x2="12.01" y2="8" />
-      </svg>
-    ),
+    icone: <Info className="w-5 h-5" />,
   },
 };
 
@@ -146,6 +118,8 @@ export const ModalUniversal: FC<PropsModalUniversal> = ({
       icone={iconeFinal}
       tamanho={tamanho}
       formId={formId}
+      className="!p-0 overflow-hidden bg-[#f7f9fc]"
+      contentClassName="px-6 py-5"
       rodape={
         ehModoAlerta ? (
           <BotaoModal
@@ -154,7 +128,7 @@ export const ModalUniversal: FC<PropsModalUniversal> = ({
             aoClicar={aoFechar}
           />
         ) : (
-          <>
+          <div className="flex items-center justify-end gap-3 w-full">
             <BotaoModal
               variante="secundario"
               rotulo={textoCancelar}
@@ -177,16 +151,18 @@ export const ModalUniversal: FC<PropsModalUniversal> = ({
                 carregando={carregandoConfirmacao}
               />
             )}
-          </>
+          </div>
         )
       }
     >
-      {mensagem && (
-        <div className="text-xs text-slate-600 leading-relaxed space-y-2 mb-4">
-          {typeof mensagem === 'string' ? <p>{mensagem}</p> : mensagem}
-        </div>
-      )}
-      {children}
+      <div className="space-y-4 p-0">
+        {mensagem && (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[12.5px] leading-relaxed text-slate-600">
+            {typeof mensagem === 'string' ? <p>{mensagem}</p> : mensagem}
+          </div>
+        )}
+        {children}
+      </div>
     </Modal>
   );
 };

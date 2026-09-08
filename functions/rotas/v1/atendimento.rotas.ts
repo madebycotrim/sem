@@ -1,6 +1,12 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { fichaAtendimentoSchema, filtroAtendimentoSchema } from '../../../compartilhado/index.js';
+import { z } from 'zod';
+import {
+  fichaAtendimentoSchema,
+  filtroAtendimentoSchema,
+  Especialidade,
+  Turno,
+} from '../../../compartilhado/index.js';
 import { getPrisma } from '../../infraestrutura/banco/prisma.js';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
@@ -10,6 +16,15 @@ import { descriptografarPii } from '../../infraestrutura/criptografia/crypto.js'
 import type { Bindings } from '../../config/env.js';
 
 export const rotasAtendimento = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
+
+const filtroRelatorioSchema = z.object({
+  dataInicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dataFim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  escolaLocalId: z.string().uuid().optional(),
+  especialidade: z.nativeEnum(Especialidade).optional(),
+  turno: z.nativeEnum(Turno).optional(),
+  usuarioId: z.string().uuid().optional(),
+});
 
 // Proteção do grupo de rotas de atendimento
 rotasAtendimento.use('*', middlewareAutenticacao);
@@ -109,6 +124,107 @@ rotasAtendimento.post(
 );
 
 /**
+ * GET /atendimentos/profissionais
+ * Lista todos os profissionais de saúde ativos para filtros e relatórios.
+ */
+rotasAtendimento.get('/profissionais', async (c) => {
+  const prisma = getPrisma(c.env.DB);
+  const profissionais = await prisma.usuario.findMany({
+    where: { perfil: 'PROFISSIONAL_SAUDE', ativo: true },
+    select: { id: true, nomeCompleto: true, especialidade: true },
+    orderBy: { nomeCompleto: 'asc' },
+  });
+
+  return c.json({
+    dados: profissionais.map((profissional) => ({
+      id: profissional.id,
+      nome: profissional.nomeCompleto,
+      especialidade: profissional.especialidade,
+    })),
+  });
+});
+
+/**
+ * GET /atendimentos/relatorio
+ * Agrega somente dados operacionais já filtrados no banco.
+ */
+rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), async (c) => {
+  const filtros = c.req.valid('query');
+  const prisma = getPrisma(c.env.DB);
+  const where: Record<string, unknown> = {};
+
+  if (filtros.escolaLocalId) where.escolaLocalId = filtros.escolaLocalId;
+  if (filtros.especialidade) where.especialidade = filtros.especialidade;
+  if (filtros.turno) where.turno = filtros.turno;
+  if (filtros.usuarioId) where.usuarioId = filtros.usuarioId;
+  if (filtros.dataInicio || filtros.dataFim) {
+    if (filtros.dataInicio && filtros.dataFim && filtros.dataInicio > filtros.dataFim) {
+      return c.json({ erro: 'A data inicial não pode ser posterior à data final.' }, 400);
+    }
+    const criadoEm: { gte?: Date; lte?: Date } = {};
+    if (filtros.dataInicio) criadoEm.gte = new Date(`${filtros.dataInicio}T00:00:00.000Z`);
+    if (filtros.dataFim) criadoEm.lte = new Date(`${filtros.dataFim}T23:59:59.999Z`);
+    where.criadoEm = criadoEm;
+  }
+
+  const atendimentos = await prisma.atendimento.findMany({
+    where,
+    select: {
+      especialidade: true,
+      turno: true,
+      encaminhamentoExterno: true,
+      criadoEm: true,
+      escolaLocal: { select: { id: true, nome: true } },
+      usuario: { select: { id: true, nomeCompleto: true } },
+    },
+    orderBy: { criadoEm: 'desc' },
+  });
+
+  const porEspecialidade = new Map<string, { total: number; encaminhamentos: number }>();
+  let totalEncaminhamentos = 0;
+  const porEscola = new Map<string, { id: string; nome: string; total: number }>();
+  const porProfissional = new Map<string, { id: string; nome: string; total: number }>();
+
+  for (const atendimento of atendimentos) {
+    const especialidade = porEspecialidade.get(atendimento.especialidade) ?? { total: 0, encaminhamentos: 0 };
+    especialidade.total += 1;
+    if (atendimento.encaminhamentoExterno?.trim()) {
+      especialidade.encaminhamentos += 1;
+      totalEncaminhamentos += 1;
+    }
+    porEspecialidade.set(atendimento.especialidade, especialidade);
+    const escola = porEscola.get(atendimento.escolaLocal.id) ?? {
+      id: atendimento.escolaLocal.id,
+      nome: atendimento.escolaLocal.nome,
+      total: 0,
+    };
+    escola.total += 1;
+    porEscola.set(escola.id, escola);
+    const profissional = porProfissional.get(atendimento.usuario.id) ?? {
+      id: atendimento.usuario.id,
+      nome: atendimento.usuario.nomeCompleto,
+      total: 0,
+    };
+    profissional.total += 1;
+    porProfissional.set(profissional.id, profissional);
+  }
+
+  return c.json({
+    total: atendimentos.length,
+    totalEncaminhamentos,
+    porEspecialidade: Array.from(porEspecialidade, ([especialidade, valores]) => ({ especialidade, ...valores }))
+      .sort((a, b) => b.total - a.total),
+    porEscola: Array.from(porEscola.values()).sort((a, b) => b.total - a.total),
+    porProfissional: Array.from(porProfissional.values()).sort((a, b) => b.total - a.total),
+    serie: atendimentos.reduce<Record<string, number>>((acc, atendimento) => {
+      const dia = atendimento.criadoEm.toISOString().slice(0, 10);
+      acc[dia] = (acc[dia] ?? 0) + 1;
+      return acc;
+    }, {}),
+  });
+});
+
+/**
  * GET /atendimentos
  * Lista atendimentos com filtros e paginação.
  */
@@ -120,6 +236,7 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
   if (filtros.especialidade) where['especialidade'] = filtros.especialidade;
   if (filtros.turno) where['turno'] = filtros.turno;
   if (filtros.escolaLocalId) where['escolaLocalId'] = filtros.escolaLocalId;
+  if (filtros.usuarioId) where['usuarioId'] = filtros.usuarioId;
   if (filtros.pacienteId) where['pacienteId'] = filtros.pacienteId;
   if (filtros.dataInicio || filtros.dataFim) {
     where['criadoEm'] = {

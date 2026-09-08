@@ -3,6 +3,7 @@ import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import { ModalNovaEscola } from './ModalNovaEscola.tsx';
 import { Modal, BotaoModal } from './Modal.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
+import { Building2, ChevronDown, MapPin, Pencil, Plus, Trash2, X } from 'lucide-react';
 
 export interface EscolaPolo {
   id: string;
@@ -22,6 +23,7 @@ export interface EscolasProps {
   escolaAtivaId: string;
   aoSelecionarEscolaAtiva: (escolaId: string) => void;
   aoRecarregarEscolas: () => void;
+  podeGerenciar: boolean;
 }
 
 export const Escolas: FC<EscolasProps> = ({
@@ -29,6 +31,7 @@ export const Escolas: FC<EscolasProps> = ({
   escolaAtivaId,
   aoSelecionarEscolaAtiva,
   aoRecarregarEscolas,
+  podeGerenciar,
 }) => {
   const [busca, setBusca] = useState('');
   const [modalAberto, setModalAberto] = useState(false);
@@ -53,10 +56,10 @@ export const Escolas: FC<EscolasProps> = ({
           aoMudar: setBusca,
           placeholder: 'Buscar escola ou região...',
         }}
-        acaoPrimaria={{
+        acaoPrimaria={podeGerenciar ? {
           rotulo: 'Nova Instituição',
           aoClicar: () => setModalAberto(true),
-        }}
+        } : undefined}
         fixo={true}
       />
 
@@ -64,9 +67,7 @@ export const Escolas: FC<EscolasProps> = ({
       {filtradas.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center min-h-[380px] py-16 px-4 my-auto text-center animate-fade-in">
           <div className="w-14 h-14 rounded-3xl bg-slate-100 border border-slate-200/80 text-slate-400 flex items-center justify-center mb-3.5 shadow-2xs">
-            <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-              <path d="M19 21V11l-6-4M3 21h18M5 21V7l8-4v18M9 9h1M9 13h1" />
-            </svg>
+            <Building2 className="w-7 h-7" />
           </div>
           <h3 className="text-sm font-extrabold text-slate-700 tracking-tight">
             {busca ? 'Nenhuma instituição encontrada' : 'Nenhuma instituição cadastrada'}
@@ -90,9 +91,7 @@ export const Escolas: FC<EscolasProps> = ({
               onClick={() => setModalAberto(true)}
               className="mt-4 px-4.5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-2xl transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
+              <Plus className="w-3.5 h-3.5" />
               <span>Cadastrar Nova Instituição</span>
             </button>
           )}
@@ -120,13 +119,7 @@ export const Escolas: FC<EscolasProps> = ({
                           : 'bg-slate-50 border border-slate-200/80 text-slate-500'
                       }`}
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                        <path d="M3 21h18" />
-                        <path d="M5 21V7l8-4v18" />
-                        <path d="M19 21V11l-6-4" />
-                        <path d="M9 9h1" />
-                        <path d="M9 13h1" />
-                      </svg>
+                      <Building2 className="w-5 h-5" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <h3 className="text-sm font-bold text-[#0b2545] leading-snug">{escola.nome}</h3>
@@ -136,10 +129,7 @@ export const Escolas: FC<EscolasProps> = ({
 
                   {/* Endereço */}
                   <p className="text-xs text-slate-500 mb-3.5 font-normal flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z" />
-                      <circle cx="12" cy="10" r="3" />
-                    </svg>
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span className="text-slate-500">{escola.endereco}</span>
                   </p>
 
@@ -166,9 +156,7 @@ export const Escolas: FC<EscolasProps> = ({
                         className="group h-7 inline-flex items-center gap-1.5 px-3.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-600 hover:bg-rose-600 text-white shadow-2xs shrink-0 transition-all cursor-pointer active:scale-95"
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse group-hover:hidden" />
-                        <svg className="w-3 h-3 hidden group-hover:block" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                          <path d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <X className="w-3 h-3 hidden group-hover:block" />
                         <span className="group-hover:hidden">INSTITUIÇÃO ATIVA</span>
                         <span className="hidden group-hover:inline">DESATIVAR</span>
                       </button>
@@ -199,17 +187,7 @@ export const Escolas: FC<EscolasProps> = ({
                         }`}
                       >
                         <span>Opções</span>
-                        <svg
-                          className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-150 ${
-                            menuOpcoesAbertoId === escola.id ? 'rotate-180 text-slate-700' : ''
-                          }`}
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <polyline points="6 9 12 15 18 9" />
-                        </svg>
+                        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-150 ${menuOpcoesAbertoId === escola.id ? 'rotate-180 text-slate-700' : ''}`} />
                       </button>
 
                       {menuOpcoesAbertoId === escola.id && (
@@ -219,7 +197,7 @@ export const Escolas: FC<EscolasProps> = ({
                             onClick={() => setMenuOpcoesAbertoId(null)}
                           />
                           <div className="absolute right-0 bottom-full mb-1.5 w-44 bg-white border border-slate-200/95 rounded-2xl shadow-xl z-50 py-1.5 text-left text-xs animate-dropdown origin-bottom-right ring-1 ring-black/5">
-                            <button
+                            {podeGerenciar && <button
                               type="button"
                               onClick={() => {
                                 setMenuOpcoesAbertoId(null);
@@ -227,16 +205,13 @@ export const Escolas: FC<EscolasProps> = ({
                               }}
                               className="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors cursor-pointer"
                             >
-                              <svg className="w-3.5 h-3.5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
+                              <Pencil className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                               <span>Editar Instituição</span>
-                            </button>
+                            </button>}
 
-                            <div className="my-1 border-t border-slate-100" />
+                            {podeGerenciar && <div className="my-1 border-t border-slate-100" />}
 
-                            <button
+                            {podeGerenciar && <button
                               type="button"
                               onClick={() => {
                                 setMenuOpcoesAbertoId(null);
@@ -244,14 +219,9 @@ export const Escolas: FC<EscolasProps> = ({
                               }}
                               className="w-full px-3.5 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer"
                             >
-                              <svg className="w-3.5 h-3.5 text-rose-500 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                <line x1="10" y1="11" x2="10" y2="17" />
-                                <line x1="14" y1="11" x2="14" y2="17" />
-                              </svg>
+                              <Trash2 className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                               <span>Arquivar Instituição</span>
-                            </button>
+                            </button>}
                           </div>
                         </>
                       )}
@@ -287,10 +257,7 @@ export const Escolas: FC<EscolasProps> = ({
         subtitulo={escolaParaExcluir ? `Tem certeza que deseja arquivar "${escolaParaExcluir.nome}"?` : ''}
         tamanho="sm"
         icone={
-          <svg className="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-          </svg>
+          <Trash2 className="w-5 h-5 text-rose-500" />
         }
         rodape={
           <>
@@ -314,6 +281,7 @@ export const Escolas: FC<EscolasProps> = ({
                   aoRecarregarEscolas();
                   setEscolaParaExcluir(null);
                 } catch (erro) {
+                  console.error('Erro ao arquivar instituição:', erro);
                 } finally {
                   setExcluindo(false);
                 }

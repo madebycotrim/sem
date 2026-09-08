@@ -72,6 +72,7 @@ export const filtroAtendimentoSchema = z.object({
   especialidade: z.nativeEnum(Especialidade).optional(),
   turno: z.nativeEnum(Turno).optional(),
   escolaLocalId: z.string().uuid().optional(),
+  usuarioId: z.string().uuid().optional(),
   pacienteId: z.string().uuid().optional(),
   dataInicio: z
     .string()

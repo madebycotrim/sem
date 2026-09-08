@@ -1,4 +1,5 @@
 import { type FC, useState, useMemo } from 'react';
+import { FileText, RotateCcw } from 'lucide-react';
 import { ESPECIALIDADE_LABELS, TURNO_LABELS, Especialidade, Turno } from '../../compartilhado/index.ts';
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import {
@@ -9,6 +10,7 @@ import {
 } from './tabelaExcel/index.ts';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { Paginacao } from './Paginacao.tsx';
+import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 
 export interface ItemAtendimentoLista {
   id: string;
@@ -220,12 +222,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                   <td colSpan={7} className="py-20 text-center">
                     <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
                       <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-3 ring-8 ring-blue-50/60 shadow-xs">
-                        <svg className="w-7 h-7 text-blue-500" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <polyline points="14 2 14 8 20 8" />
-                          <line x1="16" y1="13" x2="8" y2="13" />
-                          <line x1="16" y1="17" x2="8" y2="17" />
-                        </svg>
+                          <FileText className="w-7 h-7 text-blue-500" />
                       </div>
                       <h4 className="text-base font-bold text-slate-800 mb-1">
                         {temAlgumFiltroAtivo ? 'Nenhum atendimento com esses filtros' : 'Nenhum atendimento registrado'}
@@ -241,10 +238,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                           onClick={() => filtroExcel.limparTodosFiltros()}
                           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl transition-all cursor-pointer"
                         >
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="1 4 1 10 7 10" />
-                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-                          </svg>
+                          <RotateCcw className="w-3.5 h-3.5" />
                           <span>Limpar Filtros das Colunas</span>
                         </button>
                       )}
@@ -275,9 +269,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                       </div>
                     </td>
                     <td className="py-3 px-3.5">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-2xl text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                        {ESPECIALIDADE_LABELS[item.especialidade] || item.especialidade}
-                      </span>
+                      <EspecialidadeBadge especialidade={item.especialidade} compacto />
                     </td>
                     <td className="py-3 px-3.5 text-slate-600 font-medium">
                       {TURNO_LABELS[item.turno] || item.turno}
