@@ -10,15 +10,15 @@ import { Atendimentos, type ItemAtendimentoLista } from './componentes/Atendimen
 import { Dashboard } from './componentes/Dashboard.tsx';
 import { Escolas, type EscolaPolo } from './componentes/Escolas.tsx';
 import { Usuarios } from './componentes/Usuarios.tsx';
-import { Relatorios } from './componentes/Relatorios.tsx';
 import { FichaAtendimento } from './paginas/FichaAtendimento.tsx';
 import { Login } from './paginas/Login.tsx';
 import { TimeoutSessao } from './componentes/TimeoutSessao.tsx';
 import { DrawerHistoricoPaciente } from './componentes/DrawerHistoricoPaciente.tsx';
 import { ModalAlterarSenha } from './componentes/ModalAlterarSenha.tsx';
+import { PainelAnalitico } from './paginas/PainelAnalitico.tsx';
 import { requisicaoApi } from './servicos/api.ts';
 import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCatraki.ts';
-import { PERMISSOES_PADRAO, type PermissoesPerfil, type PerfilAcesso } from '../compartilhado/index.ts';
+import { PERMISSOES_PADRAO, type PermissoesPerfil, type PerfilAcesso, type StatusAtendimento } from '../compartilhado/index.ts';
 
 interface RespostaListaPacientes {
   dados: Array<{
@@ -168,6 +168,7 @@ export function App() {
 
   // Filtros da Visão de Pacientes
   const [buscaPaciente, setBuscaPaciente] = useState('');
+  const [mostrarPacientesPendentes, setMostrarPacientesPendentes] = useState(false);
   const [carregandoPacientes, setCarregandoPacientes] = useState(true);
 
   // Modais
@@ -206,6 +207,7 @@ export function App() {
 
   const navegarParaSecao = (secao: SecaoMenu) => {
     setSecaoAtiva(secao);
+    setMostrarPacientesPendentes(false);
     setModoNovaFicha(false);
     setPacienteSelecionadoParaFicha(null);
     window.location.hash = secao;
@@ -282,11 +284,16 @@ export function App() {
       }
     };
     carregarPacientes();
-    return () => { ativo = false; };
+    const intervalo = window.setInterval(carregarPacientes, 30_000);
+    return () => {
+      ativo = false;
+      window.clearInterval(intervalo);
+    };
   }, [autenticado]);
 
   // Lista de Atendimentos
   const [atendimentos, setAtendimentos] = useState<ItemAtendimentoLista[]>([]);
+  const [carregandoAtendimentos, setCarregandoAtendimentos] = useState(true);
 
   useEffect(() => {
     if (!autenticado) return;
@@ -299,10 +306,16 @@ export function App() {
         if (ativo) {
           mostrarToast(erro instanceof Error ? `Não foi possível carregar os atendimentos: ${erro.message}` : 'Não foi possível carregar os atendimentos.', 'erro');
         }
+      } finally {
+        if (ativo) setCarregandoAtendimentos(false);
       }
     };
     carregarAtendimentos();
-    return () => { ativo = false; };
+    const intervalo = window.setInterval(carregarAtendimentos, 30_000);
+    return () => {
+      ativo = false;
+      window.clearInterval(intervalo);
+    };
   }, [autenticado]);
 
   // Atalho Global Alt+N para novo paciente
@@ -465,8 +478,23 @@ export function App() {
     }
   };
 
+  const handleAtualizarStatusAtendimento = async (id: string, status: StatusAtendimento) => {
+    const statusAnterior = atendimentos.find((atendimento) => atendimento.id === id)?.status;
+    setAtendimentos((lista) => lista.map((atendimento) => atendimento.id === id ? { ...atendimento, status } : atendimento));
+    try {
+      await requisicaoApi(`/atendimentos/${id}/status`, {
+        metodo: 'PATCH',
+        corpo: { status },
+      });
+    } catch (erro) {
+      setAtendimentos((lista) => lista.map((atendimento) => atendimento.id === id ? { ...atendimento, status: statusAnterior } : atendimento));
+      mostrarToast(erro instanceof Error ? `Não foi possível atualizar o status: ${erro.message}` : 'Não foi possível atualizar o status.', 'erro');
+    }
+  };
+
   // Filtragem da Lista de Pacientes
   const pacientesFiltrados = useMemo(() => pacientes.filter((paciente) => {
+    if (mostrarPacientesPendentes && paciente.termoConsentimentoStatus !== 'PENDENTE') return false;
     const termoTexto = normalizarTexto(buscaPaciente.trim());
     const termoNumerico = somenteDigitos(buscaPaciente);
     const correspondeBusca = !termoTexto || [
@@ -478,7 +506,7 @@ export function App() {
     ].some((valor) => normalizarTexto(valor).includes(termoTexto)) ||
       (termoNumerico.length > 0 && [paciente.cpf, paciente.telefone].some((valor) => somenteDigitos(valor).includes(termoNumerico)));
     return correspondeBusca;
-  }), [pacientes, buscaPaciente]);
+  }), [pacientes, buscaPaciente, mostrarPacientesPendentes]);
 
   if (carregandoSessao) {
     return (
@@ -517,6 +545,7 @@ export function App() {
         cargoUsuario={usuarioLogado?.perfil ?? 'Membro'}
         perfilUsuario={usuarioLogado?.perfil}
         temAcesso={temAcesso}
+        aoMudarSenha={() => setModalAlterarSenhaAberto(true)}
         aoMudarSecao={(secao) => {
           navegarParaSecao(secao);
         }}
@@ -665,6 +694,7 @@ export function App() {
               <Atendimentos
                 atendimentos={atendimentos}
                 statusSincronizacaoCatraki={statusSincronizacaoCatraki}
+                aoAtualizarStatus={handleAtualizarStatusAtendimento}
                 aoNovoAtendimento={temPermissao('criarPaciente') ? () => {
                   setModoNovaFicha(true);
                   setPacienteSelecionadoParaFicha(null);
@@ -678,11 +708,17 @@ export function App() {
               <Dashboard
                 totalPacientes={pacientes.length}
                 totalAtendimentos={atendimentos.length}
+                totalInstituicoes={escolasGlobais.length}
+                pacientes={pacientes}
+                atendimentos={atendimentos}
+                carregando={carregandoPacientes || carregandoAtendimentos}
                 aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}
                 aoNovoAtendimento={() => {
                   setModoNovaFicha(true);
                   setPacienteSelecionadoParaFicha(null);
                 }}
+                aoAbrirAtendimentos={() => setSecaoAtiva('consultas')}
+                aoAbrirRelatorios={() => setSecaoAtiva('relatorios')}
               />
             );
           }
@@ -712,7 +748,13 @@ export function App() {
           }
           
           if (secaoAtiva === 'relatorios') {
-            return <Relatorios escolas={escolasGlobais} />;
+            return (
+              <PainelAnalitico
+                atendimentos={atendimentos}
+                pacientes={pacientes}
+                escolas={escolasGlobais}
+              />
+            );
           }
           
           if (secaoAtiva === 'usuarios') {
@@ -722,11 +764,17 @@ export function App() {
           return <Dashboard
             totalPacientes={pacientes.length}
             totalAtendimentos={atendimentos.length}
+            totalInstituicoes={escolasGlobais.length}
+            pacientes={pacientes}
+            atendimentos={atendimentos}
+            carregando={carregandoPacientes || carregandoAtendimentos}
             aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}
             aoNovoAtendimento={() => {
               setModoNovaFicha(true);
               setPacienteSelecionadoParaFicha(null);
             }}
+            aoAbrirAtendimentos={() => setSecaoAtiva('consultas')}
+            aoAbrirRelatorios={() => setSecaoAtiva('relatorios')}
           />;
         })()}
       </main>

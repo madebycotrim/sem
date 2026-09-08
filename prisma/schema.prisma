@@ -140,6 +140,7 @@ model Atendimento {
 
   especialidade         String
   turno                 String
+  status                String   @default("CONCLUIDO")
   resumo                String
   procedimentos         String?
   insumosUtilizados     String?  @map("insumos_utilizados")

@@ -5,6 +5,7 @@ import {
   fichaAtendimentoSchema,
   filtroAtendimentoSchema,
   Especialidade,
+  StatusAtendimento,
   Turno,
 } from '../../../compartilhado/index.js';
 import { getPrisma } from '../../infraestrutura/banco/prisma.js';
@@ -87,6 +88,7 @@ rotasAtendimento.post(
         usuarioId: usuario.userId,
         especialidade: dados.especialidade,
         turno: dados.turno,
+        status: StatusAtendimento.CONCLUIDO,
         resumo: dados.resumo,
         procedimentos: dados.procedimentos ?? null,
         insumosUtilizados: dados.insumosUtilizados ?? null,
@@ -122,6 +124,22 @@ rotasAtendimento.post(
     );
   }
 );
+
+const atualizarStatusSchema = z.object({
+  status: z.enum(Object.values(StatusAtendimento) as [string, ...string[]]),
+});
+
+rotasAtendimento.patch('/:id/status', zValidator('json', atualizarStatusSchema), async (c) => {
+  const prisma = getPrisma(c.env.DB);
+  const { status } = c.req.valid('json');
+  const atendimento = await prisma.atendimento.update({
+    where: { id: c.req.param('id') },
+    data: { status },
+    select: { id: true, status: true, atualizadoEm: true },
+  });
+
+  return c.json(atendimento);
+});
 
 /**
  * GET /atendimentos/profissionais
@@ -286,6 +304,7 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
         pacienteNome,
         especialidade: a.especialidade,
         turno: a.turno,
+        status: a.status,
         resumo: a.resumo,
         procedimentos: a.procedimentos,
         insumosUtilizados: a.insumosUtilizados,

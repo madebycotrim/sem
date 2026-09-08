@@ -11,6 +11,8 @@ import {
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { Paginacao } from './Paginacao.tsx';
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
+import { SelectModal } from './Modal.tsx';
+import { STATUS_ATENDIMENTO_LABELS, StatusAtendimento } from '../../compartilhado/index.ts';
 
 export interface ItemAtendimentoLista {
   id: string;
@@ -21,6 +23,7 @@ export interface ItemAtendimentoLista {
   profissionalNome: string;
   resumo?: string;
   criadoEm: string;
+  status?: StatusAtendimento;
 }
 
 export interface AtendimentosProps {
@@ -33,6 +36,7 @@ export interface AtendimentosProps {
     status: 'sincronizando' | 'sincronizado' | 'erro' | 'ocioso';
     ultimaSincronizacao?: Date | null;
   };
+  aoAtualizarStatus?: (id: string, status: StatusAtendimento) => void;
 }
 
 export const Atendimentos: FC<AtendimentosProps> = ({
@@ -42,6 +46,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   estaSincronizando = false,
   itensPendentes = 0,
   statusSincronizacaoCatraki,
+  aoAtualizarStatus,
 }) => {
   const [busca, setBusca] = useState('');
   const [filtroEspecialidade, setFiltroEspecialidade] = useState<string>('');
@@ -280,10 +285,12 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                       {new Date(item.criadoEm).toLocaleDateString('pt-BR')} {new Date(item.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-2xl text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                        Registrado
-                      </span>
+                      <SelectModal
+                        value={item.status || StatusAtendimento.CONCLUIDO}
+                        onChange={(evento) => aoAtualizarStatus?.(item.id, evento.target.value as StatusAtendimento)}
+                        className="h-8 min-w-[132px] text-[11px]"
+                        opcoes={Object.entries(STATUS_ATENDIMENTO_LABELS).map(([valor, rotulo]) => ({ valor, rotulo: String(rotulo) }))}
+                      />
                     </td>
                   </tr>
                 ))
