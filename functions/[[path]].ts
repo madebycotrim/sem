@@ -13,7 +13,7 @@ const app = new Hono<{ Bindings: Bindings }>();
 // Middlewares Globais
 app.use('*', logger());
 app.use('*', secureHeaders());
-app.use('*', async (c, next) => {
+app.use('/api/*', async (c, next) => {
   const env = carregarEnv(c.env);
   const corsMiddleware = cors({
     origin: env.CORS_ORIGINS.split(',').map((o) => o.trim()),
