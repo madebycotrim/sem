@@ -90,7 +90,7 @@ export const Escolas: FC<EscolasProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtradas.map((escola) => {
-            const estaAtiva = escola.id === escolaAtivaId;
+            const estaAtiva = escola.id === escolaAtivaId || escola.status === 'ESTACIONADA_HOJE';
             return (
               <div
                 key={escola.id}

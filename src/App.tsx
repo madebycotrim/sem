@@ -150,7 +150,13 @@ export function App() {
   }, []);
   const [secaoAtiva, setSecaoAtiva] = useState<SecaoMenu>(obterSecaoInicial);
   const [pacienteHistoricoDrawer, setPacienteHistoricoDrawer] = useState<ItemPaciente | null>(null);
-  const [escolaAtivaId, setEscolaAtivaId] = useState('');
+  const [escolaAtivaId, setEscolaAtivaId] = useState<string>(() => {
+    try {
+      return localStorage.getItem('catraki_escola_ativa_id') || '';
+    } catch {
+      return '';
+    }
+  });
 
   // Sincronização Automática em Segundo Plano com a API Catraki
   const [statusSincronizacaoCatraki, setStatusSincronizacaoCatraki] = useState<{
@@ -180,6 +186,24 @@ export function App() {
   // Lista de Escolas Global
   const [escolasGlobais, setEscolasGlobais] = useState<EscolaPolo[]>([]);
   const [profissionais, setProfissionais] = useState<ItemProfissionalTriagem[]>([]);
+
+  useEffect(() => {
+    const escolaEstacionada = escolasGlobais.find((e) => e.status === 'ESTACIONADA_HOJE');
+    if (escolaEstacionada) {
+      setEscolaAtivaId(escolaEstacionada.id);
+      try {
+        localStorage.setItem('catraki_escola_ativa_id', escolaEstacionada.id);
+      } catch {}
+    } else if (escolaAtivaId) {
+      const existeAinda = escolasGlobais.some((e) => e.id === escolaAtivaId);
+      if (escolasGlobais.length > 0 && !existeAinda) {
+        setEscolaAtivaId('');
+        try {
+          localStorage.removeItem('catraki_escola_ativa_id');
+        } catch {}
+      }
+    }
+  }, [escolasGlobais]);
 
   const limparNavegacaoAoDeslogar = () => {
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -719,8 +743,35 @@ export function App() {
                 escolas={escolasGlobais}
                 escolaAtivaId={escolaAtivaId}
                 podeGerenciar={usuarioLogado?.perfil === 'ADMIN' || usuarioLogado?.perfil === 'BOOTSTRAP'}
-                aoSelecionarEscolaAtiva={(id) => {
+                aoSelecionarEscolaAtiva={async (id) => {
                   setEscolaAtivaId(id);
+                  if (id) {
+                    try {
+                      localStorage.setItem('catraki_escola_ativa_id', id);
+                    } catch {}
+                    try {
+                      await requisicaoApi(`/escolas/${id}/ativar`, { metodo: 'POST' });
+                    } catch (erro) {
+                      console.error('Erro ao salvar instituição ativa no servidor:', erro);
+                    }
+                  } else {
+                    try {
+                      localStorage.removeItem('catraki_escola_ativa_id');
+                    } catch {}
+                    try {
+                      await requisicaoApi('/escolas/desativar/todas', { metodo: 'POST' });
+                    } catch (erro) {
+                      console.error('Erro ao desativar instituição no servidor:', erro);
+                    }
+                  }
+
+                  setEscolasGlobais((prev) =>
+                    prev.map((esc) => ({
+                      ...esc,
+                      status: esc.id === id ? 'ESTACIONADA_HOJE' : 'PROGRAMADA',
+                    }))
+                  );
+
                   setToastNotificacao({
                     texto: id ? 'Instituição ativa atualizada com sucesso!' : 'Instituição desativada com sucesso.',
                     tipo: 'sucesso',

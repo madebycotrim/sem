@@ -146,6 +146,46 @@ rotasEscola.put(
   }
 );
 
+// ─── Ativar Escola Ativa / Estacionada Hoje ──────────────────────────────────
+rotasEscola.post('/:id/ativar', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE']), async (c) => {
+  const id = c.req.param('id');
+  const db = getDb(c.env.DB);
+  const usuario = c.get('usuario');
+
+  await db.update(escolasLocais).set({ statusOperacao: 'PROGRAMADA' });
+  const [escola] = await db.update(escolasLocais).set({ statusOperacao: 'ESTACIONADA_HOJE' }).where(eq(escolasLocais.id, id)).returning();
+
+  await registrarAuditoria(db, {
+    userId: usuario.userId,
+    acao: 'UPDATE',
+    entidade: 'EscolaLocal',
+    entidadeId: id,
+    diffPosterior: { statusOperacao: 'ESTACIONADA_HOJE' },
+    ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1',
+  });
+
+  return c.json({ sucesso: true, dados: escola, mensagem: 'Instituição ativada com sucesso' });
+});
+
+// ─── Desativar Escola Ativa ──────────────────────────────────────────────────
+rotasEscola.post('/desativar/todas', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE']), async (c) => {
+  const db = getDb(c.env.DB);
+  const usuario = c.get('usuario');
+
+  await db.update(escolasLocais).set({ statusOperacao: 'PROGRAMADA' });
+
+  await registrarAuditoria(db, {
+    userId: usuario.userId,
+    acao: 'UPDATE',
+    entidade: 'EscolaLocal',
+    entidadeId: 'todas',
+    diffPosterior: { statusOperacao: 'PROGRAMADA' },
+    ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1',
+  });
+
+  return c.json({ sucesso: true, mensagem: 'Instituição desativada com sucesso' });
+});
+
 // ─── Excluir Escola (Soft Delete) ────────────────────────────────────────────
 rotasEscola.delete('/:id', autorizarPerfis(['BOOTSTRAP', 'ADMIN']), async (c) => {
   const id = c.req.param('id');
