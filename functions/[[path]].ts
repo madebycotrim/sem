@@ -46,11 +46,6 @@ app.notFound(async (c) => {
     }
   }
 
-  // Evita ruído de erro no console do navegador quando não há favicon configurado.
-  if (c.req.path === '/favicon.ico') {
-    return c.body(null, 204);
-  }
-
   return c.text('Not Found', 404);
 });
 
