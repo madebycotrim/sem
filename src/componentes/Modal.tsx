@@ -475,6 +475,7 @@ export const ModalSelectCustom: FC<ModalSelectCustomProps> = ({
   disabled = false,
   className = '',
   posicaoPopover = 'baixo',
+  abreParaCima,
 }) => {
   const opcoesFiltro: OpcaoFiltroItem[] = opcoes.map((o) => ({
     id: o.valor,
@@ -489,6 +490,8 @@ export const ModalSelectCustom: FC<ModalSelectCustomProps> = ({
     desabilitado: o.desabilitado,
   }));
 
+  const posicaoEfetiva = abreParaCima ? 'cima' : posicaoPopover;
+
   return (
     <SeletorFiltroUniversal
       valor={valorAtual}
@@ -502,7 +505,7 @@ export const ModalSelectCustom: FC<ModalSelectCustomProps> = ({
       rodapePopover={rodapePopover}
       disabled={disabled}
       className={className}
-      posicaoPopover={posicaoPopover}
+      posicaoPopover={posicaoEfetiva}
     />
   );
 };

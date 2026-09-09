@@ -406,14 +406,7 @@ export const SeletorFiltroUniversal = forwardRef<
     tamanhoIcone = 'h-4 w-4',
     modoCard = false,
   ) => {
-    if (!item) {
-      if (categoria === 'especialidades') {
-        return (
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-purple-100/70 text-purple-600">
-            <Search className="h-3.5 w-3.5" />
-          </div>
-        );
-      }
+    if (!item || !item.id) {
       return null;
     }
 
@@ -589,7 +582,7 @@ export const SeletorFiltroUniversal = forwardRef<
             )}
 
             {/* Lista de opções dimensionada pelo conteúdo */}
-            <div className="p-1.5">
+            <div className="p-1.5 max-h-[260px] overflow-y-auto">
               {opcoesFiltradas.length === 0 ? (
                 <div className="px-4 py-6 text-center text-[13px] text-slate-400">
                   Nenhuma opção encontrada

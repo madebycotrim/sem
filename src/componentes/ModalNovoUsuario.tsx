@@ -1,4 +1,4 @@
-import { type FC, useState, useEffect } from 'react';
+import { type FC, useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -22,6 +22,7 @@ import {
 } from './Modal.tsx';
 import type { UsuarioItem } from './Usuarios.tsx';
 import { EspecialidadeIcone } from './EspecialidadeVisual.tsx';
+import { usePermissoes } from '../contextos/ContextoPermissoes.tsx';
 
 const OPCOES_PERFIL: OpcaoSelectCustom[] = [
   { valor: PerfilAcesso.ADMIN, rotulo: PERFIL_ACESSO_LABELS[PerfilAcesso.ADMIN] },
@@ -114,6 +115,18 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
       especialidade: '',
     },
   });
+
+  const { perfilLogado } = usePermissoes();
+  const ehBootstrap = perfilLogado === 'BOOTSTRAP';
+
+  const opcoesPerfilDisponiveis = useMemo<OpcaoSelectCustom[]>(() => {
+    return OPCOES_PERFIL.filter((op) => {
+      if (op.valor === PerfilAcesso.ADMIN && !ehBootstrap && usuarioParaEditar?.perfil !== PerfilAcesso.ADMIN) {
+        return false;
+      }
+      return true;
+    });
+  }, [ehBootstrap, usuarioParaEditar]);
 
   const perfilAtual = watch('perfil');
   const conselhoAtual = watch('conselhoProfissional');
@@ -275,10 +288,9 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
              <ModalCampo rotulo="Perfil de Acesso (RBAC)" obrigatorio erro={errors.perfil?.message}>
                <input type="hidden" {...register('perfil')} />
                <ModalSelectCustom
-                 categoria="perfis"
                  valorAtual={perfilAtual as string}
                  aoMudar={(v) => setValue('perfil', v as PerfilAcesso, { shouldValidate: true })}
-                 opcoes={OPCOES_PERFIL}
+                 opcoes={opcoesPerfilDisponiveis}
                  placeholder="Selecione um perfil..."
                />
              </ModalCampo>

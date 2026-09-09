@@ -74,6 +74,10 @@ rotasUsuarios.post(
     const db = getDb(c.env.DB);
     const usuarioLogado = c.get('usuario');
 
+    if (dados.perfil === 'ADMIN' && usuarioLogado.perfil !== 'BOOTSTRAP') {
+      return c.json({ erro: 'Apenas o usuário Bootstrap pode cadastrar novos Administradores.' }, 403);
+    }
+
     const usuarioExistente = await db.query.usuarios.findFirst({
       where: eq(usuarios.email, dados.email.toLowerCase()),
     });
@@ -147,7 +151,11 @@ rotasUsuarios.put(
       return c.json({ erro: 'Usuário não encontrado' }, 404);
     }
 
-    if (id === usuarioLogado.userId && dados.perfil === 'ADMIN' && usuarioLogado.perfil !== 'ADMIN') {
+    if (dados.perfil === 'ADMIN' && usuarioExistente.perfil !== 'ADMIN' && usuarioLogado.perfil !== 'BOOTSTRAP') {
+      return c.json({ erro: 'Apenas o usuário Bootstrap pode conceder o cargo de Administrador.' }, 403);
+    }
+
+    if (id === usuarioLogado.userId && dados.perfil === 'ADMIN' && usuarioLogado.perfil !== 'ADMIN' && usuarioLogado.perfil !== 'BOOTSTRAP') {
       return c.json({ erro: 'Este usuário não pode ser promovido ou alterado por esta operação.' }, 403);
     }
 

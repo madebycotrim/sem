@@ -2,6 +2,7 @@ import { useState, type FC, useEffect } from 'react';
 import { Modal, BotaoModal } from './Modal.tsx';
 import { 
   PERFIL_ACESSO_LABELS, 
+  PERMISSOES_PADRAO,
   type PerfilAcesso, 
   type PermissoesPerfil 
 } from '../../compartilhado/index.ts';
@@ -64,12 +65,12 @@ const ToggleSwitch: FC<{ ativo: boolean; desabilitado?: boolean; aoAlternar: () 
 
 export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) => {
   const perfisParaConfigurar: PerfilAcesso[] = ['ADMIN', 'PROFISSIONAL_SAUDE', 'TRIAGEM_RECEPCAO', 'DPO'];
-  const [perfilAtivo, setPerfilAtivo] = useState<PerfilAcesso>('PROFISSIONAL_SAUDE');
-  const [estadoPermissoes, setEstadoPermissoes] = useState<Partial<Record<PerfilAcesso, PermissoesPerfil>>>({});
+  const [perfilAtivo, setPerfilAtivo] = useState<PerfilAcesso>('ADMIN');
+  const [estadoPermissoes, setEstadoPermissoes] = useState<Record<PerfilAcesso, PermissoesPerfil>>({ ...PERMISSOES_PADRAO });
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
 
-  // Resetar estado ao abrir
+  // Resetar e carregar estado ao abrir
   useEffect(() => {
     let montado = true;
     if (aberto) {
@@ -77,8 +78,11 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
       const buscarDoServidor = async () => {
         try {
           const res = await requisicaoApi<{ permissoes: Partial<Record<PerfilAcesso, PermissoesPerfil>> }>('/rbac/permissoes');
-          if (montado) {
-            setEstadoPermissoes(res.permissoes);
+          if (montado && res.permissoes) {
+            setEstadoPermissoes((prev) => ({
+              ...prev,
+              ...res.permissoes,
+            }));
           }
         } catch (e) {
           console.error('Falha ao buscar permissoes do servidor', e);
@@ -89,14 +93,11 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
     return () => { montado = false; };
   }, [aberto]);
 
-  const permissaoAtual = estadoPermissoes[perfilAtivo];
-  const ehAdminGlobal = perfilAtivo === 'ADMIN' || perfilAtivo === 'BOOTSTRAP';
+  const permissaoAtual = estadoPermissoes[perfilAtivo] || PERMISSOES_PADRAO[perfilAtivo];
 
   const alternarModulo = (chave: keyof PermissoesPerfil['modulos']) => {
-    if (ehAdminGlobal) return;
     setEstadoPermissoes((prev) => {
-      const permissao = prev[perfilAtivo];
-      if (!permissao) return prev;
+      const permissao = prev[perfilAtivo] || PERMISSOES_PADRAO[perfilAtivo];
       const valorAtual = permissao.modulos[chave];
       const novoValor = valorAtual === 'LIVRE' ? 'BLOQUEADO' : 'LIVRE';
       return {
@@ -113,10 +114,8 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
   };
 
   const alternarAcao = (chave: keyof PermissoesPerfil['acoes']) => {
-    if (ehAdminGlobal) return;
     setEstadoPermissoes((prev) => {
-      const permissao = prev[perfilAtivo];
-      if (!permissao) return prev;
+      const permissao = prev[perfilAtivo] || PERMISSOES_PADRAO[perfilAtivo];
       const valorAtual = permissao.acoes[chave];
       const novoValor = valorAtual === 'LIVRE' ? 'BLOQUEADO' : 'LIVRE';
       return {
@@ -219,21 +218,14 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
         </div>
 
         {/* Coluna Direita: Toggles de Permissão */}
-        <div className="flex-1 bg-white overflow-y-auto px-3 py-3 rounded-br-[28px]">
+        <div className="flex-1 bg-white overflow-y-auto px-4 py-3 rounded-br-[28px]">
           <div className="mb-3 border-b border-slate-200/90 pb-2">
             <h2 className="text-lg font-bold text-slate-800 tracking-[-0.02em]">
               Permissões: {PERFIL_ACESSO_LABELS[perfilAtivo]}
             </h2>
-            {ehAdminGlobal ? (
-              <p className="text-[11.5px] font-semibold text-amber-700 mt-2 bg-amber-50 border border-amber-100 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Acesso total e nativo. Administradores não podem ter permissões revogadas.
-              </p>
-            ) : (
-              <p className="text-[12.5px] text-slate-500 mt-1.5">
-                Configure os módulos e ações que este cargo pode realizar.
-              </p>
-            )}
+            <p className="text-[12.5px] text-slate-500 mt-1">
+              Configure os módulos e ações que este cargo pode realizar no sistema.
+            </p>
           </div>
 
           <div className="space-y-4 pb-2">
@@ -245,7 +237,7 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
                 {(Object.entries(NOME_MODULOS) as [keyof PermissoesPerfil['modulos'], string][]).map(([chave, label]) => {
-                  const ativo = permissaoAtual?.modulos[chave] === 'LIVRE';
+                  const ativo = (permissaoAtual?.modulos[chave] ?? 'LIVRE') === 'LIVRE';
                   return (
                     <div
                       key={chave}
@@ -257,7 +249,6 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
                       </span>
                       <ToggleSwitch
                         ativo={ativo}
-                        desabilitado={ehAdminGlobal}
                         aoAlternar={() => alternarModulo(chave)}
                       />
                     </div>
@@ -274,7 +265,7 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
               </h3>
               <div className="flex flex-col gap-2">
                 {(Object.entries(NOME_ACOES) as [keyof PermissoesPerfil['acoes'], string][]).map(([chave, label]) => {
-                  const ativo = permissaoAtual?.acoes[chave] === 'LIVRE';
+                  const ativo = (permissaoAtual?.acoes[chave] ?? 'LIVRE') === 'LIVRE';
                   return (
                     <div
                       key={chave}
@@ -286,7 +277,6 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
                       </span>
                       <ToggleSwitch
                         ativo={ativo}
-                        desabilitado={ehAdminGlobal}
                         aoAlternar={() => alternarAcao(chave)}
                       />
                     </div>
@@ -300,3 +290,4 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
     </Modal>
   );
 };
+
