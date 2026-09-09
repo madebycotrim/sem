@@ -5,7 +5,7 @@ import { Sidebar, type SecaoMenu } from './componentes/Sidebar.tsx';
 import { CabecalhoPagina } from './componentes/CabecalhoPagina.tsx';
 import { TabelaPacientes, type ItemPaciente } from './componentes/TabelaPacientes.tsx';
 import { ModalNovoPaciente, type FormNovoPaciente } from './componentes/ModalNovoPaciente.tsx';
-import { FilaDoDia } from './componentes/FilaDoDia.tsx';
+import { FilaDoDia, type ItemFila } from './componentes/FilaDoDia.tsx';
 import type { ItemProfissionalTriagem } from './componentes/ModalTriagem.tsx';
 import { Atendimentos, type ItemAtendimentoLista } from './componentes/Atendimentos.tsx';
 import { Dashboard } from './componentes/Dashboard.tsx';
@@ -187,6 +187,22 @@ export function App() {
   const [escolasGlobais, setEscolasGlobais] = useState<EscolaPolo[]>([]);
   const [profissionais, setProfissionais] = useState<ItemProfissionalTriagem[]>([]);
 
+  // Fila do Dia Compartilhada e Centralizada
+  const [fila, setFila] = useState<ItemFila[]>(() => {
+    try {
+      const salvo = localStorage.getItem('catraki_fila_do_dia');
+      if (salvo) return JSON.parse(salvo);
+    } catch {}
+    return [];
+  });
+
+  const handleAtualizarFila = (novaFila: ItemFila[]) => {
+    setFila(novaFila);
+    try {
+      localStorage.setItem('catraki_fila_do_dia', JSON.stringify(novaFila));
+    } catch {}
+  };
+
   useEffect(() => {
     const escolaEstacionada = escolasGlobais.find((e) => e.status === 'ESTACIONADA_HOJE');
     if (escolaEstacionada) {
@@ -323,8 +339,22 @@ export function App() {
     let ativo = true;
     const carregarAtendimentos = async () => {
       try {
-        const resposta = await requisicaoApi<{ dados: ItemAtendimentoLista[] }>('/atendimentos?porPagina=100');
-        if (ativo) setAtendimentos(resposta.dados);
+        const resposta = await requisicaoApi<{ dados: any[] }>('/atendimentos?porPagina=100');
+        if (ativo && resposta?.dados) {
+          const listaMapeada: ItemAtendimentoLista[] = resposta.dados.map((d: any) => ({
+            id: d.id,
+            pacienteId: d.pacienteId,
+            pacienteNome: d.pacienteNome || 'Paciente',
+            especialidade: d.especialidade,
+            turno: d.turno,
+            escolaNome: d.escolaNome || d.escolaLocal || 'Não informada',
+            profissionalNome: d.profissionalNome || d.profissional || 'Profissional de Saúde',
+            resumo: d.resumo || '',
+            criadoEm: d.criadoEm || new Date().toISOString(),
+            status: d.status,
+          }));
+          setAtendimentos(listaMapeada);
+        }
       } catch (erro) {
         if (ativo) {
           mostrarToast(erro instanceof Error ? `Não foi possível carregar os atendimentos: ${erro.message}` : 'Não foi possível carregar os atendimentos.', 'erro');
@@ -340,6 +370,47 @@ export function App() {
       window.clearInterval(intervalo);
     };
   }, [autenticado]);
+
+  const handleSalvarAtendimento = (novoAtendimento: ItemAtendimentoLista) => {
+    setAtendimentos((lista) => {
+      const index = lista.findIndex(
+        (a) => a.id === novoAtendimento.id || (novoAtendimento.pacienteId && a.pacienteId === novoAtendimento.pacienteId && a.especialidade === novoAtendimento.especialidade)
+      );
+      if (index >= 0) {
+        const nova = [...lista];
+        nova[index] = { ...nova[index], ...novoAtendimento };
+        return nova;
+      }
+      return [novoAtendimento, ...lista];
+    });
+
+    // Sincroniza também a fila local em tempo real
+    setFila((prev) => {
+      const novaFila = prev.map((item) => {
+        const mesmoAtendimento = item.atendimentoId === novoAtendimento.id || item.id === novoAtendimento.id;
+        const mesmoPaciente = Boolean(
+          novoAtendimento.pacienteId &&
+          item.pacienteId === novoAtendimento.pacienteId &&
+          item.especialidade === novoAtendimento.especialidade
+        );
+        if (mesmoAtendimento || mesmoPaciente) {
+          return {
+            ...item,
+            status: 'CONCLUIDO' as const,
+            anotacoes: novoAtendimento.resumo || item.anotacoes,
+            atendimentoId: novoAtendimento.id,
+          };
+        }
+        return item;
+      });
+      try {
+        localStorage.setItem('catraki_fila_do_dia', JSON.stringify(novaFila));
+      } catch {}
+      return novaFila;
+    });
+
+    mostrarToast('Atendimento e prontuário salvos no banco com sucesso!', 'sucesso');
+  };
 
   // Atalho Global Alt+N para novo paciente
   useEffect(() => {
@@ -507,7 +578,11 @@ export function App() {
   };
 
   const handleAtualizarStatusAtendimento = async (id: string, status: StatusAtendimento) => {
-    const statusAnterior = atendimentos.find((atendimento) => atendimento.id === id)?.status;
+    const atendimentoExistente = atendimentos.find((atendimento) => atendimento.id === id);
+    if (!atendimentoExistente) {
+      return;
+    }
+    const statusAnterior = atendimentoExistente.status;
     setAtendimentos((lista) => lista.map((atendimento) => atendimento.id === id ? { ...atendimento, status } : atendimento));
     try {
       await requisicaoApi(`/atendimentos/${id}/status`, {
@@ -689,8 +764,16 @@ export function App() {
                 escolas={escolasGlobais}
                 pacientes={pacientes}
                 atendimentos={atendimentos}
+                fila={fila}
                 profissionais={profissionais}
+                ehAdmin={usuarioLogado?.perfil === 'ADMIN' || usuarioLogado?.perfil === 'BOOTSTRAP'}
                 aoAtualizarStatus={handleAtualizarStatusAtendimento}
+                aoSalvarAtendimento={handleSalvarAtendimento}
+                aoAtualizarFila={handleAtualizarFila}
+                aoVerHistoricoPaciente={(p) => {
+                  const pacienteCompleto = pacientes.find((item) => item.id === p.id || item.nome === p.nome) || p;
+                  setPacienteHistoricoDrawer(pacienteCompleto);
+                }}
                 aoIniciarAtendimento={() => {
                   // O modal de atendimento já trata o fluxo internamente na FilaDoDia
                 }}
@@ -718,6 +801,7 @@ export function App() {
                 totalInstituicoes={escolasGlobais.length}
                 pacientes={pacientes}
                 atendimentos={atendimentos}
+                fila={fila}
                 carregando={carregandoPacientes || carregandoAtendimentos}
                 aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}
                 aoNovoAtendimento={() => navegarParaSecao('filaDia')}
@@ -734,6 +818,7 @@ export function App() {
                 atendimentos={atendimentos}
                 pacientes={pacientes}
                 escolas={escolasGlobais}
+                fila={fila}
               />
             );
           }
@@ -807,6 +892,7 @@ export function App() {
             totalInstituicoes={escolasGlobais.length}
             pacientes={pacientes}
             atendimentos={atendimentos}
+            fila={fila}
             carregando={carregandoPacientes || carregandoAtendimentos}
             aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}
             aoNovoAtendimento={() => navegarParaSecao('filaDia')}
@@ -822,6 +908,8 @@ export function App() {
         aberto={Boolean(pacienteHistoricoDrawer)}
         paciente={pacienteHistoricoDrawer}
         aoFechar={() => setPacienteHistoricoDrawer(null)}
+        itensFila={fila}
+        atendimentosLocais={atendimentos}
         aoNovoAtendimento={() => {
           setPacienteHistoricoDrawer(null);
           navegarParaSecao('filaDia');

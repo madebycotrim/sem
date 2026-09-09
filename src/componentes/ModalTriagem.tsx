@@ -44,6 +44,7 @@ export interface ModalTriagemProps {
     pacienteNome: string;
     cpf?: string;
     idade: number;
+    escolaId?: string;
     escolaNome: string;
     profissionalId: string;
     profissionalNome: string;
@@ -232,6 +233,7 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
         pacienteNome: pacienteSelecionado.nome,
         cpf: pacienteSelecionado.cpf,
         idade: calcularIdade(pacienteSelecionado.dataNascimento),
+        escolaId: instituicaoSelecionadaId,
         escolaNome: escolaObj?.nome || pacienteSelecionado.escolaNome || 'Instituição não informada',
         profissionalId: profissionalSelecionado.id,
         profissionalNome: profissionalSelecionado.nome,

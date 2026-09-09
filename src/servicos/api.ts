@@ -49,9 +49,17 @@ export async function requisicaoApi<T = unknown>(
       });
 
       if (!resposta.ok) {
-        const erroBody = (await resposta.json().catch(() => ({
+        let erroBody: { erro?: string; detalhes?: Record<string, string[]> } = {
           erro: `HTTP ${resposta.status}`,
-        }))) as { erro?: string; detalhes?: Record<string, string[]> };
+        };
+        try {
+          const textoErro = await resposta.text();
+          if (textoErro && textoErro.trim()) {
+            erroBody = JSON.parse(textoErro);
+          }
+        } catch {
+          // Se não for JSON válido, mantém o erro padrão
+        }
 
         // Não fazer retry em erros de validação/autenticação (4xx)
         if (resposta.status >= 400 && resposta.status < 500) {
@@ -68,7 +76,20 @@ export async function requisicaoApi<T = unknown>(
         throw new ErroApi(resposta.status, erroBody.erro ?? 'Erro no servidor');
       }
 
-      return (await resposta.json()) as T;
+      if (resposta.status === 204) {
+        return {} as T;
+      }
+
+      const texto = await resposta.text();
+      if (!texto || !texto.trim()) {
+        return {} as T;
+      }
+
+      try {
+        return JSON.parse(texto) as T;
+      } catch {
+        return texto as unknown as T;
+      }
     } catch (erro) {
       ultimoErro = erro instanceof Error ? erro : new Error(String(erro));
 

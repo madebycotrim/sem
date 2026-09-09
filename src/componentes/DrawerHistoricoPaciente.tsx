@@ -17,24 +17,30 @@ export interface ItemHistoricoAtendimento {
   condutaClinica?: string;
 }
 
+import type { ItemAtendimentoLista } from './Atendimentos.tsx';
+import type { ItemFila } from './FilaDoDia.tsx';
+
 export interface DrawerHistoricoPacienteProps {
   aberto: boolean;
   paciente: ItemPaciente | null;
   aoFechar: () => void;
   aoNovoAtendimento?: (paciente: ItemPaciente) => void;
   aoVerProntuario?: (atendimento: ItemHistoricoAtendimento) => void;
+  itensFila?: ItemFila[];
+  atendimentosLocais?: ItemAtendimentoLista[];
 }
 
 // Função de parse seguro das datas da API
 function formatarDataHora(dataString: string) {
   try {
     const data = new Date(dataString);
+    if (isNaN(data.getTime())) throw new Error('Data inválida');
     return {
       data: data.toLocaleDateString('pt-BR'),
       hora: data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     };
   } catch {
-    return { data: 'Não informada', hora: '--:--' };
+    return { data: new Date().toLocaleDateString('pt-BR'), hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) };
   }
 }
 
@@ -44,6 +50,8 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
   aoFechar,
   aoNovoAtendimento,
   aoVerProntuario,
+  itensFila = [],
+  atendimentosLocais = [],
 }) => {
   // Fechar no ESC
   useEffect(() => {
@@ -69,25 +77,85 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
     const buscarHistorico = async () => {
       setCarregando(true);
       try {
-        const resposta = await requisicaoApi<{ dados: any[] }>(`/atendimentos?pacienteId=${paciente.id}&porPagina=100`);
+        let dadosApi: any[] = [];
+        try {
+          const resposta = await requisicaoApi<{ dados: any[] }>(`/atendimentos?pacienteId=${paciente.id}&porPagina=100`);
+          dadosApi = resposta.dados || [];
+        } catch {
+          dadosApi = [];
+        }
+
         if (!ativo) return;
-        
-        const mapeado = resposta.dados.map((item) => {
+
+        // Atendimentos do paciente vindos do banco/API
+        const mapeadosApi: ItemHistoricoAtendimento[] = dadosApi.map((item) => {
           const { data, hora } = formatarDataHora(item.criadoEm);
           return {
             id: item.id,
             especialidade: item.especialidade,
-            status: 'CONCLUIDO' as const, // Todos salvos já são concluídos na base
+            status: (item.status || 'CONCLUIDO') as ItemHistoricoAtendimento['status'],
             data,
             hora,
-            profissionalNome: item.profissional,
-            profissionalRegistro: 'Registro Ativo', // Poderia vir do perfil do usuário
-            motivoConsulta: item.resumo || 'Consulta de rotina',
+            profissionalNome: item.profissional || 'Profissional de Saúde',
+            profissionalRegistro: 'Registro Ativo',
+            motivoConsulta: item.resumo || 'Consulta clínica realizada',
             condutaClinica: item.procedimentos || item.insumosUtilizados || undefined,
           };
         });
 
-        setHistorico(mapeado);
+        const idsExistentes = new Set(mapeadosApi.map((h) => h.id));
+
+        // Mescla com atendimentosLocais (se houver atendimento recém-salvo em memória)
+        const cpfLimpoPaciente = (paciente.cpf || '').replace(/\D/g, '');
+        const atendimentosLocaisPaciente = atendimentosLocais
+          .filter(
+            (a) =>
+              (a.pacienteId === paciente.id || a.pacienteNome === paciente.nome) &&
+              !idsExistentes.has(a.id)
+          )
+          .map((a) => {
+            const { data, hora } = formatarDataHora(a.criadoEm);
+            idsExistentes.add(a.id);
+            return {
+              id: a.id,
+              especialidade: a.especialidade,
+              status: (a.status || 'CONCLUIDO') as ItemHistoricoAtendimento['status'],
+              data,
+              hora,
+              profissionalNome: a.profissionalNome || 'Profissional de Saúde',
+              profissionalRegistro: 'Registro Ativo',
+              motivoConsulta: a.resumo || 'Consulta clínica realizada',
+              condutaClinica: undefined,
+            };
+          });
+
+        // Mescla também com itens da Fila do Dia desse paciente (caso esteja em atendimento ou com resumo na fila)
+        const itensFilaPaciente = itensFila
+          .filter((f) => {
+            const cpfFila = (f.cpf || '').replace(/\D/g, '');
+            const mesmoCpf = cpfLimpoPaciente.length === 11 && cpfFila === cpfLimpoPaciente;
+            const mesmoNome = f.pacienteNome.trim().toLowerCase() === paciente.nome.trim().toLowerCase();
+            const mesmoId = f.pacienteId === paciente.id;
+            return (mesmoId || mesmoCpf || mesmoNome) && (!f.atendimentoId || !idsExistentes.has(f.atendimentoId));
+          })
+          .map((f) => {
+            const data = f.dataChegada || new Date().toLocaleDateString('pt-BR');
+            const hora = f.horarioChegada || '--:--';
+            return {
+              id: f.atendimentoId || f.id,
+              especialidade: f.especialidade,
+              status: (f.status === 'CONCLUIDO' ? 'CONCLUIDO' : f.status === 'CANCELADO' ? 'CANCELADO' : 'AGENDADO') as ItemHistoricoAtendimento['status'],
+              data,
+              hora,
+              profissionalNome: f.profissional || 'Profissional de Saúde',
+              profissionalRegistro: f.profissionalRegistro || 'Registro Ativo',
+              motivoConsulta: f.anotacoes || 'Paciente em atendimento na unidade móvel',
+              condutaClinica: undefined,
+            };
+          });
+
+        const listaFinal = [...itensFilaPaciente, ...atendimentosLocaisPaciente, ...mapeadosApi];
+        setHistorico(listaFinal);
       } catch (err) {
         console.error('Erro ao buscar histórico do paciente:', err);
         if (ativo) setHistorico([]);
@@ -99,7 +167,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
     buscarHistorico();
 
     return () => { ativo = false; };
-  }, [paciente, aberto]);
+  }, [paciente, aberto, itensFila, atendimentosLocais]);
 
   if (!aberto || !paciente) return null;
 

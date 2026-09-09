@@ -23,6 +23,7 @@ const NumeroAnimado: FC<{ valor: number; duracao?: number }> = ({ valor, duracao
 };
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import { Activity, Apple, BarChart3, ClipboardCheck, Clock3, Ear, Eye, FileText, Lightbulb, Brain, Smile, UserPlus, XCircle } from 'lucide-react';
+import type { ItemFila } from './FilaDoDia.tsx';
 
 export interface DashboardProps {
   totalPacientes: number;
@@ -40,6 +41,7 @@ export interface DashboardProps {
     profissionalNome?: string;
     turno?: string;
   }>;
+  fila?: ItemFila[];
   carregando?: boolean;
   aoNovoPaciente: () => void;
   aoNovoAtendimento: () => void;
@@ -52,6 +54,7 @@ export const Dashboard: FC<DashboardProps> = ({
   totalAtendimentos,
   pacientes: _pacientes,
   atendimentos,
+  fila = [],
   carregando = false,
   aoNovoPaciente,
   aoNovoAtendimento,
@@ -60,19 +63,49 @@ export const Dashboard: FC<DashboardProps> = ({
   aoAbrirBi,
 }) => {
   const hojeIso = new Date().toISOString().slice(0, 10);
-  const atendimentosHoje = atendimentos.filter(
-    (atendimento) => atendimento.criadoEm.slice(0, 10) === hojeIso
+  const hojeBr = new Date().toLocaleDateString('pt-BR');
+
+  // Atendimentos do banco de hoje
+  const atendimentosHojeBanco = atendimentos.filter(
+    (atendimento) => (atendimento.criadoEm || '').slice(0, 10) === hojeIso
   );
 
-  const totalConsultasTodasUnidades = atendimentosHoje.length;
-  const totalConsultasConcluidas = atendimentosHoje.filter((atendimento) =>
-    (atendimento.status === 'CONCLUIDO' || !atendimento.status)
+  // Itens da fila do dia de hoje
+  const itensFilaHoje = fila.filter(
+    (item) => (item.dataChegada || hojeBr) === hojeBr
+  );
+
+  // Identificadores de atendimentos já persistidos para evitar dupla contagem
+  const idsAtendimentosBanco = new Set(atendimentos.map((a: any) => a.id));
+
+  // Itens da fila não duplicados no banco
+  const itensFilaNaoDuplicados = itensFilaHoje.filter(
+    (item) => !item.atendimentoId || !idsAtendimentosBanco.has(item.atendimentoId)
+  );
+
+  // Lista unificada e reativa das consultas e atendimentos de hoje
+  const todasConsultasHoje = [
+    ...atendimentosHojeBanco.map((a) => ({
+      especialidade: a.especialidade,
+      status: a.status || 'CONCLUIDO',
+      criadoEm: a.criadoEm,
+    })),
+    ...itensFilaNaoDuplicados.map((f) => ({
+      especialidade: f.especialidade,
+      status: f.status,
+      criadoEm: f.dataChegada || hojeIso,
+    })),
+  ];
+
+  const totalConsultasTodasUnidades = todasConsultasHoje.length;
+  const totalConsultasConcluidas = todasConsultasHoje.filter((item) =>
+    (item.status === 'CONCLUIDO' || !item.status)
   ).length;
-  const totalConsultasPendentes = atendimentosHoje.filter((atendimento) =>
-    ['AGENDADO', 'CONFIRMADO', 'EM_ATENDIMENTO', 'PENDENTE'].includes(atendimento.status || '')
+  const totalConsultasPendentes = todasConsultasHoje.filter((item) =>
+    ['AGUARDANDO', 'CONFIRMADO', 'EM_ATENDIMENTO', 'AGENDADO', 'PENDENTE'].includes(item.status || '')
   ).length;
-  const totalConsultasCanceladas = atendimentosHoje.filter((atendimento) =>
-    ['CANCELADO', 'FALTOU', 'CANCELADA'].includes(atendimento.status || '')
+  const totalConsultasCanceladas = todasConsultasHoje.filter((item) =>
+    ['CANCELADO', 'FALTOU', 'CANCELADA'].includes(item.status || '')
   ).length;
 
   const nomesEspecialidades: Record<string, string> = {
@@ -93,8 +126,8 @@ export const Dashboard: FC<DashboardProps> = ({
     { id: 'PSICOLOGIA', nome: 'Psicologia', icone: Brain, cor: 'text-amber-600', fundo: 'bg-amber-50' },
   ].map((especialidade) => ({
     ...especialidade,
-    total: atendimentosHoje.filter(
-      (atendimento) => atendimento.especialidade === especialidade.id
+    total: todasConsultasHoje.filter(
+      (item) => item.especialidade === especialidade.id
     ).length,
   }));
 

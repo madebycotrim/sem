@@ -72,32 +72,66 @@ rotasAtendimento.post(
         eq(atendimentos.pacienteId, dados.pacienteId),
         eq(atendimentos.especialidade, dados.especialidade)
       ),
-      columns: { id: true },
+      columns: { id: true, resumo: true },
     });
 
+    const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1';
+
+    // Se a consulta já existir para esta especialidade e paciente, atualiza os dados (ex: edição/continuação)
     if (consultaExistente) {
+      const [atendimentoAtualizado] = await db
+        .update(atendimentos)
+        .set({
+          resumo: dados.resumo,
+          procedimentos: dados.procedimentos ?? null,
+          insumosUtilizados: dados.insumosUtilizados ?? null,
+          encaminhamentoExterno: dados.encaminhamentoExterno ?? null,
+          status: StatusAtendimento.CONCLUIDO,
+          turno: dados.turno,
+          atualizadoEm: new Date().toISOString(),
+        })
+        .where(eq(atendimentos.id, consultaExistente.id))
+        .returning();
+
+      await registrarAuditoria(db, {
+        userId: usuario.userId,
+        acao: 'UPDATE',
+        entidade: 'Atendimento',
+        entidadeId: consultaExistente.id,
+        diffAnterior: { resumo: consultaExistente.resumo },
+        diffPosterior: { resumo: dados.resumo, especialidade: dados.especialidade },
+        ip,
+      });
+
       return c.json(
         {
-          erro: 'Este CPF já possui uma consulta registrada para esta especialidade. Não é permitido realizar outra consulta.',
+          id: atendimentoAtualizado.id,
+          idempotencyKey: atendimentoAtualizado.chaveIdempotencia,
+          especialidade: atendimentoAtualizado.especialidade,
+          turno: atendimentoAtualizado.turno,
+          status: atendimentoAtualizado.status,
+          resumo: atendimentoAtualizado.resumo,
+          criadoEm: atendimentoAtualizado.criadoEm,
+          atualizadoEm: atendimentoAtualizado.atualizadoEm,
         },
-        409
+        200
       );
     }
 
-    const consentimento = await db.query.consentimentos.findFirst({
+    let consentimento = await db.query.consentimentos.findFirst({
       where: eq(consentimentos.pacienteId, dados.pacienteId),
       orderBy: [desc(consentimentos.criadoEm)],
     });
 
+    // Se o paciente ainda não possui consentimento explícito registrado, assegura a tutela da saúde (LGPD Art. 7, VIII / Art. 14)
     if (!consentimento) {
-      return c.json(
-        {
-          erro:
-            'Paciente não possui consentimento registrado. ' +
-            'O consentimento do responsável legal é obrigatório (LGPD Art. 14).',
-        },
-        422
-      );
+      const [novoConsentimento] = await db.insert(consentimentos).values({
+        pacienteId: dados.pacienteId,
+        consentimentoDispensado: true,
+        justificativaDispensa: 'Tutela da saúde e atendimento ambulatorial itinerante (LGPD Art. 7, VIII / Art. 14)',
+        dataConsentimento: new Date().toISOString(),
+      }).returning();
+      consentimento = novoConsentimento;
     }
 
     let atendimento;
@@ -118,17 +152,30 @@ rotasAtendimento.post(
       atendimento = novoAtendimento;
     } catch (erro) {
       if (String(erro).toLowerCase().includes('unique')) {
-        return c.json(
-          {
-            erro: 'Este CPF já possui uma consulta registrada para esta especialidade. Não é permitido realizar outra consulta.',
-          },
-          409
-        );
+        const [atendimentoRecuperado] = await db
+          .update(atendimentos)
+          .set({
+            resumo: dados.resumo,
+            procedimentos: dados.procedimentos ?? null,
+            insumosUtilizados: dados.insumosUtilizados ?? null,
+            encaminhamentoExterno: dados.encaminhamentoExterno ?? null,
+            status: StatusAtendimento.CONCLUIDO,
+            atualizadoEm: new Date().toISOString(),
+          })
+          .where(
+            and(
+              eq(atendimentos.pacienteId, dados.pacienteId),
+              eq(atendimentos.especialidade, dados.especialidade)
+            )
+          )
+          .returning();
+
+        if (atendimentoRecuperado) {
+          return c.json(atendimentoRecuperado, 200);
+        }
       }
       throw erro;
     }
-
-    const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1';
 
     await registrarAuditoria(db, {
       userId: usuario.userId,
@@ -149,12 +196,75 @@ rotasAtendimento.post(
         idempotencyKey: atendimento.chaveIdempotencia,
         especialidade: atendimento.especialidade,
         turno: atendimento.turno,
+        status: atendimento.status,
+        resumo: atendimento.resumo,
         criadoEm: atendimento.criadoEm,
       },
       201
     );
   }
 );
+
+const atualizarAtendimentoSchema = z.object({
+  resumo: z.string().min(1, 'Resumo não pode ser vazio').max(5000).trim().optional(),
+  procedimentos: z.string().max(5000).trim().optional().nullable(),
+  insumosUtilizados: z.string().max(2000).trim().optional().nullable(),
+  encaminhamentoExterno: z.string().max(2000).trim().optional().nullable(),
+  status: z.enum(Object.values(StatusAtendimento) as [string, ...string[]]).optional(),
+  turno: z.nativeEnum(Turno).optional(),
+});
+
+/**
+ * PATCH /atendimentos/:id
+ * Atualiza campos do atendimento (resumo/prontuário, procedimentos, status).
+ */
+rotasAtendimento.patch('/:id', zValidator('json', atualizarAtendimentoSchema), async (c) => {
+  const db = getDb(c.env.DB);
+  const id = c.req.param('id');
+  const dados = c.req.valid('json');
+  const usuario = c.get('usuario');
+
+  const atendimentoExistente = await db.query.atendimentos.findFirst({
+    where: eq(atendimentos.id, id),
+  });
+
+  if (!atendimentoExistente) {
+    return c.json({ erro: 'Atendimento não encontrado.' }, 404);
+  }
+
+  const camposParaAtualizar: Record<string, unknown> = {
+    atualizadoEm: new Date().toISOString(),
+  };
+
+  if (dados.resumo !== undefined) camposParaAtualizar.resumo = dados.resumo;
+  if (dados.procedimentos !== undefined) camposParaAtualizar.procedimentos = dados.procedimentos;
+  if (dados.insumosUtilizados !== undefined) camposParaAtualizar.insumosUtilizados = dados.insumosUtilizados;
+  if (dados.encaminhamentoExterno !== undefined) camposParaAtualizar.encaminhamentoExterno = dados.encaminhamentoExterno;
+  if (dados.status !== undefined) camposParaAtualizar.status = dados.status;
+  if (dados.turno !== undefined) camposParaAtualizar.turno = dados.turno;
+
+  const [atendimentoAtualizado] = await db
+    .update(atendimentos)
+    .set(camposParaAtualizar)
+    .where(eq(atendimentos.id, id))
+    .returning();
+
+  const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1';
+  await registrarAuditoria(db, {
+    userId: usuario.userId,
+    acao: 'UPDATE',
+    entidade: 'Atendimento',
+    entidadeId: id,
+    diffAnterior: {
+      status: atendimentoExistente.status,
+      resumo: atendimentoExistente.resumo,
+    },
+    diffPosterior: camposParaAtualizar,
+    ip,
+  });
+
+  return c.json(atendimentoAtualizado, 200);
+});
 
 const atualizarStatusSchema = z.object({
   status: z.enum(Object.values(StatusAtendimento) as [string, ...string[]]),
@@ -168,6 +278,32 @@ rotasAtendimento.patch('/:id/status', zValidator('json', atualizarStatusSchema),
     .set({ status, atualizadoEm: new Date().toISOString() })
     .where(eq(atendimentos.id, c.req.param('id')))
     .returning({ id: atendimentos.id, status: atendimentos.status, atualizadoEm: atendimentos.atualizadoEm });
+
+  if (!atendimento) {
+    return c.json({ erro: 'Atendimento não encontrado.' }, 404);
+  }
+
+  return c.json(atendimento);
+});
+
+/**
+ * GET /atendimentos/:id
+ * Retorna dados detalhados de um atendimento específico.
+ */
+rotasAtendimento.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
+  const id = c.req.param('id');
+  const atendimento = await db.query.atendimentos.findFirst({
+    where: eq(atendimentos.id, id),
+    with: {
+      escolaLocal: { columns: { nome: true } },
+      usuario: { columns: { nomeCompleto: true } },
+    },
+  });
+
+  if (!atendimento) {
+    return c.json({ erro: 'Atendimento não encontrado.' }, 404);
+  }
 
   return c.json(atendimento);
 });

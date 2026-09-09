@@ -3,6 +3,8 @@ import {
   Building2,
   Check,
   FileText,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import {
   Modal,
@@ -15,21 +17,26 @@ import { censurarCpf } from './TabelaPacientes.tsx';
 
 export interface DadosAtendimento {
   itemId: string;
+  atendimentoId?: string;
+  pacienteId?: string;
+  escolaId?: string;
   pacienteNome: string;
   cpf?: string;
   idade: number;
   escolaNome: string;
   especialidade: Especialidade;
   profissional?: string;
+  profissionalId?: string;
   profissionalRegistro?: string;
   horarioChegada: string;
+  anotacoes?: string;
 }
 
 export interface ModalIniciarAtendimentoProps {
   aberto: boolean;
   dados: DadosAtendimento | null;
   aoFechar: () => void;
-  aoConfirmar: (itemId: string, anotacoes: string) => Promise<void> | void;
+  aoConfirmar: (itemId: string, anotacoes: string, dados: DadosAtendimento) => Promise<void> | void;
 }
 
 /** Gera iniciais do nome */
@@ -58,16 +65,20 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
   aoFechar,
   aoConfirmar,
 }) => {
-  const [anotacoes, setAnotacoes] = useState('');
+  const [anotacoes, setAnotacoes] = useState(dados?.anotacoes || '');
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Resetar e focar ao abrir
+  // Mantém dados existentes ao editar e foca ao abrir
   useEffect(() => {
     if (aberto) {
-      setAnotacoes('');
+      setAnotacoes(dados?.anotacoes || '');
+      setErro(null);
+      setSalvando(false);
       setTimeout(() => textareaRef.current?.focus(), 200);
     }
-  }, [aberto]);
+  }, [aberto, dados?.anotacoes, dados?.itemId]);
 
   if (!dados) return null;
 
@@ -77,14 +88,31 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
   const corAvatar = obterCorAvatar(dados.pacienteNome);
 
   const handleConfirmar = async () => {
-    await aoConfirmar(dados.itemId, anotacoes.trim());
-    aoFechar();
+    const textoLimpo = anotacoes.trim();
+    if (textoLimpo.length < 5) {
+      setErro('Descreva o que foi feito nesta consulta com no mínimo 5 caracteres.');
+      textareaRef.current?.focus();
+      return;
+    }
+
+    try {
+      setSalvando(true);
+      setErro(null);
+      await aoConfirmar(dados.itemId, textoLimpo, dados);
+      aoFechar();
+    } catch (err: any) {
+      setErro(err?.message || 'Não foi possível salvar o atendimento no banco de dados. Tente novamente.');
+    } finally {
+      setSalvando(false);
+    }
   };
 
   return (
     <Modal
       aberto={aberto}
-      aoFechar={aoFechar}
+      aoFechar={() => {
+        if (!salvando) aoFechar();
+      }}
       titulo="Finalizar Atendimento"
       subtitulo="Registre as informações da consulta antes de finalizar."
       tamanho="lg"
@@ -92,13 +120,28 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
       contentClassName="p-0"
       rodape={
         <>
-          <BotaoModal variante="secundario" rotulo="Cancelar" aoClicar={aoFechar} />
+          <BotaoModal
+            variante="secundario"
+            rotulo="Cancelar"
+            aoClicar={aoFechar}
+            desabilitado={salvando}
+          />
           <BotaoModal
             variante="primario"
+            desabilitado={salvando}
             rotulo={
               <span className="flex items-center gap-2">
-                <Check className="w-4 h-4" />
-                Finalizar Atendimento
+                {salvando ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Salvando no banco...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Finalizar Atendimento
+                  </>
+                )}
               </span>
             }
             aoClicar={handleConfirmar}
@@ -195,6 +238,12 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
               </div>
             )}
           </div>
+          {erro && (
+            <div className="mt-2.5 flex items-center gap-2 px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold animate-fade-in">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{erro}</span>
+            </div>
+          )}
         </ModalCampo>
 
       </div>

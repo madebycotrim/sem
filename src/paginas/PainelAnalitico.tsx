@@ -67,6 +67,9 @@ interface PacienteAnalitico {
   termoConsentimentoStatus: string;
 }
 
+import type { ItemFila } from '../componentes/FilaDoDia.tsx';
+import { Turno } from '../../compartilhado/index.ts';
+
 interface EscolaAnalitica {
   id: string;
   nome: string;
@@ -76,11 +79,12 @@ interface PainelAnaliticoProps {
   atendimentos: AtendimentoAnalitico[];
   pacientes: PacienteAnalitico[];
   escolas: EscolaAnalitica[];
+  fila?: ItemFila[];
 }
 
 const CORES_ESPECIALIDADES = ['bg-blue-600', 'bg-indigo-600', 'bg-sky-500', 'bg-emerald-500', 'bg-amber-500'];
 
-export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacientes, escolas }) => {
+export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacientes, escolas, fila = [] }) => {
   const [dataInicio, setDataInicio] = useState(() => `${new Date().getFullYear()}-01-01`);
   const [dataFim, setDataFim] = useState(() => new Date().toISOString().slice(0, 10));
   const [statusFiltro, setStatusFiltro] = useState('');
@@ -88,6 +92,27 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
   const [profissional, setProfissional] = useState('');
   const [escola, setEscola] = useState('');
   const [profissionaisSaude, setProfissionaisSaude] = useState<Array<{ id: string; nome: string; especialidade?: string | null }>>([]);
+
+  // Unifica atendimentos persistidos com os itens da fila do dia em tempo real
+  const todosAtendimentos = useMemo(() => {
+    const idsBanco = new Set(atendimentos.map((a) => a.id));
+    const daFila: AtendimentoAnalitico[] = fila
+      .filter((f) => !f.atendimentoId || !idsBanco.has(f.atendimentoId))
+      .map((f) => ({
+        id: f.atendimentoId || f.id,
+        pacienteId: f.pacienteId || '',
+        pacienteNome: f.pacienteNome,
+        especialidade: f.especialidade,
+        turno: f.turno || Turno.MANHA,
+        escolaNome: f.escolaNome,
+        profissionalNome: f.profissional || 'Profissional de Saúde',
+        resumo: f.anotacoes || '',
+        criadoEm: new Date().toISOString(),
+        status: (f.status as any) || StatusAtendimento.CONCLUIDO,
+      }));
+
+    return [...atendimentos, ...daFila];
+  }, [atendimentos, fila]);
 
   useEffect(() => {
     let ativo = true;
@@ -122,7 +147,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
     });
 
     // 2. Inclui também profissionais que já possuem atendimentos registrados no histórico
-    atendimentos.forEach((a) => {
+    todosAtendimentos.forEach((a) => {
       if (a.profissionalNome && a.profissionalNome.trim() && !mapaNomes.has(a.profissionalNome.trim())) {
         mapaNomes.set(a.profissionalNome.trim(), {
           valor: a.profissionalNome.trim(),
@@ -132,10 +157,10 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
     });
 
     return Array.from(mapaNomes.values()).sort((a, b) => a.rotulo.localeCompare(b.rotulo));
-  }, [profissionaisSaude, atendimentos]);
+  }, [profissionaisSaude, todosAtendimentos]);
 
-  const atendimentosFiltrados = atendimentos.filter((atendimento) => {
-    const data = atendimento.criadoEm.slice(0, 10);
+  const atendimentosFiltrados = todosAtendimentos.filter((atendimento) => {
+    const data = (atendimento.criadoEm || '').slice(0, 10);
     const dentroDataInicio = !dataInicio || data >= dataInicio;
     const dentroDataFim = !dataFim || data <= dataFim;
     return (
@@ -148,14 +173,14 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
     );
   });
 
-  const totalConsultasTodasUnidades = atendimentos.length;
-  const totalConsultasConcluidas = atendimentos.filter((atendimento) =>
+  const totalConsultasTodasUnidades = todosAtendimentos.length;
+  const totalConsultasConcluidas = todosAtendimentos.filter((atendimento) =>
     (atendimento.status === 'CONCLUIDO' || !atendimento.status)
   ).length;
-  const totalConsultasPendentes = atendimentos.filter((atendimento) =>
-    ['AGENDADO', 'CONFIRMADO', 'EM_ATENDIMENTO', 'PENDENTE'].includes(atendimento.status || '')
+  const totalConsultasPendentes = todosAtendimentos.filter((atendimento) =>
+    ['AGUARDANDO', 'CONFIRMADO', 'EM_ATENDIMENTO', 'AGENDADO', 'PENDENTE'].includes(atendimento.status || '')
   ).length;
-  const totalConsultasCanceladas = atendimentos.filter((atendimento) =>
+  const totalConsultasCanceladas = todosAtendimentos.filter((atendimento) =>
     ['CANCELADO', 'FALTOU', 'CANCELADA'].includes(atendimento.status || '')
   ).length;
   const indicadores = [
@@ -172,7 +197,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
     { id: 'PSICOLOGIA', nome: 'Psicologia', icone: Brain, cor: 'text-amber-600', fundo: 'bg-amber-50' },
   ].map((especialidadeItem) => ({
     ...especialidadeItem,
-    total: atendimentos.filter((atendimento) => atendimento.especialidade === especialidadeItem.id).length,
+    total: todosAtendimentos.filter((atendimento) => atendimento.especialidade === especialidadeItem.id).length,
   }));
 
   const contagemEspecialidades = Object.keys(ESPECIALIDADE_LABELS).map((id, indice) => ({
