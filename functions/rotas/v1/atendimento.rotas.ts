@@ -8,7 +8,9 @@ import {
   StatusAtendimento,
   Turno,
 } from '../../../compartilhado/index.js';
-import { getPrisma } from '../../infraestrutura/banco/prisma.js';
+import { getDb } from '../../infraestrutura/banco/drizzle.js';
+import { atendimentos, pacientes, escolasLocais, consentimentos, usuarios } from '../../infraestrutura/banco/schema.js';
+import { eq, and, desc, asc, count, gte, lte } from 'drizzle-orm';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import { middlewareIdempotencia } from '../../middlewares/idempotencia.js';
@@ -45,16 +47,16 @@ rotasAtendimento.post(
   async (c) => {
     const dados = c.req.valid('json');
     const usuario = c.get('usuario');
-    const prisma = getPrisma(c.env.DB);
+    const db = getDb(c.env.DB);
 
     const [paciente, escola] = await Promise.all([
-      prisma.paciente.findUnique({
-        where: { id: dados.pacienteId },
-        select: { id: true },
+      db.query.pacientes.findFirst({
+        where: eq(pacientes.id, dados.pacienteId),
+        columns: { id: true },
       }),
-      prisma.escolaLocal.findUnique({
-        where: { id: dados.escolaLocalId },
-        select: { id: true },
+      db.query.escolasLocais.findFirst({
+        where: eq(escolasLocais.id, dados.escolaLocalId),
+        columns: { id: true },
       }),
     ]);
 
@@ -65,12 +67,12 @@ rotasAtendimento.post(
       return c.json({ erro: 'Escola/local de atendimento não encontrado.' }, 404);
     }
 
-    const consultaExistente = await prisma.atendimento.findFirst({
-      where: {
-        pacienteId: dados.pacienteId,
-        especialidade: dados.especialidade,
-      },
-      select: { id: true },
+    const consultaExistente = await db.query.atendimentos.findFirst({
+      where: and(
+        eq(atendimentos.pacienteId, dados.pacienteId),
+        eq(atendimentos.especialidade, dados.especialidade)
+      ),
+      columns: { id: true },
     });
 
     if (consultaExistente) {
@@ -82,9 +84,9 @@ rotasAtendimento.post(
       );
     }
 
-    const consentimento = await prisma.consentimento.findFirst({
-      where: { pacienteId: dados.pacienteId },
-      orderBy: { criadoEm: 'desc' },
+    const consentimento = await db.query.consentimentos.findFirst({
+      where: eq(consentimentos.pacienteId, dados.pacienteId),
+      orderBy: [desc(consentimentos.criadoEm)],
     });
 
     if (!consentimento) {
@@ -100,21 +102,20 @@ rotasAtendimento.post(
 
     let atendimento;
     try {
-      atendimento = await prisma.atendimento.create({
-        data: {
-          pacienteId: dados.pacienteId,
-          escolaLocalId: dados.escolaLocalId,
-          usuarioId: usuario.userId,
-          especialidade: dados.especialidade,
-          turno: dados.turno,
-          status: StatusAtendimento.CONCLUIDO,
-          resumo: dados.resumo,
-          procedimentos: dados.procedimentos ?? null,
-          insumosUtilizados: dados.insumosUtilizados ?? null,
-          encaminhamentoExterno: dados.encaminhamentoExterno ?? null,
-          chaveIdempotencia: dados.idempotencyKey,
-        },
-      });
+      const [novoAtendimento] = await db.insert(atendimentos).values({
+        pacienteId: dados.pacienteId,
+        escolaLocalId: dados.escolaLocalId,
+        usuarioId: usuario.userId,
+        especialidade: dados.especialidade,
+        turno: dados.turno,
+        status: StatusAtendimento.CONCLUIDO,
+        resumo: dados.resumo,
+        procedimentos: dados.procedimentos ?? null,
+        insumosUtilizados: dados.insumosUtilizados ?? null,
+        encaminhamentoExterno: dados.encaminhamentoExterno ?? null,
+        chaveIdempotencia: dados.idempotencyKey,
+      }).returning();
+      atendimento = novoAtendimento;
     } catch (erro) {
       if (String(erro).toLowerCase().includes('unique')) {
         return c.json(
@@ -129,7 +130,7 @@ rotasAtendimento.post(
 
     const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1';
 
-    await registrarAuditoria(prisma, {
+    await registrarAuditoria(db, {
       userId: usuario.userId,
       acao: 'CREATE',
       entidade: 'Atendimento',
@@ -160,13 +161,13 @@ const atualizarStatusSchema = z.object({
 });
 
 rotasAtendimento.patch('/:id/status', zValidator('json', atualizarStatusSchema), async (c) => {
-  const prisma = getPrisma(c.env.DB);
+  const db = getDb(c.env.DB);
   const { status } = c.req.valid('json');
-  const atendimento = await prisma.atendimento.update({
-    where: { id: c.req.param('id') },
-    data: { status },
-    select: { id: true, status: true, atualizadoEm: true },
-  });
+  const [atendimento] = await db
+    .update(atendimentos)
+    .set({ status, atualizadoEm: new Date().toISOString() })
+    .where(eq(atendimentos.id, c.req.param('id')))
+    .returning({ id: atendimentos.id, status: atendimentos.status, atualizadoEm: atendimentos.atualizadoEm });
 
   return c.json(atendimento);
 });
@@ -176,15 +177,15 @@ rotasAtendimento.patch('/:id/status', zValidator('json', atualizarStatusSchema),
  * Lista todos os profissionais de saúde ativos para filtros e relatórios.
  */
 rotasAtendimento.get('/profissionais', async (c) => {
-  const prisma = getPrisma(c.env.DB);
-  const profissionais = await prisma.usuario.findMany({
-    where: { perfil: 'PROFISSIONAL_SAUDE', ativo: true },
-    select: { id: true, nomeCompleto: true, especialidade: true },
-    orderBy: { nomeCompleto: 'asc' },
+  const db = getDb(c.env.DB);
+  const profissionais = await db.query.usuarios.findMany({
+    where: and(eq(usuarios.perfil, 'PROFISSIONAL_SAUDE'), eq(usuarios.ativo, true)),
+    columns: { id: true, nomeCompleto: true, especialidade: true },
+    orderBy: [asc(usuarios.nomeCompleto)],
   });
 
   return c.json({
-    dados: profissionais.map((profissional: any) => ({
+    dados: profissionais.map((profissional) => ({
       id: profissional.id,
       nome: profissional.nomeCompleto,
       especialidade: profissional.especialidade,
@@ -198,34 +199,36 @@ rotasAtendimento.get('/profissionais', async (c) => {
  */
 rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), async (c) => {
   const filtros = c.req.valid('query');
-  const prisma = getPrisma(c.env.DB);
-  const where: Record<string, unknown> = {};
+  const db = getDb(c.env.DB);
+  const condicoes = [];
 
-  if (filtros.escolaLocalId) where.escolaLocalId = filtros.escolaLocalId;
-  if (filtros.especialidade) where.especialidade = filtros.especialidade;
-  if (filtros.turno) where.turno = filtros.turno;
-  if (filtros.usuarioId) where.usuarioId = filtros.usuarioId;
+  if (filtros.escolaLocalId) condicoes.push(eq(atendimentos.escolaLocalId, filtros.escolaLocalId));
+  if (filtros.especialidade) condicoes.push(eq(atendimentos.especialidade, filtros.especialidade));
+  if (filtros.turno) condicoes.push(eq(atendimentos.turno, filtros.turno));
+  if (filtros.usuarioId) condicoes.push(eq(atendimentos.usuarioId, filtros.usuarioId));
   if (filtros.dataInicio || filtros.dataFim) {
     if (filtros.dataInicio && filtros.dataFim && filtros.dataInicio > filtros.dataFim) {
       return c.json({ erro: 'A data inicial não pode ser posterior à data final.' }, 400);
     }
-    const criadoEm: { gte?: Date; lte?: Date } = {};
-    if (filtros.dataInicio) criadoEm.gte = new Date(`${filtros.dataInicio}T00:00:00.000Z`);
-    if (filtros.dataFim) criadoEm.lte = new Date(`${filtros.dataFim}T23:59:59.999Z`);
-    where.criadoEm = criadoEm;
+    if (filtros.dataInicio) condicoes.push(gte(atendimentos.criadoEm, `${filtros.dataInicio} 00:00:00`));
+    if (filtros.dataFim) condicoes.push(lte(atendimentos.criadoEm, `${filtros.dataFim} 23:59:59`));
   }
 
-  const atendimentos = await prisma.atendimento.findMany({
-    where,
-    select: {
+  const whereClause = condicoes.length > 0 ? and(...condicoes) : undefined;
+
+  const listaAtendimentos = await db.query.atendimentos.findMany({
+    where: whereClause,
+    columns: {
       especialidade: true,
       turno: true,
       encaminhamentoExterno: true,
       criadoEm: true,
-      escolaLocal: { select: { id: true, nome: true } },
-      usuario: { select: { id: true, nomeCompleto: true } },
     },
-    orderBy: { criadoEm: 'desc' },
+    with: {
+      escolaLocal: { columns: { id: true, nome: true } },
+      usuario: { columns: { id: true, nomeCompleto: true } },
+    },
+    orderBy: [desc(atendimentos.criadoEm)],
   });
 
   const porEspecialidade = new Map<string, { total: number; encaminhamentos: number }>();
@@ -233,7 +236,7 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
   const porEscola = new Map<string, { id: string; nome: string; total: number }>();
   const porProfissional = new Map<string, { id: string; nome: string; total: number }>();
 
-  for (const atendimento of atendimentos) {
+  for (const atendimento of listaAtendimentos) {
     const especialidade = porEspecialidade.get(atendimento.especialidade) ?? { total: 0, encaminhamentos: 0 };
     especialidade.total += 1;
     if (atendimento.encaminhamentoExterno?.trim()) {
@@ -241,32 +244,38 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
       totalEncaminhamentos += 1;
     }
     porEspecialidade.set(atendimento.especialidade, especialidade);
-    const escola = porEscola.get(atendimento.escolaLocal.id) ?? {
-      id: atendimento.escolaLocal.id,
-      nome: atendimento.escolaLocal.nome,
-      total: 0,
-    };
-    escola.total += 1;
-    porEscola.set(escola.id, escola);
-    const profissional = porProfissional.get(atendimento.usuario.id) ?? {
-      id: atendimento.usuario.id,
-      nome: atendimento.usuario.nomeCompleto,
-      total: 0,
-    };
-    profissional.total += 1;
-    porProfissional.set(profissional.id, profissional);
+    
+    if (atendimento.escolaLocal) {
+      const escola = porEscola.get(atendimento.escolaLocal.id) ?? {
+        id: atendimento.escolaLocal.id,
+        nome: atendimento.escolaLocal.nome,
+        total: 0,
+      };
+      escola.total += 1;
+      porEscola.set(escola.id, escola);
+    }
+
+    if (atendimento.usuario) {
+      const profissional = porProfissional.get(atendimento.usuario.id) ?? {
+        id: atendimento.usuario.id,
+        nome: atendimento.usuario.nomeCompleto,
+        total: 0,
+      };
+      profissional.total += 1;
+      porProfissional.set(profissional.id, profissional);
+    }
   }
 
   return c.json({
-    total: atendimentos.length,
+    total: listaAtendimentos.length,
     totalEncaminhamentos,
     porEspecialidade: Array.from(porEspecialidade, ([especialidade, valores]) => ({ especialidade, ...valores }))
       .sort((a, b) => b.total - a.total),
     porEscola: Array.from(porEscola.values()).sort((a, b) => b.total - a.total),
     porProfissional: Array.from(porProfissional.values()).sort((a, b) => b.total - a.total),
-    serie: (atendimentos as any[]).reduce((acc: Record<string, number>, atendimento: any) => {
-      const dia = atendimento.criadoEm.toISOString().slice(0, 10);
-      acc[dia] = (acc[dia] ?? 0) + 1;
+    serie: listaAtendimentos.reduce((acc: Record<string, number>, atendimento) => {
+      const dia = (atendimento.criadoEm ?? '').slice(0, 10);
+      if (dia) acc[dia] = (acc[dia] ?? 0) + 1;
       return acc;
     }, {} as Record<string, number>),
   });
@@ -278,55 +287,54 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
  */
 rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c) => {
   const filtros = c.req.valid('query');
-  const prisma = getPrisma(c.env.DB);
+  const db = getDb(c.env.DB);
+  const condicoes = [];
 
-  const where: Record<string, unknown> = {};
-  if (filtros.especialidade) where['especialidade'] = filtros.especialidade;
-  if (filtros.turno) where['turno'] = filtros.turno;
-  if (filtros.escolaLocalId) where['escolaLocalId'] = filtros.escolaLocalId;
-  if (filtros.usuarioId) where['usuarioId'] = filtros.usuarioId;
-  if (filtros.pacienteId) where['pacienteId'] = filtros.pacienteId;
-  if (filtros.dataInicio || filtros.dataFim) {
-    where['criadoEm'] = {
-      ...(filtros.dataInicio && { gte: new Date(filtros.dataInicio) }),
-      ...(filtros.dataFim && {
-        lte: new Date(filtros.dataFim + 'T23:59:59.999Z'),
-      }),
-    };
-  }
+  if (filtros.especialidade) condicoes.push(eq(atendimentos.especialidade, filtros.especialidade));
+  if (filtros.turno) condicoes.push(eq(atendimentos.turno, filtros.turno));
+  if (filtros.escolaLocalId) condicoes.push(eq(atendimentos.escolaLocalId, filtros.escolaLocalId));
+  if (filtros.usuarioId) condicoes.push(eq(atendimentos.usuarioId, filtros.usuarioId));
+  if (filtros.pacienteId) condicoes.push(eq(atendimentos.pacienteId, filtros.pacienteId));
+  if (filtros.dataInicio) condicoes.push(gte(atendimentos.criadoEm, filtros.dataInicio));
+  if (filtros.dataFim) condicoes.push(lte(atendimentos.criadoEm, `${filtros.dataFim} 23:59:59`));
 
-  const [atendimentos, total] = await Promise.all([
-    prisma.atendimento.findMany({
-      where,
-      skip: (filtros.pagina - 1) * filtros.porPagina,
-      take: filtros.porPagina,
-      orderBy: { criadoEm: 'desc' },
-      include: {
-        escolaLocal: { select: { nome: true } },
-        usuario: { select: { nomeCompleto: true } },
-        paciente: { select: { nomeEnc: true, dekCifrada: true, ivPii: true, tagPii: true } },
+  const whereClause = condicoes.length > 0 ? and(...condicoes) : undefined;
+
+  const [listaAtendimentos, totalResult] = await Promise.all([
+    db.query.atendimentos.findMany({
+      where: whereClause,
+      offset: (filtros.pagina - 1) * filtros.porPagina,
+      limit: filtros.porPagina,
+      orderBy: [desc(atendimentos.criadoEm)],
+      with: {
+        escolaLocal: { columns: { nome: true } },
+        usuario: { columns: { nomeCompleto: true } },
+        paciente: { columns: { nomeEnc: true, dekCifrada: true, ivPii: true, tagPii: true } },
       },
     }),
-    prisma.atendimento.count({ where }),
+    db.select({ total: count() }).from(atendimentos).where(whereClause),
   ]);
 
+  const total = totalResult[0]?.total ?? 0;
   const kekHex = c.env.KEK_HEX;
 
   const atendimentosMapeados = await Promise.all(
-    (atendimentos as any[]).map(async (a: any) => {
+    listaAtendimentos.map(async (a) => {
       let pacienteNome = 'Paciente Desconhecido';
-      try {
-        const piiJson = await descriptografarPii(
-          a.paciente.nomeEnc,
-          a.paciente.dekCifrada,
-          a.paciente.ivPii,
-          a.paciente.tagPii,
-          kekHex
-        );
-        const pii = JSON.parse(piiJson);
-        pacienteNome = pii.nome;
-      } catch {
-        pacienteNome = '[ERRO DE DESCRIPTOGRAFIA]';
+      if (a.paciente) {
+        try {
+          const piiJson = await descriptografarPii(
+            a.paciente.nomeEnc,
+            a.paciente.dekCifrada,
+            a.paciente.ivPii,
+            a.paciente.tagPii,
+            kekHex
+          );
+          const pii = JSON.parse(piiJson);
+          pacienteNome = pii.nome;
+        } catch {
+          pacienteNome = '[ERRO DE DESCRIPTOGRAFIA]';
+        }
       }
 
       return {
@@ -340,8 +348,8 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
         procedimentos: a.procedimentos,
         insumosUtilizados: a.insumosUtilizados,
         encaminhamentoExterno: a.encaminhamentoExterno,
-        escolaLocal: a.escolaLocal.nome,
-        profissional: a.usuario.nomeCompleto,
+        escolaLocal: a.escolaLocal?.nome ?? 'Desconhecida',
+        profissional: a.usuario?.nomeCompleto ?? 'Desconhecido',
         criadoEm: a.criadoEm,
       };
     })

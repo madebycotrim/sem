@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { getPrisma } from '../../infraestrutura/banco/prisma.js';
+import { getDb } from '../../infraestrutura/banco/drizzle.js';
+import { escolasLocais, pacientes } from '../../infraestrutura/banco/schema.js';
+import { eq, asc } from 'drizzle-orm';
 import { criarEscolaSchema } from '../../../compartilhado/index.js';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
@@ -13,30 +15,31 @@ rotasEscola.use('*', middlewareAutenticacao);
 
 // ─── Listar Escolas ──────────────────────────────────────────────────────────
 rotasEscola.get('/', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE']), async (c) => {
-  const prisma = getPrisma(c.env.DB);
+  const db = getDb(c.env.DB);
   
-  const escolas = await prisma.escolaLocal.findMany({
-    where: { ativo: true },
-    include: {
-      _count: {
-        select: {
-          pacientes: { where: { ativo: true } },
-          atendimentos: true,
-        }
-      }
+  const escolas = await db.query.escolasLocais.findMany({
+    where: eq(escolasLocais.ativo, true),
+    orderBy: [asc(escolasLocais.nome)],
+    with: {
+      pacientes: {
+        where: eq(pacientes.ativo, true),
+        columns: { id: true },
+      },
+      atendimentos: {
+        columns: { id: true },
+      },
     },
-    orderBy: { nome: 'asc' }
   });
   
-  const mapeado = (escolas as any[]).map((e: any) => ({
+  const mapeado = escolas.map((e) => ({
     id: e.id,
     nome: e.nome,
     cnpj: e.cnpj || undefined,
     regiao: `${e.cidade} / ${e.uf}`,
     endereco: e.endereco,
     diretoriaRegional: e.diretoriaRegional || 'Não informada',
-    alunosMatriculados: e._count?.pacientes ?? e.alunosMatriculados,
-    totalAtendimentos: e._count?.atendimentos ?? 0,
+    alunosMatriculados: e.pacientes?.length ?? e.alunosMatriculados,
+    totalAtendimentos: e.atendimentos?.length ?? 0,
     unidadesMoveisEstacionadas: e.unidadesMoveis,
     status: e.statusOperacao,
   }));
@@ -47,8 +50,8 @@ rotasEscola.get('/', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 
 // ─── Obter Escola por ID ─────────────────────────────────────────────────────
 rotasEscola.get('/:id', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE']), async (c) => {
   const id = c.req.param('id');
-  const prisma = getPrisma(c.env.DB);
-  const escola = await prisma.escolaLocal.findUnique({ where: { id } });
+  const db = getDb(c.env.DB);
+  const escola = await db.query.escolasLocais.findFirst({ where: eq(escolasLocais.id, id) });
   if (!escola) return c.json({ erro: 'Instituição não encontrada' }, 404);
   return c.json({
     dados: {
@@ -72,28 +75,26 @@ rotasEscola.post(
   zValidator('json', criarEscolaSchema),
   async (c) => {
     const dados = c.req.valid('json');
-    const prisma = getPrisma(c.env.DB);
+    const db = getDb(c.env.DB);
     const usuario = c.get('usuario');
 
-    const escola = await prisma.escolaLocal.create({
-      data: {
-        nome: dados.nome,
-        endereco: dados.endereco,
-        cidade: dados.cidade,
-        uf: dados.uf,
-        cnpj: dados.cnpj,
-        telefone: dados.telefone,
-        email: dados.email,
-        diretoriaRegional: dados.diretoriaRegional,
-        alunosMatriculados: dados.alunosMatriculados,
-        unidadesMoveis: 0,
-        statusOperacao: 'PROGRAMADA',
-        ativo: true
-      }
-    });
+    const [escola] = await db.insert(escolasLocais).values({
+      nome: dados.nome,
+      endereco: dados.endereco,
+      cidade: dados.cidade,
+      uf: dados.uf,
+      cnpj: dados.cnpj,
+      telefone: dados.telefone,
+      email: dados.email,
+      diretoriaRegional: dados.diretoriaRegional,
+      alunosMatriculados: dados.alunosMatriculados,
+      unidadesMoveis: 0,
+      statusOperacao: 'PROGRAMADA',
+      ativo: true,
+    }).returning();
 
     // Registra a auditoria
-    await registrarAuditoria(prisma, {
+    await registrarAuditoria(db, {
       userId: usuario.userId,
       acao: 'CREATE',
       entidade: 'EscolaLocal',
@@ -117,25 +118,22 @@ rotasEscola.put(
   async (c) => {
     const id = c.req.param('id');
     const dados = c.req.valid('json');
-    const prisma = getPrisma(c.env.DB);
+    const db = getDb(c.env.DB);
     const usuario = c.get('usuario');
 
-    const existente = await prisma.escolaLocal.findUnique({ where: { id } });
+    const existente = await db.query.escolasLocais.findFirst({ where: eq(escolasLocais.id, id) });
     if (!existente) return c.json({ erro: 'Instituição não encontrada' }, 404);
 
-    const escola = await prisma.escolaLocal.update({
-      where: { id },
-      data: {
-        ...(dados.nome && { nome: dados.nome }),
-        ...(dados.endereco && { endereco: dados.endereco }),
-        ...(dados.cidade && { cidade: dados.cidade }),
-        ...(dados.uf && { uf: dados.uf }),
-        ...(dados.cnpj !== undefined && { cnpj: dados.cnpj }),
-        ...(dados.diretoriaRegional !== undefined && { diretoriaRegional: dados.diretoriaRegional }),
-      }
-    });
+    const [escola] = await db.update(escolasLocais).set({
+      ...(dados.nome && { nome: dados.nome }),
+      ...(dados.endereco && { endereco: dados.endereco }),
+      ...(dados.cidade && { cidade: dados.cidade }),
+      ...(dados.uf && { uf: dados.uf }),
+      ...(dados.cnpj !== undefined && { cnpj: dados.cnpj }),
+      ...(dados.diretoriaRegional !== undefined && { diretoriaRegional: dados.diretoriaRegional }),
+    }).where(eq(escolasLocais.id, id)).returning();
 
-    await registrarAuditoria(prisma, {
+    await registrarAuditoria(db, {
       userId: usuario.userId,
       acao: 'UPDATE',
       entidade: 'EscolaLocal',
@@ -151,18 +149,15 @@ rotasEscola.put(
 // ─── Excluir Escola (Soft Delete) ────────────────────────────────────────────
 rotasEscola.delete('/:id', autorizarPerfis(['BOOTSTRAP', 'ADMIN']), async (c) => {
   const id = c.req.param('id');
-  const prisma = getPrisma(c.env.DB);
+  const db = getDb(c.env.DB);
   const usuario = c.get('usuario');
 
-  const existente = await prisma.escolaLocal.findUnique({ where: { id } });
+  const existente = await db.query.escolasLocais.findFirst({ where: eq(escolasLocais.id, id) });
   if (!existente || !existente.ativo) return c.json({ erro: 'Instituição não encontrada' }, 404);
 
-  await prisma.escolaLocal.update({
-    where: { id },
-    data: { ativo: false }
-  });
+  await db.update(escolasLocais).set({ ativo: false }).where(eq(escolasLocais.id, id));
 
-  await registrarAuditoria(prisma, {
+  await registrarAuditoria(db, {
     userId: usuario.userId,
     acao: 'DELETE',
     entidade: 'EscolaLocal',
@@ -172,4 +167,3 @@ rotasEscola.delete('/:id', autorizarPerfis(['BOOTSTRAP', 'ADMIN']), async (c) =>
 
   return c.json({ mensagem: 'Instituição removida com sucesso' });
 });
-

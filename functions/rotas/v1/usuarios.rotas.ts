@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { getPrisma } from '../../infraestrutura/banco/prisma.js';
+import { getDb } from '../../infraestrutura/banco/drizzle.js';
+import { usuarios } from '../../infraestrutura/banco/schema.js';
+import { eq, and, asc, count } from 'drizzle-orm';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import { registrarAuditoria } from '../../middlewares/auditoria.js';
@@ -14,11 +16,11 @@ rotasUsuarios.use('*', middlewareAutenticacao);
 
 // ─── Listar Usuários ────────────────────────────────────────────────────────
 rotasUsuarios.get('/', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'DPO']), async (c) => {
-  const prisma = getPrisma(c.env.DB);
+  const db = getDb(c.env.DB);
 
-  const usuarios = await prisma.usuario.findMany({
-    orderBy: { nomeCompleto: 'asc' },
-    select: {
+  const listaUsuarios = await db.query.usuarios.findMany({
+    orderBy: [asc(usuarios.nomeCompleto)],
+    columns: {
       id: true,
       nomeCompleto: true,
       email: true,
@@ -35,7 +37,7 @@ rotasUsuarios.get('/', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'DPO']), async (c)
     },
   });
 
-  const mapeados = (usuarios as any[]).map((u: any) => ({
+  const mapeados = listaUsuarios.map((u) => ({
     id: u.id,
     nome: u.nomeCompleto,
     email: u.email,
@@ -69,11 +71,11 @@ rotasUsuarios.post(
   zValidator('json', criarUsuarioSchema),
   async (c) => {
     const dados = c.req.valid('json');
-    const prisma = getPrisma(c.env.DB);
+    const db = getDb(c.env.DB);
     const usuarioLogado = c.get('usuario');
 
-    const usuarioExistente = await prisma.usuario.findUnique({
-      where: { email: dados.email.toLowerCase() },
+    const usuarioExistente = await db.query.usuarios.findFirst({
+      where: eq(usuarios.email, dados.email.toLowerCase()),
     });
 
     if (usuarioExistente) {
@@ -82,22 +84,20 @@ rotasUsuarios.post(
 
     const senhaHash = await gerarHashSenha(dados.senha);
 
-    const novoUsuario = await prisma.usuario.create({
-      data: {
-        email: dados.email.toLowerCase(),
-        nomeCompleto: dados.nomeCompleto.toUpperCase(),
-        perfil: dados.perfil,
-        conselhoProfissional: dados.conselhoProfissional,
-        registroProfissional: dados.registroProfissional,
-        especialidade: dados.especialidade,
-        senhaHash,
-        senhaTemporaria: true,
-        senhaTemporariaExpiraEm: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        ativo: true,
-      },
-    });
+    const [novoUsuario] = await db.insert(usuarios).values({
+      email: dados.email.toLowerCase(),
+      nomeCompleto: dados.nomeCompleto.toUpperCase(),
+      perfil: dados.perfil,
+      conselhoProfissional: dados.conselhoProfissional,
+      registroProfissional: dados.registroProfissional,
+      especialidade: dados.especialidade,
+      senhaHash,
+      senhaTemporaria: true,
+      senhaTemporariaExpiraEm: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      ativo: true,
+    }).returning();
 
-    await registrarAuditoria(prisma, {
+    await registrarAuditoria(db, {
       userId: usuarioLogado.userId,
       acao: 'CREATE',
       entidade: 'Usuario',
@@ -139,10 +139,10 @@ rotasUsuarios.put(
   async (c) => {
     const id = c.req.param('id');
     const dados = c.req.valid('json');
-    const prisma = getPrisma(c.env.DB);
+    const db = getDb(c.env.DB);
     const usuarioLogado = c.get('usuario');
 
-    const usuarioExistente = await prisma.usuario.findUnique({ where: { id } });
+    const usuarioExistente = await db.query.usuarios.findFirst({ where: eq(usuarios.id, id) });
     if (!usuarioExistente) {
       return c.json({ erro: 'Usuário não encontrado' }, 404);
     }
@@ -152,25 +152,31 @@ rotasUsuarios.put(
     }
 
     if (dados.ativo === false && usuarioExistente.ativo && usuarioExistente.perfil === 'ADMIN') {
-      const administradoresAtivos = await prisma.usuario.count({ where: { perfil: 'ADMIN', ativo: true } });
-      if (administradoresAtivos <= 1) {
+      const [resultado] = await db
+        .select({ total: count() })
+        .from(usuarios)
+        .where(and(eq(usuarios.perfil, 'ADMIN'), eq(usuarios.ativo, true)));
+
+      if ((resultado?.total ?? 0) <= 1) {
         return c.json({ erro: 'O último administrador ativo não pode ser arquivado.' }, 409);
       }
     }
 
-    const atualizado = await prisma.usuario.update({
-      where: { id },
-      data: {
+    const [atualizado] = await db
+      .update(usuarios)
+      .set({
         ...(dados.nomeCompleto && { nomeCompleto: dados.nomeCompleto.toUpperCase() }),
         ...(dados.perfil && { perfil: dados.perfil }),
         ...(dados.conselhoProfissional !== undefined && { conselhoProfissional: dados.conselhoProfissional }),
         ...(dados.registroProfissional !== undefined && { registroProfissional: dados.registroProfissional }),
         ...(dados.especialidade !== undefined && { especialidade: dados.especialidade }),
         ...(dados.ativo !== undefined && { ativo: dados.ativo }),
-      },
-    });
+        atualizadoEm: new Date().toISOString(),
+      })
+      .where(eq(usuarios.id, id))
+      .returning();
 
-    await registrarAuditoria(prisma, {
+    await registrarAuditoria(db, {
       userId: usuarioLogado.userId,
       acao: 'UPDATE',
       entidade: 'Usuario',
@@ -195,22 +201,27 @@ rotasUsuarios.post(
   async (c) => {
     const id = c.req.param('id');
     const { novaSenha } = c.req.valid('json');
-    const prisma = getPrisma(c.env.DB);
+    const db = getDb(c.env.DB);
     const usuarioLogado = c.get('usuario');
 
-    const usuarioExistente = await prisma.usuario.findUnique({ where: { id } });
+    const usuarioExistente = await db.query.usuarios.findFirst({ where: eq(usuarios.id, id) });
     if (!usuarioExistente) {
       return c.json({ erro: 'Usuário não encontrado' }, 404);
     }
 
     const senhaHash = await gerarHashSenha(novaSenha);
 
-    await prisma.usuario.update({
-      where: { id },
-      data: { senhaHash, senhaTemporaria: false, senhaTemporariaExpiraEm: null },
-    });
+    await db
+      .update(usuarios)
+      .set({
+        senhaHash,
+        senhaTemporaria: false,
+        senhaTemporariaExpiraEm: null,
+        atualizadoEm: new Date().toISOString(),
+      })
+      .where(eq(usuarios.id, id));
 
-    await registrarAuditoria(prisma, {
+    await registrarAuditoria(db, {
       userId: usuarioLogado.userId,
       acao: 'UPDATE',
       entidade: 'Usuario',

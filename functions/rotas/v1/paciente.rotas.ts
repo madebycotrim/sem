@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { criarPacienteSchema, atualizarPacienteSchema } from '../../../compartilhado/index.js';
-import { getPrisma } from '../../infraestrutura/banco/prisma.js';
+import { getDb, type AppDatabase } from '../../infraestrutura/banco/drizzle.js';
+import { pacientes, escolasLocais, consentimentos } from '../../infraestrutura/banco/schema.js';
+import { eq, and, desc, count } from 'drizzle-orm';
 import {
   criptografarPii,
   descriptografarPii,
@@ -16,19 +18,19 @@ export const rotasPaciente = new Hono<{ Bindings: Bindings; Variables: AppVariab
 const normalizarCpf = (valor?: string | null) => (valor ?? '').replace(/\D/g, '').slice(0, 11);
 
 const verificarCpfDuplicado = async (
-  prisma: ReturnType<typeof getPrisma>,
+  db: AppDatabase,
   cpf: string,
   kekHex: string,
   ignorarPacienteId?: string
 ) => {
   const cpfNormalizado = normalizarCpf(cpf);
 
-  const pacientes = await prisma.paciente.findMany({
-    where: { ativo: true },
-    select: { id: true, nomeEnc: true, dekCifrada: true, ivPii: true, tagPii: true },
+  const pacientesList = await db.query.pacientes.findMany({
+    where: eq(pacientes.ativo, true),
+    columns: { id: true, nomeEnc: true, dekCifrada: true, ivPii: true, tagPii: true },
   });
 
-  for (const paciente of pacientes) {
+  for (const paciente of pacientesList) {
     if (ignorarPacienteId && paciente.id === ignorarPacienteId) continue;
 
     try {
@@ -46,7 +48,7 @@ const verificarCpfDuplicado = async (
         return true;
       }
     } catch {
-      // registra ilegível: ignora para não bloquear indevidamente um cadastro válido
+      // registro ilegível: ignora para não bloquear indevidamente um cadastro válido
     }
   }
 
@@ -67,17 +69,19 @@ rotasPaciente.use(
 rotasPaciente.post('/', autorizarAcao('criarPaciente'), zValidator('json', criarPacienteSchema), async (c) => {
   const dados = c.req.valid('json');
   const usuario = c.get('usuario');
-  const prisma = getPrisma(c.env.DB);
+  const db = getDb(c.env.DB);
   const kekHex = c.env.KEK_HEX;
   const cpfNormalizado = normalizarCpf(dados.cpf);
 
-  const escola = await prisma.escolaLocal.findFirst({ where: { id: dados.escolaLocalId, ativo: true } });
+  const escola = await db.query.escolasLocais.findFirst({
+    where: and(eq(escolasLocais.id, dados.escolaLocalId), eq(escolasLocais.ativo, true)),
+  });
   if (!escola) {
     return c.json({ erro: 'A instituição selecionada não está ativa.' }, 422);
   }
 
   if (cpfNormalizado.length === 11) {
-    const cpfDuplicado = await verificarCpfDuplicado(prisma, cpfNormalizado, kekHex);
+    const cpfDuplicado = await verificarCpfDuplicado(db, cpfNormalizado, kekHex);
     if (cpfDuplicado) {
       return c.json({ erro: 'Já existe um paciente cadastrado com este CPF.' }, 409);
     }
@@ -97,24 +101,22 @@ rotasPaciente.post('/', autorizarAcao('criarPaciente'), zValidator('json', criar
   const retencaoExpiraEm = new Date();
   retencaoExpiraEm.setDate(retencaoExpiraEm.getDate() + retencaoDias);
 
-  const paciente = await prisma.paciente.create({
-    data: {
-      nomeEnc: piiCifrada.dadosCifrados,
-      cpfEnc: '',
-      dataNascimentoEnc: '',
-      telefoneEnc: null,
-      dekCifrada: piiCifrada.dekCifrada,
-      ivPii: piiCifrada.iv,
-      tagPii: piiCifrada.tag,
-      turma: dados.turma,
-      escolaLocalId: dados.escolaLocalId,
-      retencaoExpiraEm,
-    },
-  });
+  const [paciente] = await db.insert(pacientes).values({
+    nomeEnc: piiCifrada.dadosCifrados,
+    cpfEnc: '',
+    dataNascimentoEnc: '',
+    telefoneEnc: null,
+    dekCifrada: piiCifrada.dekCifrada,
+    ivPii: piiCifrada.iv,
+    tagPii: piiCifrada.tag,
+    turma: dados.turma,
+    escolaLocalId: dados.escolaLocalId,
+    retencaoExpiraEm: retencaoExpiraEm.toISOString(),
+  }).returning();
 
   const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1';
 
-  await registrarAuditoria(prisma, {
+  await registrarAuditoria(db, {
     userId: usuario.userId,
     acao: 'CREATE',
     entidade: 'Paciente',
@@ -139,30 +141,36 @@ rotasPaciente.post('/', autorizarAcao('criarPaciente'), zValidator('json', criar
  * Lista pacientes com paginação e descriptografia segura na borda.
  */
 rotasPaciente.get('/', async (c) => {
-  const prisma = getPrisma(c.env.DB);
+  const db = getDb(c.env.DB);
   const query = c.req.query();
   const pagina = Math.max(1, parseInt(query['pagina'] ?? '1', 10));
   const porPagina = Math.min(100, Math.max(1, parseInt(query['porPagina'] ?? '20', 10)));
 
-  const [pacientes, total] = await Promise.all([
-    prisma.paciente.findMany({
-      skip: (pagina - 1) * porPagina,
-      take: porPagina,
-      where: { ativo: true },
-      orderBy: { criadoEm: 'desc' },
-      include: {
-        escolaLocal: { select: { nome: true } },
-        consentimentos: { orderBy: { criadoEm: 'desc' }, take: 1 },
-        _count: { select: { atendimentos: true } },
+  const [pacientesList, totalResult] = await Promise.all([
+    db.query.pacientes.findMany({
+      offset: (pagina - 1) * porPagina,
+      limit: porPagina,
+      where: eq(pacientes.ativo, true),
+      orderBy: [desc(pacientes.criadoEm)],
+      with: {
+        escolaLocal: { columns: { nome: true } },
+        consentimentos: {
+          orderBy: [desc(consentimentos.criadoEm)],
+          limit: 1,
+        },
+        atendimentos: {
+          columns: { id: true },
+        },
       },
     }),
-    prisma.paciente.count({ where: { ativo: true } }),
+    db.select({ total: count() }).from(pacientes).where(eq(pacientes.ativo, true)),
   ]);
 
+  const total = totalResult[0]?.total ?? 0;
   const kekHex = c.env.KEK_HEX;
 
   const pacientesDescriptografados = await Promise.all(
-    (pacientes as any[]).map(async (p: any) => {
+    pacientesList.map(async (p) => {
       try {
         const piiJson = await descriptografarPii(
           p.nomeEnc,
@@ -187,8 +195,8 @@ rotasPaciente.get('/', async (c) => {
           telefone: null,
           sexo: pii.sexo ?? undefined,
           turma: p.turma,
-          escolaLocal: p.escolaLocal.nome,
-          atendimentosCount: p._count.atendimentos,
+          escolaLocal: p.escolaLocal?.nome ?? 'Desconhecida',
+          atendimentosCount: p.atendimentos?.length ?? 0,
           termoConsentimentoStatus: p.consentimentos[0]?.consentimentoDispensado
             ? 'DISPENSADO'
             : p.consentimentos[0]?.dataConsentimento ? 'ACEITO' : 'PENDENTE',
@@ -202,8 +210,8 @@ rotasPaciente.get('/', async (c) => {
           dataNascimento: '***',
           telefone: null,
           turma: p.turma,
-          escolaLocal: p.escolaLocal.nome,
-          atendimentosCount: p._count.atendimentos,
+          escolaLocal: p.escolaLocal?.nome ?? 'Desconhecida',
+          atendimentosCount: p.atendimentos?.length ?? 0,
           termoConsentimentoStatus: 'PENDENTE',
           criadoEm: p.criadoEm,
         };
@@ -228,12 +236,14 @@ rotasPaciente.patch('/:id', autorizarAcao('editarPaciente'), zValidator('json', 
   const id = c.req.param('id');
   const dados = c.req.valid('json');
   const usuario = c.get('usuario');
-  const prisma = getPrisma(c.env.DB);
-  const existente = await prisma.paciente.findFirst({ where: { id, ativo: true } });
+  const db = getDb(c.env.DB);
+  const existente = await db.query.pacientes.findFirst({ where: and(eq(pacientes.id, id), eq(pacientes.ativo, true)) });
   if (!existente) return c.json({ erro: 'Paciente não encontrado.' }, 404);
 
   if (dados.escolaLocalId) {
-    const escola = await prisma.escolaLocal.findFirst({ where: { id: dados.escolaLocalId, ativo: true } });
+    const escola = await db.query.escolasLocais.findFirst({
+      where: and(eq(escolasLocais.id, dados.escolaLocalId), eq(escolasLocais.ativo, true)),
+    });
     if (!escola) return c.json({ erro: 'A instituição selecionada não está ativa.' }, 422);
   }
 
@@ -246,7 +256,7 @@ rotasPaciente.patch('/:id', autorizarAcao('editarPaciente'), zValidator('json', 
 
   const cpfNovo = normalizarCpf(dados.cpf ?? piiAtual.cpf);
   if (cpfNovo.length === 11) {
-    const cpfDuplicado = await verificarCpfDuplicado(prisma, cpfNovo, c.env.KEK_HEX, id);
+    const cpfDuplicado = await verificarCpfDuplicado(db, cpfNovo, c.env.KEK_HEX, id);
     if (cpfDuplicado) {
       return c.json({ erro: 'Já existe outro paciente cadastrado com este CPF.' }, 409);
     }
@@ -259,35 +269,38 @@ rotasPaciente.patch('/:id', autorizarAcao('editarPaciente'), zValidator('json', 
     telefone: dados.telefone ?? piiAtual.telefone,
     sexo: dados.sexo ?? piiAtual.sexo ?? null,
   }), c.env.KEK_HEX);
-  const atualizado = await prisma.paciente.update({
-    where: { id },
-    data: {
-      nomeEnc: piiCifrada.dadosCifrados,
-      dekCifrada: piiCifrada.dekCifrada,
-      ivPii: piiCifrada.iv,
-      tagPii: piiCifrada.tag,
-      turma: dados.turma ?? existente.turma,
-      escolaLocalId: dados.escolaLocalId ?? existente.escolaLocalId,
-    },
-  });
-  await registrarAuditoria(prisma, {
+
+  const [atualizado] = await db.update(pacientes).set({
+    nomeEnc: piiCifrada.dadosCifrados,
+    dekCifrada: piiCifrada.dekCifrada,
+    ivPii: piiCifrada.iv,
+    tagPii: piiCifrada.tag,
+    turma: dados.turma ?? existente.turma,
+    escolaLocalId: dados.escolaLocalId ?? existente.escolaLocalId,
+    atualizadoEm: new Date().toISOString(),
+  }).where(eq(pacientes.id, id)).returning();
+
+  await registrarAuditoria(db, {
     userId: usuario.userId, acao: 'UPDATE', entidade: 'Paciente', entidadeId: id,
     diffAnterior: { turma: existente.turma, escolaLocalId: existente.escolaLocalId },
     diffPosterior: { turma: atualizado.turma, escolaLocalId: atualizado.escolaLocalId },
     ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1',
   });
+
   return c.json({ id: atualizado.id, atualizadoEm: atualizado.atualizadoEm });
 });
 
 /** Arquiva, sem apagar o prontuário ou o histórico clínico. */
 rotasPaciente.post('/:id/arquivar', autorizarAcao('arquivarPaciente'), async (c) => {
   const usuario = c.get('usuario');
-  const prisma = getPrisma(c.env.DB);
+  const db = getDb(c.env.DB);
   const id = c.req.param('id');
-  const existente = await prisma.paciente.findFirst({ where: { id, ativo: true } });
+  const existente = await db.query.pacientes.findFirst({ where: and(eq(pacientes.id, id), eq(pacientes.ativo, true)) });
   if (!existente) return c.json({ erro: 'Paciente não encontrado.' }, 404);
-  await prisma.paciente.update({ where: { id }, data: { ativo: false } });
-  await registrarAuditoria(prisma, {
+
+  await db.update(pacientes).set({ ativo: false, atualizadoEm: new Date().toISOString() }).where(eq(pacientes.id, id));
+
+  await registrarAuditoria(db, {
     userId: usuario.userId, acao: 'ARCHIVE', entidade: 'Paciente', entidadeId: id,
     diffAnterior: { ativo: true }, diffPosterior: { ativo: false },
     ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1',
@@ -301,12 +314,12 @@ rotasPaciente.post('/:id/arquivar', autorizarAcao('arquivarPaciente'), async (c)
  */
 rotasPaciente.get('/:id', async (c) => {
   const id = c.req.param('id');
-  const prisma = getPrisma(c.env.DB);
+  const db = getDb(c.env.DB);
 
-  const paciente = await prisma.paciente.findFirst({
-    where: { id, ativo: true },
-    include: {
-      escolaLocal: { select: { nome: true } },
+  const paciente = await db.query.pacientes.findFirst({
+    where: and(eq(pacientes.id, id), eq(pacientes.ativo, true)),
+    with: {
+      escolaLocal: { columns: { nome: true } },
       consentimentos: true,
     },
   });
@@ -341,7 +354,7 @@ rotasPaciente.get('/:id', async (c) => {
         telefone: pii.telefone,
         sexo: pii.sexo ?? undefined,
         turma: paciente.turma,
-        escolaLocal: paciente.escolaLocal.nome,
+        escolaLocal: paciente.escolaLocal?.nome ?? 'Desconhecida',
         consentimentos: paciente.consentimentos,
         criadoEm: paciente.criadoEm,
       } });

@@ -1,6 +1,8 @@
 import type { MiddlewareHandler } from 'hono';
 import { type PerfilAcesso, type PermissoesPerfil } from '../../compartilhado/index.js';
-import { getPrisma } from '../infraestrutura/banco/prisma.js';
+import { getDb } from '../infraestrutura/banco/drizzle.js';
+import { configuracoesRbac } from '../infraestrutura/banco/schema.js';
+import { eq } from 'drizzle-orm';
 import type { Bindings } from '../config/env.js';
 import type { AppVariables } from './autenticacao.js';
 
@@ -55,10 +57,10 @@ export function autorizarAcao(
       return await next();
     }
 
-    const prisma = getPrisma(c.env.DB);
-    const configuracao = await prisma.configuracaoRbac.findUnique({
-      where: { perfil: perfilUsuario },
-      select: { acoes: true },
+    const db = getDb(c.env.DB);
+    const configuracao = await db.query.configuracoesRbac.findFirst({
+      where: eq(configuracoesRbac.perfil, perfilUsuario),
+      columns: { acoes: true },
     });
     let permissoesDoPerfil: Pick<PermissoesPerfil, 'acoes'> | null = null;
     try {

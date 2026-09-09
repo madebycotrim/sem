@@ -5,9 +5,10 @@ import { setCookie, deleteCookie } from 'hono/cookie';
 import { sign } from 'hono/jwt';
 import * as OTPAuth from 'otpauth';
 import { loginSchema, verificarMfaSchema } from '../../../compartilhado/index.js';
-import { getPrisma } from '../../infraestrutura/banco/prisma.js';
-import { verificarSenha } from '../../infraestrutura/criptografia/senha.js';
-import { gerarHashSenha } from '../../infraestrutura/criptografia/senha.js';
+import { getDb } from '../../infraestrutura/banco/drizzle.js';
+import { usuarios } from '../../infraestrutura/banco/schema.js';
+import { eq } from 'drizzle-orm';
+import { verificarSenha, gerarHashSenha } from '../../infraestrutura/criptografia/senha.js';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import type { Bindings } from '../../config/env.js';
 
@@ -24,10 +25,10 @@ const alterarSenhaSchema = z.object({
  */
 rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
   const body = c.req.valid('json');
-  const prisma = getPrisma(c.env.DB);
+  const db = getDb(c.env.DB);
 
-  const usuario = await prisma.usuario.findUnique({
-    where: { email: body.email },
+  const usuario = await db.query.usuarios.findFirst({
+    where: eq(usuarios.email, body.email),
   });
 
   if (!usuario || !usuario.ativo) {
@@ -39,11 +40,13 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
     return c.json({ erro: 'Credenciais inválidas.' }, 401);
   }
 
-  if (usuario.senhaTemporaria && (!usuario.senhaTemporariaExpiraEm || usuario.senhaTemporariaExpiraEm < new Date())) {
+  if (usuario.senhaTemporaria && (!usuario.senhaTemporariaExpiraEm || new Date(usuario.senhaTemporariaExpiraEm) < new Date())) {
     return c.json({ erro: 'A senha temporária expirou. Solicite uma nova senha.', codigo: 'SENHA_TEMPORARIA_EXPIRADA' }, 403);
   }
 
-  await prisma.usuario.update({ where: { id: usuario.id }, data: { ultimoAcesso: new Date() } });
+  await db.update(usuarios)
+    .set({ ultimoAcesso: new Date().toISOString() })
+    .where(eq(usuarios.id, usuario.id));
 
   const mfaVerificado = !usuario.mfaAtivo;
 
@@ -81,21 +84,21 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
 rotasAuth.post('/alterar-senha', middlewareAutenticacao, zValidator('json', alterarSenhaSchema), async (c) => {
   const usuarioLogado = c.get('usuario');
   const dados = c.req.valid('json');
-  const prisma = getPrisma(c.env.DB);
-  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioLogado.userId } });
+  const db = getDb(c.env.DB);
+  const usuario = await db.query.usuarios.findFirst({ where: eq(usuarios.id, usuarioLogado.userId) });
 
   if (!usuario || !(await verificarSenha(dados.senhaAtual, usuario.senhaHash))) {
     return c.json({ erro: 'Senha atual inválida.' }, 401);
   }
 
-  await prisma.usuario.update({
-    where: { id: usuario.id },
-    data: {
+  await db.update(usuarios)
+    .set({
       senhaHash: await gerarHashSenha(dados.novaSenha),
       senhaTemporaria: false,
       senhaTemporariaExpiraEm: null,
-    },
-  });
+      atualizadoEm: new Date().toISOString(),
+    })
+    .where(eq(usuarios.id, usuario.id));
 
   return c.json({ mensagem: 'Senha alterada com sucesso.' });
 });
@@ -111,10 +114,10 @@ rotasAuth.post(
   async (c) => {
     const body = c.req.valid('json');
     const usuarioLogado = c.get('usuario');
-    const prisma = getPrisma(c.env.DB);
+    const db = getDb(c.env.DB);
 
-    const usuario = await prisma.usuario.findUnique({
-      where: { id: usuarioLogado.userId },
+    const usuario = await db.query.usuarios.findFirst({
+      where: eq(usuarios.id, usuarioLogado.userId),
     });
 
     if (!usuario || !usuario.mfaSecret || !usuario.mfaAtivo) {
@@ -167,11 +170,11 @@ rotasAuth.post(
  */
 rotasAuth.get('/me', middlewareAutenticacao, async (c) => {
   const usuarioLogado = c.get('usuario');
-  const prisma = getPrisma(c.env.DB);
+  const db = getDb(c.env.DB);
 
-  const usuario = await prisma.usuario.findUnique({
-    where: { id: usuarioLogado.userId },
-    select: {
+  const usuario = await db.query.usuarios.findFirst({
+    where: eq(usuarios.id, usuarioLogado.userId),
+    columns: {
       id: true,
       email: true,
       nomeCompleto: true,

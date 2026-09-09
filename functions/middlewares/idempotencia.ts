@@ -1,5 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
-import { getPrisma } from '../infraestrutura/banco/prisma.js';
+import { getDb } from '../infraestrutura/banco/drizzle.js';
+import { atendimentos } from '../infraestrutura/banco/schema.js';
+import { eq } from 'drizzle-orm';
 import type { Bindings } from '../config/env.js';
 import type { AppVariables } from './autenticacao.js';
 
@@ -18,11 +20,11 @@ export const middlewareIdempotencia: MiddlewareHandler<{
 
       if (body && typeof body['idempotencyKey'] === 'string') {
         const idempotencyKey = body['idempotencyKey'];
-        const prisma = getPrisma(c.env.DB);
+        const db = getDb(c.env.DB);
 
-        const registroExistente = await prisma.atendimento.findUnique({
-          where: { chaveIdempotencia: idempotencyKey },
-          select: { id: true, criadoEm: true },
+        const registroExistente = await db.query.atendimentos.findFirst({
+          where: eq(atendimentos.chaveIdempotencia, idempotencyKey),
+          columns: { id: true, criadoEm: true },
         });
 
         if (registroExistente) {

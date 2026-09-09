@@ -15,19 +15,25 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
   it('deve realizar login com credenciais válidas e definir Cookie seguro', async () => {
     const senhaHash = await gerarHashSenha('SenhaCorreta@123');
 
-    const mockPrisma = {
-      usuario: {
-        findUnique: vi.fn().mockResolvedValue({
-          id: 'user-001',
-          email: 'medico@saude.dev',
-          senhaHash,
-          nomeCompleto: 'Dr. Teste',
-          perfil: 'PROFISSIONAL_SAUDE',
-          ativo: true,
-          mfaAtivo: false,
-        }),
-        update: vi.fn().mockResolvedValue({}),
+    const mockDb = {
+      query: {
+        usuarios: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: 'user-001',
+            email: 'medico@saude.dev',
+            senhaHash,
+            nomeCompleto: 'Dr. Teste',
+            perfil: 'PROFISSIONAL_SAUDE',
+            ativo: true,
+            mfaAtivo: false,
+          }),
+        },
       },
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue({}),
+        }),
+      }),
     };
 
     const res = await app.request('/api/v1/auth/login', {
@@ -41,7 +47,7 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
       JWT_SECRET: mockJwtSecret,
       KEK_HEX: mockKekHex,
       CORS_ORIGINS: 'http://localhost:5173',
-      DB: mockPrisma,
+      DB: mockDb,
     });
 
     expect(res.status).toBe(200);
@@ -58,16 +64,23 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
   it('deve rejeitar login com senha incorreta', async () => {
     const senhaHash = await gerarHashSenha('SenhaCorreta@123');
 
-    const mockPrisma = {
-      usuario: {
-        findUnique: vi.fn().mockResolvedValue({
-          id: 'user-001',
-          email: 'medico@saude.dev',
-          senhaHash,
-          ativo: true,
-          mfaAtivo: false,
-        }),
+    const mockDb = {
+      query: {
+        usuarios: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: 'user-001',
+            email: 'medico@saude.dev',
+            senhaHash,
+            ativo: true,
+            mfaAtivo: false,
+          }),
+        },
       },
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue({}),
+        }),
+      }),
     };
 
     const res = await app.request('/api/v1/auth/login', {
@@ -81,7 +94,7 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
       JWT_SECRET: mockJwtSecret,
       KEK_HEX: mockKekHex,
       CORS_ORIGINS: 'http://localhost:5173',
-      DB: mockPrisma,
+      DB: mockDb,
     });
 
     expect(res.status).toBe(401);
@@ -117,17 +130,19 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
       'HS256'
     );
 
-    const mockPrisma = {
-      usuario: {
-        findUnique: vi.fn().mockResolvedValue({
-          id: 'user-001',
-          email: 'medico@saude.dev',
-          nomeCompleto: 'Dr. Teste',
-          perfil: 'PROFISSIONAL_SAUDE',
-          ativo: true,
-          mfaAtivo: false,
-          criadoEm: new Date(),
-        }),
+    const mockDb = {
+      query: {
+        usuarios: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: 'user-001',
+            email: 'medico@saude.dev',
+            nomeCompleto: 'Dr. Teste',
+            perfil: 'PROFISSIONAL_SAUDE',
+            ativo: true,
+            mfaAtivo: false,
+            criadoEm: new Date().toISOString(),
+          }),
+        },
       },
     };
 
@@ -140,7 +155,7 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
       JWT_SECRET: mockJwtSecret,
       KEK_HEX: mockKekHex,
       CORS_ORIGINS: 'http://localhost:5173',
-      DB: mockPrisma,
+      DB: mockDb,
     });
 
     expect(res.status).toBe(200);
