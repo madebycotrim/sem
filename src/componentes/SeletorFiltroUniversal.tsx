@@ -359,25 +359,36 @@ export const SeletorFiltroUniversal = forwardRef<
     }
   }, [aberto, pesquisavelEfetivo]);
 
+  const dispararBlur = (valorFinal: string = valInterno) => {
+    if (onBlur) {
+      try {
+        (onBlur as any)({ target: { name, value: valorFinal, id } });
+      } catch {
+        // Evita que erros em handlers externos quebrem a interface
+      }
+    }
+  };
+
   // Fechar ao clicar fora
   useEffect(() => {
     if (!aberto) return undefined;
 
     const handleClickFora = (e: MouseEvent) => {
-      const target = e.target as Node;
+      const target = e?.target as Node | undefined;
       if (
         containerRef.current &&
+        target &&
         !containerRef.current.contains(target) &&
         !menuRef.current?.contains(target)
       ) {
         setAberto(false);
-        onBlur?.();
+        dispararBlur();
       }
     };
 
     document.addEventListener('mousedown', handleClickFora);
     return () => document.removeEventListener('mousedown', handleClickFora);
-  }, [aberto, onBlur]);
+  }, [aberto, onBlur, valInterno, name, id]);
 
   const contextoModal = useModalContexto();
 
@@ -390,9 +401,11 @@ export const SeletorFiltroUniversal = forwardRef<
 
     if (aoMudar) aoMudar(novoValor);
     if (onChange) {
-      onChange({ target: { name, value: novoValor, id } });
+      try {
+        onChange({ target: { name, value: novoValor, id } });
+      } catch {}
     }
-    onBlur?.();
+    dispararBlur(novoValor);
   };
 
   const limparSelecao = (e: React.MouseEvent) => {

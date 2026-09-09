@@ -59,7 +59,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   escolas = [],
   pacientes = [],
   atendimentos = [],
-  fila = [],
+  fila: filaProp,
   profissionais = [],
 }) => {
   const [busca, setBusca] = useState('');
@@ -67,6 +67,18 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   const [modalAtendimentoAberto, setModalAtendimentoAberto] = useState(false);
   const [dadosAtendimentoAtivo, setDadosAtendimentoAtivo] = useState<DadosAtendimento | null>(null);
   const [confirmandoAlteracaoId, setConfirmandoAlteracaoId] = useState<string | null>(null);
+
+  const [filaLocal, setFilaLocal] = useState<ItemFila[]>(() => {
+    try {
+      const salvo = localStorage.getItem('catraki_fila_do_dia');
+      if (salvo) {
+        return JSON.parse(salvo);
+      }
+    } catch {}
+    return [];
+  });
+
+  const fila = filaProp && filaProp.length > 0 ? filaProp : filaLocal;
 
   useEffect(() => {
     if (!confirmandoAlteracaoId) return undefined;
@@ -115,11 +127,48 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       throw new Error('Este CPF já possui uma consulta registrada para esta especialidade. Não é permitido realizar outra consulta.');
     }
 
-    throw new Error('A criação de triagens depende da API de fila, que ainda não está disponível.');
+    const agora = new Date();
+    const horarioChegada = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const dataChegada = agora.toLocaleDateString('pt-BR');
+    const hora = agora.getHours();
+    const turno: Turno = hora < 13 ? Turno.MANHA : Turno.TARDE;
+
+    const novoItemFila: ItemFila = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `fila-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      pacienteNome: dados.pacienteNome,
+      cpf: dados.cpf,
+      idade: dados.idade,
+      escolaNome: dados.escolaNome,
+      especialidade: dados.especialidade,
+      status: 'AGUARDANDO',
+      horarioChegada,
+      dataChegada,
+      turno,
+      profissional: dados.profissionalNome,
+      profissionalRegistro: dados.profissionalRegistro,
+    };
+
+    setFilaLocal((prev) => {
+      const novaLista = [novoItemFila, ...prev.filter((i) => i.id !== novoItemFila.id)];
+      try {
+        localStorage.setItem('catraki_fila_do_dia', JSON.stringify(novaLista));
+      } catch {}
+      return novaLista;
+    });
+
+    setModalTriagemAberto(false);
   };
 
-  const alternarStatus = async (_id: string, _novoStatus: StatusPresenca) => {
-    throw new Error('A atualização da fila depende da API de fila, que ainda não está disponível.');
+  const alternarStatus = async (id: string, novoStatus: StatusPresenca) => {
+    setFilaLocal((prev) => {
+      const novaLista = prev.map((item) =>
+        item.id === id ? { ...item, status: novoStatus } : item
+      );
+      try {
+        localStorage.setItem('catraki_fila_do_dia', JSON.stringify(novaLista));
+      } catch {}
+      return novaLista;
+    });
   };
 
   // Configuração das colunas para o Sistema Excel
