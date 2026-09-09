@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "test": "vitest run",
-    "gerar:chaves": "node scripts/gerar-chaves.js"
+    "gerar:chaves": "node scripts/gerar-chaves.js",
+    "gerar:bootstrap": "node scripts/gerar-bootstrap.js"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",
