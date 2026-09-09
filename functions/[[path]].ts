@@ -35,16 +35,40 @@ app.use('/api/*', middlewareLogAcesso);
 app.route('/api/v1', rotasV1);
 
 // Rota de Health Check
-app.get('/api/health', (c) =>
-  c.json({ status: 'ok', runtime: 'Cloudflare Pages Functions', timestamp: new Date().toISOString() })
-);
+app.get('/api/health', (c) => {
+  const eventContext = (c.env as any)?.eventContext;
+  return c.json({
+    status: 'ok',
+    runtime: 'Cloudflare Pages Functions',
+    hasEventContext: !!eventContext,
+    hasNext: typeof eventContext?.next === 'function',
+    timestamp: new Date().toISOString(),
+  });
+});
 
-// Servir arquivos estáticos do dist quando a rota não for da API
+// Servir arquivos estáticos do dist e suporte a SPA no Cloudflare Pages
 app.notFound(async (c) => {
   if (c.req.path.startsWith('/api')) {
     return c.json({ erro: 'Endpoint não encontrado.' }, 404);
   }
 
+  const eventContext = (c.env as any)?.eventContext;
+  if (eventContext && typeof eventContext.next === 'function') {
+    try {
+      const res = await eventContext.next();
+      if (res && res.status !== 404) {
+        return res;
+      }
+      // SPA Fallback: serve index.html para rotas do frontend (ex: /pacientes, /atendimentos)
+      const url = new URL(c.req.url);
+      url.pathname = '/';
+      return await eventContext.next(new Request(url.toString(), c.req.raw));
+    } catch (erro) {
+      console.error('Falha ao servir asset estático via context.next:', erro);
+    }
+  }
+
+  // Fallback via ASSETS fetcher se disponível
   const assetsFetch = c.env?.ASSETS && typeof c.env.ASSETS.fetch === 'function'
     ? c.env.ASSETS.fetch.bind(c.env.ASSETS)
     : null;
@@ -56,7 +80,7 @@ app.notFound(async (c) => {
         return res;
       }
     } catch (erro) {
-      console.error('Falha ao buscar asset estático:', erro);
+      console.error('Falha ao buscar asset via ASSETS.fetch:', erro);
     }
   }
 
