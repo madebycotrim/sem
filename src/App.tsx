@@ -116,10 +116,16 @@ export function App() {
     const verificarSessao = async () => {
       try {
         const res = await requisicaoApi<{
-          usuario: { nomeCompleto: string; email: string; perfil: PerfilAcesso };
+          autenticado?: boolean;
+          usuario: { nomeCompleto: string; email: string; perfil: PerfilAcesso } | null;
           trocaSenhaObrigatoria?: boolean;
         }>('/auth/me');
         if (ativo) {
+          if (!res.autenticado || !res.usuario) {
+            setAutenticado(false);
+            setUsuarioLogado(null);
+            return;
+          }
           setAutenticado(!res.trocaSenhaObrigatoria);
           setUsuarioLogado(res.trocaSenhaObrigatoria ? null : res.usuario);
           

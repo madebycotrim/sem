@@ -1,15 +1,15 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { setCookie, deleteCookie } from 'hono/cookie';
-import { sign } from 'hono/jwt';
+import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
+import { sign, verify } from 'hono/jwt';
 import * as OTPAuth from 'otpauth';
 import { loginSchema, verificarMfaSchema } from '../../../compartilhado/index.js';
 import { getDb } from '../../infraestrutura/banco/drizzle.js';
 import { usuarios } from '../../infraestrutura/banco/schema.js';
 import { eq } from 'drizzle-orm';
 import { verificarSenha, gerarHashSenha } from '../../infraestrutura/criptografia/senha.js';
-import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
+import { middlewareAutenticacao, type AppVariables, type PayloadJwt } from '../../middlewares/autenticacao.js';
 import type { Bindings } from '../../config/env.js';
 
 export const rotasAuth = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
@@ -166,37 +166,58 @@ rotasAuth.post(
 
 /**
  * GET /auth/me
- * Retorna os dados do usuário atualmente autenticado.
+ * Retorna os dados do usuário atualmente autenticado, ou { autenticado: false, usuario: null } se não autenticado.
  */
-rotasAuth.get('/me', middlewareAutenticacao, async (c) => {
-  const usuarioLogado = c.get('usuario');
-  const db = getDb(c.env.DB);
+rotasAuth.get('/me', async (c) => {
+  let token = getCookie(c, 'token');
 
-  const usuario = await db.query.usuarios.findFirst({
-    where: eq(usuarios.id, usuarioLogado.userId),
-    columns: {
-      id: true,
-      email: true,
-      nomeCompleto: true,
-      perfil: true,
-      mfaAtivo: true,
-      ativo: true,
-      criadoEm: true,
-      senhaTemporaria: true,
-    },
-  });
-
-  if (!usuario || !usuario.ativo) {
-    return c.json({ erro: 'Usuário não encontrado ou inativo.' }, 404);
+  if (!token) {
+    const authHeader = c.req.header('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
   }
 
-  return c.json({
-    usuario: {
-      ...usuario,
-      trocaSenhaObrigatoria: usuario.senhaTemporaria,
-      mfaVerificado: usuarioLogado.mfaVerificado,
-    },
-  });
+  if (!token) {
+    return c.json({ autenticado: false, usuario: null }, 200);
+  }
+
+  try {
+    const payload = (await verify(token, c.env.JWT_SECRET, 'HS256')) as unknown as PayloadJwt;
+    if (!payload?.userId || !payload?.perfil) {
+      return c.json({ autenticado: false, usuario: null }, 200);
+    }
+
+    const db = getDb(c.env.DB);
+    const usuario = await db.query.usuarios.findFirst({
+      where: eq(usuarios.id, payload.userId),
+      columns: {
+        id: true,
+        email: true,
+        nomeCompleto: true,
+        perfil: true,
+        mfaAtivo: true,
+        ativo: true,
+        criadoEm: true,
+        senhaTemporaria: true,
+      },
+    });
+
+    if (!usuario || !usuario.ativo) {
+      return c.json({ autenticado: false, usuario: null }, 200);
+    }
+
+    return c.json({
+      autenticado: true,
+      usuario: {
+        ...usuario,
+        trocaSenhaObrigatoria: usuario.senhaTemporaria,
+        mfaVerificado: payload.mfaVerificado,
+      },
+    }, 200);
+  } catch {
+    return c.json({ autenticado: false, usuario: null }, 200);
+  }
 });
 
 /**

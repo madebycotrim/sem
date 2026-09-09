@@ -163,4 +163,20 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
     expect(body.usuario.id).toBe('user-001');
     expect(body.usuario.nomeCompleto).toBe('Dr. Teste');
   });
+
+  it('deve retornar status 200 com { autenticado: false, usuario: null } para requisição sem token', async () => {
+    const res = await app.request('/api/v1/auth/me', {
+      method: 'GET',
+    }, {
+      JWT_SECRET: mockJwtSecret,
+      KEK_HEX: mockKekHex,
+      CORS_ORIGINS: 'http://localhost:5173',
+      DB: {},
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.autenticado).toBe(false);
+    expect(body.usuario).toBeNull();
+  });
 });
