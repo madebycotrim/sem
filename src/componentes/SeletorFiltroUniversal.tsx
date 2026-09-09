@@ -13,6 +13,7 @@ import {
 import { createPortal } from 'react-dom';
 import {
   Search,
+  Smile,
   ChevronDown,
   X,
   Check,
@@ -61,6 +62,7 @@ export interface OpcaoFiltroItem {
   subtexto?: string;
   grupo?: string;
   badge?: string | ReactNode;
+  desabilitado?: boolean;
 }
 
 export type CategoriaFiltro =
@@ -99,6 +101,7 @@ export interface SeletorFiltroUniversalProps {
   textoTodos?: string;
   rodapePopover?: ReactNode;
   posicaoPopover?: 'baixo' | 'cima' | 'auto';
+  fundoBranco?: boolean;
 }
 
 // Estilos visuais por especialidade (compatível com a imagem do usuário)
@@ -107,12 +110,12 @@ const ESTILOS_ESPECIALIDADE_PRESET: Record<
   { icone: LucideIcon; corFundo: string; corTexto: string }
 > = {
   TODAS: { icone: Search, corFundo: 'bg-purple-100/70', corTexto: 'text-purple-600' },
-  OFTALMOLOGIA: { icone: Eye, corFundo: 'bg-purple-100/70', corTexto: 'text-purple-600' },
-  OTALMOLOGIA: { icone: Eye, corFundo: 'bg-purple-100/70', corTexto: 'text-purple-600' },
+  OFTALMOLOGIA: { icone: Eye, corFundo: 'bg-teal-50', corTexto: 'text-teal-700' },
+  OTALMOLOGIA: { icone: Eye, corFundo: 'bg-teal-50', corTexto: 'text-teal-700' },
   AUDIOMETRIA: { icone: Ear, corFundo: 'bg-blue-100/70', corTexto: 'text-blue-600' },
-  ODONTOLOGIA: { icone: Sparkles, corFundo: 'bg-rose-100/70', corTexto: 'text-rose-500' },
-  PSICOLOGIA: { icone: Brain, corFundo: 'bg-teal-100/70', corTexto: 'text-teal-600' },
-  NUTRICAO: { icone: Apple, corFundo: 'bg-emerald-100/70', corTexto: 'text-emerald-600' },
+  ODONTOLOGIA: { icone: Smile, corFundo: 'bg-rose-50', corTexto: 'text-rose-700' },
+  PSICOLOGIA: { icone: Brain, corFundo: 'bg-indigo-50', corTexto: 'text-indigo-700' },
+  NUTRICAO: { icone: Apple, corFundo: 'bg-green-50', corTexto: 'text-green-700' },
 };
 
 export const SeletorFiltroUniversal = forwardRef<
@@ -145,6 +148,7 @@ export const SeletorFiltroUniversal = forwardRef<
     textoTodos = 'Todas as especialidades',
     rodapePopover,
     posicaoPopover = 'baixo',
+    fundoBranco = false,
   },
   ref,
 ) {
@@ -300,11 +304,13 @@ export const SeletorFiltroUniversal = forwardRef<
     });
   }, [listaOpcoesNormalizada, termoBusca]);
 
-  // Auto-desativar a busca quando a lista de opções for pequena (<= 5 itens) ou quando pesquisavel for false
+  // Auto-desativar a busca para especialidades/status/perfis ou quando a lista for curta (<= 6 itens) ou quando pesquisavel for false
   const pesquisavelEfetivo =
     pesquisavel !== undefined
       ? pesquisavel
-      : listaOpcoesNormalizada.length > 5;
+      : categoria === 'especialidades' || categoria === 'perfis' || categoria === 'status'
+        ? false
+        : listaOpcoesNormalizada.length > 6;
 
   // Posicionamento do Portal (Sempre abaixo por padrão)
   useLayoutEffect(() => {
@@ -375,6 +381,8 @@ export const SeletorFiltroUniversal = forwardRef<
   const contextoModal = useModalContexto();
 
   const selecionarOpcao = (novoValor: string) => {
+    const opcao = listaOpcoesNormalizada.find((item) => (item.id ?? item.valor ?? '') === novoValor);
+    if (opcao?.desabilitado) return;
     setValInterno(novoValor);
     setAberto(false);
     contextoModal?.marcarComoAlterado?.();
@@ -483,10 +491,14 @@ export const SeletorFiltroUniversal = forwardRef<
         type="button"
         disabled={isDisabled}
         onClick={() => setAberto((prev) => !prev)}
-        className={`flex w-full items-center justify-between gap-2.5 rounded-xl border bg-slate-50/80 font-medium text-slate-800 outline-none transition-all duration-200 ${alturaClasse} ${
+        className={`flex w-full items-center justify-between gap-2.5 rounded-xl border font-medium text-slate-800 outline-none transition-all duration-200 ${alturaClasse} ${
+          fundoBranco ? 'bg-white' : 'bg-slate-50/80'
+        } ${
           aberto
             ? 'border-blue-500 bg-white ring-3 ring-blue-100 shadow-xs'
-            : 'border-slate-200/90 hover:border-slate-300 hover:bg-white'
+            : fundoBranco
+              ? 'border-slate-200/90 hover:border-slate-300'
+              : 'border-slate-200/90 hover:border-slate-300 hover:bg-white'
         } ${isDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${
           erro ? 'border-rose-400 bg-rose-50/20 ring-2 ring-rose-100' : ''
         }`}
@@ -502,6 +514,17 @@ export const SeletorFiltroUniversal = forwardRef<
           >
             {opcaoSelecionada?.nome || opcaoSelecionada?.rotulo || placeholder}
           </span>
+          {opcaoSelecionada?.badge && (
+            <span className="shrink-0">
+              {typeof opcaoSelecionada.badge === 'string' ? (
+                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md uppercase">
+                  {opcaoSelecionada.badge}
+                </span>
+              ) : (
+                opcaoSelecionada.badge
+              )}
+            </span>
+          )}
         </span>
 
         <span className="flex items-center gap-1 shrink-0">
@@ -564,8 +587,8 @@ export const SeletorFiltroUniversal = forwardRef<
               </div>
             )}
 
-            {/* Lista de Opções Rolável */}
-            <div className="max-h-64 overflow-y-auto p-1.5 scrollbar-thin">
+            {/* Lista de opções dimensionada pelo conteúdo */}
+            <div className="p-1.5">
               {opcoesFiltradas.length === 0 ? (
                 <div className="px-4 py-6 text-center text-[13px] text-slate-400">
                   Nenhuma opção encontrada
@@ -579,10 +602,13 @@ export const SeletorFiltroUniversal = forwardRef<
                     <button
                       key={idItem || 'todos'}
                       type="button"
+                      disabled={item.desabilitado}
                       onClick={() => selecionarOpcao(idItem)}
                       className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-150 ${
-                        selecionado
-                          ? 'bg-blue-50/70 font-semibold text-blue-900 shadow-2xs'
+                        item.desabilitado
+                          ? 'cursor-not-allowed bg-slate-50 text-slate-400 opacity-70'
+                          : selecionado
+                          ? 'bg-slate-100/80 font-semibold text-slate-800 shadow-2xs'
                           : 'text-slate-700 hover:bg-slate-50'
                       }`}
                     >
@@ -595,6 +621,11 @@ export const SeletorFiltroUniversal = forwardRef<
                           {item.subtexto && (
                             <span className="truncate text-[11px] font-normal text-slate-400">
                               {item.subtexto}
+                            </span>
+                          )}
+                          {item.desabilitado && (
+                            <span className="text-[10px] font-semibold text-rose-500">
+                              Já realizada
                             </span>
                           )}
                         </div>
@@ -611,7 +642,7 @@ export const SeletorFiltroUniversal = forwardRef<
                           )
                         )}
                         {selecionado && (
-                          <Check className="h-4 w-4 shrink-0 text-blue-600" />
+                          <Check className="h-4 w-4 shrink-0 text-slate-600" />
                         )}
                       </div>
                     </button>

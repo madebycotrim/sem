@@ -4,6 +4,7 @@ import {
   validarCpfMatematicamente,
   consultarCpf,
   limparCacheCpf,
+  normalizarCpf,
 } from '../servicos/apiCpf.ts';
 
 // Mock do localStorage para testes
@@ -90,6 +91,14 @@ describe('Serviço de Consulta Inteligente de CPF (apicpf.com)', () => {
       expect(formatarCpf('123')).toBe('123');
       expect(formatarCpf('1234')).toBe('123.4');
       expect(formatarCpf('1234567')).toBe('123.456.7');
+    });
+  });
+
+  describe('normalizarCpf', () => {
+    it('deve remover máscara e padronizar CPFs duplicados em um único valor', () => {
+      expect(normalizarCpf('529.982.247-25')).toBe('52998224725');
+      expect(normalizarCpf('52998224725')).toBe('52998224725');
+      expect(normalizarCpf('529 982 247 25')).toBe('52998224725');
     });
   });
 

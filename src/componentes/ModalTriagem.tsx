@@ -6,7 +6,6 @@ import {
   UserCheck,
   UserPlus,
   AlertTriangle,
-  Stethoscope,
   ChevronRight,
   Pencil,
 } from 'lucide-react';
@@ -52,6 +51,7 @@ export interface ModalTriagemProps {
   }) => Promise<void> | void;
   escolas?: Array<{ id: string; nome: string }>;
   pacientes?: ItemPacienteTriagem[];
+  atendimentos?: Array<{ pacienteId: string; especialidade: Especialidade }>;
   aoCriarNovoPaciente?: () => void;
 }
 
@@ -83,19 +83,21 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
   aoConfirmar,
   escolas = [],
   pacientes = [],
+  atendimentos = [],
   aoCriarNovoPaciente,
 }) => {
   const [instituicaoSelecionadaId, setInstituicaoSelecionadaId] = useState('');
   const [instituicaoPendenteId, setInstituicaoPendenteId] = useState<string | null>(null);
+  const [instituicaoAutomatica, setInstituicaoAutomatica] = useState(false);
   const [pacienteSelecionadoId, setPacienteSelecionadoId] = useState('');
   const [profissionalSelecionadoId, setProfissionalSelecionadoId] = useState('');
   const [especialidade, setEspecialidade] = useState<Especialidade>('OFTALMOLOGIA');
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [campoComErro, setCampoComErro] = useState<'paciente' | 'instituicao' | 'profissional' | null>(null);
 
   // Paineis de edição expandidos
   const [editandoInstituicao, setEditandoInstituicao] = useState(false);
-  const [editandoProfissional, setEditandoProfissional] = useState(false);
 
   // Lista consolidada de instituições
   const listaInstituicoes = useMemo(() => {
@@ -129,6 +131,15 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
     return PROFISSIONAIS_PADRAO.find((p) => p.id === profissionalSelecionadoId) ?? null;
   }, [profissionalSelecionadoId]);
 
+  const especialidadesJaRealizadas = useMemo(
+    () => new Set(
+      atendimentos
+        .filter((atendimento) => atendimento.pacienteId === pacienteSelecionadoId)
+        .map((atendimento) => atendimento.especialidade)
+    ),
+    [atendimentos, pacienteSelecionadoId]
+  );
+
   // Instituição selecionada
   const instituicaoSelecionada = useMemo(() => {
     return listaInstituicoes.find((i) => i.id === instituicaoSelecionadaId) ?? null;
@@ -138,8 +149,10 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
   const tentarAlterarInstituicao = (novaId: string) => {
     if (!instituicaoSelecionadaId) {
       setInstituicaoSelecionadaId(novaId);
+      setInstituicaoAutomatica(false);
       setEditandoInstituicao(false);
       setErro(null);
+      setCampoComErro(null);
     } else if (instituicaoSelecionadaId !== novaId) {
       setInstituicaoPendenteId(novaId);
     } else {
@@ -150,9 +163,11 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
   const confirmarAlteracaoInstituicao = () => {
     if (instituicaoPendenteId) {
       setInstituicaoSelecionadaId(instituicaoPendenteId);
+      setInstituicaoAutomatica(false);
       setInstituicaoPendenteId(null);
       setEditandoInstituicao(false);
       setErro(null);
+      setCampoComErro(null);
     }
   };
 
@@ -164,8 +179,12 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
   const selecionarPaciente = (pacienteId: string) => {
     setPacienteSelecionadoId(pacienteId);
     setErro(null);
+    setCampoComErro(null);
     setEditandoInstituicao(false);
-    setEditandoProfissional(false);
+    setProfissionalSelecionadoId('');
+    setEspecialidade('OFTALMOLOGIA');
+    setInstituicaoSelecionadaId('');
+    setInstituicaoAutomatica(false);
 
     const pac = listaPacientes.find((p) => p.id === pacienteId);
     if (pac && pac.escolaNome) {
@@ -174,6 +193,7 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
       );
       if (instCorrespondente) {
         setInstituicaoSelecionadaId(instCorrespondente.id);
+        setInstituicaoAutomatica(true);
       }
     }
   };
@@ -182,7 +202,6 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
   useEffect(() => {
     if (profissionalSelecionado) {
       setEspecialidade(profissionalSelecionado.especialidade);
-      setEditandoProfissional(false);
     }
   }, [profissionalSelecionado]);
 
@@ -191,12 +210,13 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
     if (!aberto) {
       setInstituicaoSelecionadaId('');
       setInstituicaoPendenteId(null);
+      setInstituicaoAutomatica(false);
       setPacienteSelecionadoId('');
       setProfissionalSelecionadoId('');
       setEspecialidade('OFTALMOLOGIA');
       setErro(null);
+      setCampoComErro(null);
       setEditandoInstituicao(false);
-      setEditandoProfissional(false);
     }
   }, [aberto]);
 
@@ -210,14 +230,17 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
   const handleSubmeter = async () => {
     if (!pacienteSelecionadoId || !pacienteSelecionado) {
       setErro('Selecione o Paciente para realizar a triagem.');
+      setCampoComErro('paciente');
       return;
     }
     if (!instituicaoSelecionadaId) {
-      setErro('Selecione a Instituição / Polo.');
+      setErro('Selecione a Instituição.');
+      setCampoComErro('instituicao');
       return;
     }
     if (!profissionalSelecionadoId || !profissionalSelecionado) {
       setErro('Selecione o Profissional responsável pelo atendimento.');
+      setCampoComErro('profissional');
       return;
     }
 
@@ -241,6 +264,7 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
       aoFechar();
     } catch (err: any) {
       setErro(err?.message || 'Erro ao realizar triagem do paciente.');
+      setCampoComErro(null);
     } finally {
       setCarregando(false);
     }
@@ -260,7 +284,7 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
   const opcoesInstituicao: OpcaoSelectCustom[] = listaInstituicoes.map((i) => ({
     valor: i.id,
     rotulo: i.nome,
-    subtexto: 'Instituição de Ensino / Polo',
+    subtexto: 'Instituição de Ensino',
     icone: Building2,
     corFundoIcone: 'bg-blue-100/80',
     corIcone: 'text-blue-600',
@@ -271,26 +295,31 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
     const IconeEsp = estiloEsp.icone;
     return {
       valor: p.id,
-      rotulo: p.nome,
+      rotulo: p.nome.replace(/^(Dr\.ª?|Dra?\.?)\s*/i, ''),
       subtexto: p.registro || p.especialidade,
       icone: IconeEsp,
       corFundoIcone: estiloEsp.fundo,
       corIcone: estiloEsp.texto,
       badge: <EspecialidadeBadge especialidade={p.especialidade} compacto />,
+      desabilitado: especialidadesJaRealizadas.has(p.especialidade),
     };
   });
-
-  const estiloProf = profissionalSelecionado ? obterEstiloEspecialidade(profissionalSelecionado.especialidade) : null;
-  const IconeProf = estiloProf?.icone ?? Stethoscope;
 
   return (
     <Modal
       aberto={aberto}
       aoFechar={aoFechar}
+      temDadosPreenchidos={Boolean(
+        pacienteSelecionadoId ||
+        instituicaoSelecionadaId ||
+        profissionalSelecionadoId ||
+        instituicaoPendenteId
+      )}
       titulo="Triagem & Check-in de Paciente"
       subtitulo="Selecione o paciente — instituição e profissional serão confirmados em seguida."
-      tamanho="xl"
+      tamanho="lg"
       icone={<UserCheck className="w-5 h-5 text-blue-600" />}
+      contentClassName="p-0"
       rodape={
         <>
           <BotaoModal variante="secundario" rotulo="Cancelar" aoClicar={aoFechar} />
@@ -298,12 +327,13 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
             variante="primario"
             rotulo="Confirmar & Adicionar à Fila"
             carregando={carregando}
+            desabilitado={!pacienteSelecionado || !instituicaoSelecionada || !profissionalSelecionado}
             aoClicar={handleSubmeter}
           />
         </>
       }
     >
-      <div className="px-6 py-5 space-y-5">
+      <div className="bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_72%)] px-7 py-7 space-y-5">
         {erro && (
           <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 animate-fade-in">
             <CircleAlert className="w-4 h-4 text-rose-500 shrink-0" />
@@ -312,28 +342,48 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
         )}
 
         {/* ─── Campo Único: Seleção do Paciente ───────────────────────── */}
-        <ModalCampo rotulo="Paciente / Aluno" obrigatorio>
-          <ModalSelectCustom
-            categoria="custom"
-            valorAtual={pacienteSelecionadoId}
-            aoMudar={selecionarPaciente}
-            opcoes={opcoesPaciente}
-            placeholder="Buscar ou selecionar paciente..."
-            pesquisavel={true}
-            rodapePopover={
-              aoCriarNovoPaciente ? (
-                <button
-                  type="button"
-                  onClick={() => { aoCriarNovoPaciente(); }}
-                  className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 py-1.5 cursor-pointer hover:bg-blue-50/50 rounded-xl transition-colors"
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span>Cadastrar Novo Paciente</span>
-                </button>
-              ) : undefined
-            }
-          />
-        </ModalCampo>
+        <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-[0_8px_28px_rgba(37,99,235,0.06)]">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-600">Etapa 1 de 2</p>
+              <p className="mt-1 text-[13px] font-bold text-slate-800">Quem será atendido?</p>
+            </div>
+            <div className="flex items-center gap-1" aria-hidden="true">
+              <span className="h-1.5 w-7 rounded-full bg-blue-600" />
+              <span className="h-1.5 w-2 rounded-full bg-slate-200" />
+            </div>
+          </div>
+          <ModalCampo
+            rotulo="Paciente / Aluno"
+            obrigatorio
+            erro={campoComErro === 'paciente' ? 'Selecione um paciente.' : undefined}
+          >
+            <ModalSelectCustom
+              categoria="custom"
+              valorAtual={pacienteSelecionadoId}
+              aoMudar={selecionarPaciente}
+              opcoes={opcoesPaciente}
+              placeholder="Buscar ou selecionar paciente..."
+              pesquisavel={true}
+              className={campoComErro === 'paciente' ? 'border-rose-300 ring-3 ring-rose-100' : ''}
+              rodapePopover={
+                aoCriarNovoPaciente ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      aoFechar();
+                      aoCriarNovoPaciente();
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 py-1.5 cursor-pointer hover:bg-blue-50/50 rounded-xl transition-colors"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Cadastrar Novo Paciente</span>
+                  </button>
+                ) : undefined
+              }
+            />
+          </ModalCampo>
+        </div>
 
         {/* ─── Painel de Confirmação (visível após selecionar paciente) ── */}
         {pacienteSelecionado && (
@@ -368,11 +418,18 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
                     <Building2 className="w-4 h-4 text-blue-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Instituição / Polo</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Instituição</p>
                     {instituicaoSelecionada ? (
-                      <p className="text-[12.5px] font-bold text-slate-700 truncate">{instituicaoSelecionada.nome}</p>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <p className="text-[12.5px] font-bold text-slate-700 truncate">{instituicaoSelecionada.nome}</p>
+                        {instituicaoAutomatica && (
+                          <span className="shrink-0 text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-md">
+                            Do cadastro
+                          </span>
+                        )}
+                      </div>
                     ) : (
-                      <p className="text-[12.5px] font-semibold text-slate-400 italic">Clique para selecionar...</p>
+                      <p className="text-[12.5px] font-semibold text-rose-500 italic">Selecione a instituição...</p>
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -385,7 +442,7 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
                 </button>
               ) : (
                 <div className="px-4 py-3 space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Selecione a Instituição</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Selecione a Instituição</p>
                   <ModalSelectCustom
                     categoria="custom"
                     valorAtual={instituicaoSelecionadaId}
@@ -394,7 +451,13 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
                     placeholder="Selecione a instituição..."
                     pesquisavel={true}
                     posicaoPopover="cima"
+                    className={campoComErro === 'instituicao' ? 'border-rose-300 ring-3 ring-rose-100' : ''}
                   />
+                  {campoComErro === 'instituicao' && (
+                    <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1">
+                      <CircleAlert className="w-3 h-3" /> Selecione uma instituição.
+                    </p>
+                  )}
                   <button
                     type="button"
                     onClick={() => setEditandoInstituicao(false)}
@@ -407,64 +470,26 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
             </div>
 
             {/* ── Linha 2: Profissional ────────────────────────────────── */}
-            <div>
-              {!editandoProfissional ? (
-                <button
-                  type="button"
-                  onClick={() => setEditandoProfissional(true)}
-                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-white/70 transition-colors text-left group"
-                >
-                  <div
-                    className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
-                      estiloProf
-                        ? `${estiloProf.fundo} border-current/20`
-                        : 'bg-slate-100/80 border-slate-200/60'
-                    }`}
-                  >
-                    <IconeProf className={`w-4 h-4 ${estiloProf ? estiloProf.texto : 'text-slate-400'}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Profissional Responsável</p>
-                    {profissionalSelecionado ? (
-                      <div className="flex items-center gap-2 min-w-0">
-                        <p className="text-[12.5px] font-bold text-slate-700 truncate">{profissionalSelecionado.nome}</p>
-                        <EspecialidadeBadge especialidade={profissionalSelecionado.especialidade} compacto />
-                      </div>
-                    ) : (
-                      <p className="text-[12.5px] font-semibold text-slate-400 italic">Clique para selecionar...</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {profissionalSelecionado ? (
-                      <Pencil className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-500 transition-colors" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
-                    )}
-                  </div>
-                </button>
-              ) : (
-                <div className="px-4 py-3 space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Selecione o Profissional</p>
-                  <ModalSelectCustom
-                    categoria="custom"
-                    valorAtual={profissionalSelecionadoId}
-                    aoMudar={(v) => {
-                      setProfissionalSelecionadoId(v);
-                      setErro(null);
-                    }}
-                    opcoes={opcoesProfissional}
-                    placeholder="Selecione o profissional de saúde..."
-                    pesquisavel={true}
-                    posicaoPopover="cima"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setEditandoProfissional(false)}
-                    className="text-[11px] font-semibold text-slate-400 hover:text-slate-600 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                </div>
+            <div className="px-4 py-3 space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profissional responsável</p>
+              <ModalSelectCustom
+                categoria="custom"
+                valorAtual={profissionalSelecionadoId}
+                aoMudar={(v) => {
+                  setProfissionalSelecionadoId(v);
+                  setErro(null);
+                  setCampoComErro(null);
+                }}
+                opcoes={opcoesProfissional}
+                placeholder="Selecione o profissional de saúde..."
+                pesquisavel={true}
+                posicaoPopover="cima"
+                className={campoComErro === 'profissional' ? 'border-rose-300 ring-3 ring-rose-100' : ''}
+              />
+              {campoComErro === 'profissional' && (
+                <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1">
+                  <CircleAlert className="w-3 h-3" /> Selecione o profissional responsável.
+                </p>
               )}
             </div>
           </div>
@@ -487,17 +512,17 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
                   <AlertTriangle className="w-5 h-5 text-amber-600" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-extrabold text-slate-800">Alterar Instituição Selecionada?</h4>
-                  <p className="text-[11px] text-slate-500 font-medium">Confirmação de alteração de polo</p>
+                  <h4 className="text-sm font-extrabold text-slate-800">Alterar instituição?</h4>
+                  <p className="text-[11px] text-slate-500 font-medium">A instituição do paciente será atualizada.</p>
                 </div>
               </div>
 
               <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs space-y-1.5 text-slate-700">
                 <p>
-                  A instituição <strong className="text-slate-900 font-bold">{listaInstituicoes.find(i => i.id === instituicaoSelecionadaId)?.nome}</strong> já está selecionada.
+                  Atual: <strong className="text-slate-900 font-bold">{listaInstituicoes.find(i => i.id === instituicaoSelecionadaId)?.nome}</strong>
                 </p>
                 <p>
-                  Deseja alterar para <strong className="text-blue-600 font-bold">{listaInstituicoes.find(i => i.id === instituicaoPendenteId)?.nome}</strong>?
+                  Nova: <strong className="text-blue-600 font-bold">{listaInstituicoes.find(i => i.id === instituicaoPendenteId)?.nome}</strong>
                 </p>
               </div>
 
@@ -505,16 +530,16 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
                 <button
                   type="button"
                   onClick={cancelarAlteracaoInstituicao}
-                  className="h-9 px-4 text-xs font-bold rounded-xl text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
+                  className="h-9 px-4 text-xs font-bold rounded-xl text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-100"
                 >
-                  Não, Manter Atual
+                  Não
                 </button>
                 <button
                   type="button"
                   onClick={confirmarAlteracaoInstituicao}
-                  className="h-9 px-4 text-xs font-extrabold rounded-xl text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors cursor-pointer"
+                  className="h-9 px-4 text-xs font-extrabold rounded-xl text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
                 >
-                  Sim, Alterar
+                  Sim, alterar
                 </button>
               </div>
             </div>

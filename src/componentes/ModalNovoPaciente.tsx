@@ -8,6 +8,7 @@ import {
   CircleAlert,
   CircleCheck,
   LoaderCircle,
+  Pencil,
   UsersRound,
 } from 'lucide-react';
 import type { ItemPaciente } from './TabelaPacientes.tsx';
@@ -71,6 +72,8 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
   const [cpfConsultado, setCpfConsultado] = useState('');
   const [erroConsultaCpf, setErroConsultaCpf] = useState<string | null>(null);
   const [sucessoConsultaCpf, setSucessoConsultaCpf] = useState<string | null>(null);
+  const [camposBloqueadosPorCpf, setCamposBloqueadosPorCpf] = useState(false);
+  const [confirmacaoLiberacaoCpf, setConfirmacaoLiberacaoCpf] = useState(false);
 
   const {
     register,
@@ -128,6 +131,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
         setValue('anoEscolar', turma ? anoEscolar : '');
         setValue('turma', turma || pacienteParaEditar.turma || '');
         setCpfConsultado((pacienteParaEditar.cpf || '').replace(/\D/g, ''));
+        setCamposBloqueadosPorCpf(false);
       } else {
         const escolaPadrao = instituicaoPadrao;
         reset({
@@ -142,6 +146,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           turma: '',
         });
         setCpfConsultado('');
+        setCamposBloqueadosPorCpf(false);
       }
     }
   }, [aberto, pacienteParaEditar, instituicaoPadrao, setValue, reset, escolas]);
@@ -179,6 +184,8 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           setValue('sexo', pessoa.genero, { shouldValidate: true });
           setValue('cpf', pessoa.cpfFormatado, { shouldValidate: true });
           setCpfConsultado(limpo);
+          setCamposBloqueadosPorCpf(true);
+          setConfirmacaoLiberacaoCpf(false);
 
           setSucessoConsultaCpf(`Dados de ${pessoa.nome.split(' ')[0]} localizados e preenchidos automaticamente!`);
           setTimeout(() => setSucessoConsultaCpf(null), 4000);
@@ -213,6 +220,22 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
     setErroGeral(null);
     setErroConsultaCpf(null);
     setSucessoConsultaCpf(null);
+    setCamposBloqueadosPorCpf(false);
+    setConfirmacaoLiberacaoCpf(false);
+  };
+
+  const liberarCamposAutomaticos = () => {
+    if (!camposBloqueadosPorCpf) {
+      setConfirmacaoLiberacaoCpf(false);
+      return;
+    }
+
+    setConfirmacaoLiberacaoCpf(true);
+  };
+
+  const confirmarLiberacaoCampos = () => {
+    setCamposBloqueadosPorCpf(false);
+    setConfirmacaoLiberacaoCpf(false);
   };
 
   const onSubmit = async (dados: FormNovoPaciente) => {
@@ -278,7 +301,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
         {/* Seção DADOS PESSOAIS */}
         <ModalSecao titulo="Dados Pessoais">
           {/* Instituição */}
-          <ModalCampo rotulo="Instituição de Ensino / Polo" obrigatorio erro={errors.instituicao?.message}>
+          <ModalCampo rotulo="Instituição de Ensino" obrigatorio erro={errors.instituicao?.message}>
             <SeletorFiltroUniversal
               categoria="instituicoes"
               valor={instituicaoAtual}
@@ -293,12 +316,46 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
             <div className="md:col-span-6">
               <ModalCampo rotulo="Nome completo" obrigatorio erro={errors.nomeCompleto?.message}>
-                <input
-                  type="text"
-                  {...register('nomeCompleto')}
-                  placeholder="EX: JOAO DA SILVA"
-                  className={`${ESTILO_INPUT_MODAL} uppercase`}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    {...register('nomeCompleto')}
+                    placeholder="EX: JOAO DA SILVA"
+                    disabled={camposBloqueadosPorCpf}
+                    className={`${ESTILO_INPUT_MODAL} uppercase ${camposBloqueadosPorCpf ? 'pr-11' : ''}`}
+                  />
+                  {camposBloqueadosPorCpf && (
+                    <button
+                      type="button"
+                      onClick={liberarCamposAutomaticos}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+                      aria-label="Liberar edição dos dados preenchidos automaticamente pelo CPF"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {confirmacaoLiberacaoCpf && (
+                  <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 p-2 text-[11px] font-medium text-amber-700">
+                    <span>Deseja liberar a edição desses dados?</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmacaoLiberacaoCpf(false)}
+                        className="px-2.5 py-1 rounded-lg border border-amber-200 bg-white text-amber-700 hover:bg-amber-100 cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={confirmarLiberacaoCampos}
+                        className="px-2.5 py-1 rounded-lg bg-amber-600 text-white hover:bg-amber-700 cursor-pointer"
+                      >
+                        Liberar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </ModalCampo>
             </div>
 
@@ -339,11 +396,24 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
 
             <div className="md:col-span-3">
               <ModalCampo rotulo="Data Nascimento" obrigatorio erro={errors.dataNascimento?.message}>
-                <input
-                  type="date"
-                  {...register('dataNascimento')}
-                  className={ESTILO_INPUT_MODAL}
-                />
+                <div className="relative">
+                  <input
+                    type="date"
+                    {...register('dataNascimento')}
+                    disabled={camposBloqueadosPorCpf}
+                    className={`${ESTILO_INPUT_MODAL} ${camposBloqueadosPorCpf ? 'pr-11' : ''}`}
+                  />
+                  {camposBloqueadosPorCpf && (
+                    <button
+                      type="button"
+                      onClick={liberarCamposAutomaticos}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+                      aria-label="Liberar edição da data de nascimento preenchida automaticamente pelo CPF"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </ModalCampo>
             </div>
           </div>
@@ -354,13 +424,27 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
               <SelectModal
                 {...register('sexo')}
                 placeholder="Selecione o sexo"
+                disabled={camposBloqueadosPorCpf}
                 opcoes={[
                   { valor: 'Masculino', rotulo: 'Masculino' },
                   { valor: 'Feminino', rotulo: 'Feminino' },
                   { valor: 'Outro', rotulo: 'Outro' },
                   { valor: 'Não informado', rotulo: 'Não informado' },
                 ]}
+                className={camposBloqueadosPorCpf ? 'pr-10' : ''}
               />
+              {camposBloqueadosPorCpf && (
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={liberarCamposAutomaticos}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    Liberar edição
+                  </button>
+                </div>
+              )}
             </ModalCampo>
 
             <ModalCampo rotulo="Telefone" obrigatorio erro={errors.telefone?.message}>

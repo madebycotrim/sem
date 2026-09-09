@@ -1,6 +1,6 @@
-import { type FC, useState, useMemo } from 'react';
-import { FileText, RotateCcw } from 'lucide-react';
-import { ESPECIALIDADE_LABELS, TURNO_LABELS, Especialidade, Turno } from '../../compartilhado/index.ts';
+import { type FC, useState, useMemo, useRef } from 'react';
+import { Calendar, FileText, RotateCcw } from 'lucide-react';
+import { ESPECIALIDADE_LABELS, Especialidade, Turno } from '../../compartilhado/index.ts';
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import {
   useFiltroExcel,
@@ -16,6 +16,7 @@ import { STATUS_ATENDIMENTO_LABELS, StatusAtendimento } from '../../compartilhad
 
 export interface ItemAtendimentoLista {
   id: string;
+  pacienteId: string;
   pacienteNome: string;
   especialidade: Especialidade;
   turno: Turno;
@@ -41,20 +42,16 @@ export interface AtendimentosProps {
 
 export const Atendimentos: FC<AtendimentosProps> = ({
   atendimentos,
-  aoNovoAtendimento,
-  aoSincronizar,
-  estaSincronizando = false,
-  itensPendentes = 0,
-  statusSincronizacaoCatraki,
   aoAtualizarStatus,
 }) => {
   const [busca, setBusca] = useState('');
-  const [filtroEspecialidade, setFiltroEspecialidade] = useState<string>('');
-
-  const opcoesEspecialidades = Object.entries(ESPECIALIDADE_LABELS).map(([id, nome]) => ({
-    id,
-    nome,
-  }));
+  const [statusFiltro, setStatusFiltro] = useState('');
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
+  const [periodoSelecionado, setPeriodoSelecionado] = useState<number | 'mes' | 'tudo' | null>(null);
+  const [diaSelecionado, setDiaSelecionado] = useState<number | null>(null);
+  const dataInicioRef = useRef<HTMLInputElement>(null);
+  const dataFimRef = useRef<HTMLInputElement>(null);
 
   const colunasConfig = useMemo<ConfiguracaoColuna<ItemAtendimentoLista>[]>(
     () => [
@@ -65,6 +62,12 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         obterValor: (i) => i.pacienteNome,
       },
       {
+        id: 'profissionalNome',
+        rotulo: 'PROFISSIONAL',
+        tipo: 'texto',
+        obterValor: (i) => i.profissionalNome,
+      },
+      {
         id: 'especialidade',
         rotulo: 'ESPECIALIDADE',
         tipo: 'opcao',
@@ -72,23 +75,10 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         formatarRotulo: (val) => ESPECIALIDADE_LABELS[val as Especialidade] || String(val),
       },
       {
-        id: 'turno',
-        rotulo: 'TURNO',
-        tipo: 'opcao',
-        obterValor: (i) => i.turno,
-        formatarRotulo: (val) => TURNO_LABELS[val as Turno] || String(val),
-      },
-      {
         id: 'escolaNome',
         rotulo: 'ESCOLA / POLO',
         tipo: 'texto',
         obterValor: (i) => i.escolaNome,
-      },
-      {
-        id: 'profissionalNome',
-        rotulo: 'PROFISSIONAL',
-        tipo: 'texto',
-        obterValor: (i) => i.profissionalNome,
       },
       {
         id: 'criadoEm',
@@ -110,10 +100,62 @@ export const Atendimentos: FC<AtendimentosProps> = ({
 
   const dadosBase = useMemo(() => {
     return atendimentos.filter((item) => {
-      const matchEsp = !filtroEspecialidade || item.especialidade === filtroEspecialidade;
-      return matchEsp;
+      const data = item.criadoEm.slice(0, 10);
+      const status = item.status || StatusAtendimento.CONCLUIDO;
+      return (!statusFiltro || status === statusFiltro) &&
+        (!dataInicio || data >= dataInicio) &&
+        (!dataFim || data <= dataFim);
     });
-  }, [atendimentos, filtroEspecialidade]);
+  }, [atendimentos, dataFim, dataInicio, statusFiltro]);
+
+  const aplicarPeriodo = (dias: number | 'mes' | 'tudo') => {
+    setPeriodoSelecionado(dias);
+    setDiaSelecionado(null);
+    if (dias === 'tudo') {
+      const datas = atendimentos
+        .map((item) => item.criadoEm.slice(0, 10))
+        .filter(Boolean)
+        .sort();
+      setDataInicio(datas[0] || '');
+      setDataFim(datas[datas.length - 1] || '');
+      return;
+    }
+
+    const fim = new Date();
+    const inicio = new Date(fim);
+    if (dias === 'mes') {
+      inicio.setDate(1);
+    } else {
+      inicio.setDate(fim.getDate() - dias + 1);
+    }
+
+    const formatarData = (data: Date) => {
+      const ano = data.getFullYear();
+      const mes = String(data.getMonth() + 1).padStart(2, '0');
+      const dia = String(data.getDate()).padStart(2, '0');
+      return `${ano}-${mes}-${dia}`;
+    };
+
+    setDataInicio(formatarData(inicio));
+    setDataFim(formatarData(fim));
+  };
+
+  const aplicarDia = (deslocamento: number) => {
+    setPeriodoSelecionado(null);
+    setDiaSelecionado(deslocamento);
+    const dataBase = new Date();
+    dataBase.setDate(dataBase.getDate() + deslocamento);
+    const data = `${dataBase.getFullYear()}-${String(dataBase.getMonth() + 1).padStart(2, '0')}-${String(dataBase.getDate()).padStart(2, '0')}`;
+    setDataInicio(data);
+    setDataFim(data);
+  };
+
+  const obterDiaDaSemana = (valor: string) => {
+    if (!valor) return '';
+    return new Intl.DateTimeFormat('pt-BR', { weekday: 'long' })
+      .format(new Date(`${valor}T12:00:00`))
+      .toUpperCase();
+  };
 
   const filtroExcel = useFiltroExcel<ItemAtendimentoLista>({
     dados: dadosBase,
@@ -144,30 +186,60 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         busca={{
           valor: busca,
           aoMudar: setBusca,
-          placeholder: 'Buscar por paciente, profissional ou conduta...',
+          placeholder: 'Buscar paciente, profissional ou especialidade...',
         }}
-        seletor={{
-          valor: filtroEspecialidade,
-          aoMudar: setFiltroEspecialidade,
-          placeholder: 'Todas as Especialidades',
-          opcoes: opcoesEspecialidades,
-        }}
-        statusSincronizacaoCatraki={statusSincronizacaoCatraki}
-        sincronizacao={
-          aoSincronizar && !statusSincronizacaoCatraki
-            ? {
-                aoSincronizar,
-                estaSincronizando,
-                itensPendentes,
-                rotulo: 'Sincronizar Catraki',
-              }
-            : undefined
+        acoesExtras={
+          <div className="flex flex-col items-end gap-1.5">
+            <div className="flex flex-nowrap items-center justify-end gap-2">
+              <SelectModal
+                value={statusFiltro}
+                onChange={(evento) => setStatusFiltro(evento.target.value)}
+                placeholder="Todos os status"
+                className="!h-10 !w-[170px] !min-w-0 shrink-0 [&>button]:!h-10 [&>button]:!rounded-2xl [&>button]:!border-slate-200 [&>button]:!bg-white [&>button]:!px-3 [&>button]:!text-xs"
+                pesquisavel={false}
+                opcoes={Object.entries(STATUS_ATENDIMENTO_LABELS).map(([valor, rotulo]) => ({
+                  valor,
+                  rotulo: String(rotulo),
+                }))}
+              />
+              <label className="relative flex h-10 cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300" onClick={(evento) => { evento.preventDefault(); dataInicioRef.current?.showPicker?.(); }}>
+                <span className="shrink-0">De</span>
+                <span className="pointer-events-none flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-700">
+                  <span>{dataInicio ? new Date(`${dataInicio}T12:00:00`).toLocaleDateString('pt-BR') : 'dd/mm/aaaa'}</span>
+                  {dataInicio && <span className="rounded-lg border border-blue-100 bg-blue-50 px-2 py-1 text-[9px] font-bold uppercase tracking-tight text-blue-700">{obterDiaDaSemana(dataInicio)}</span>}
+                </span>
+                <Calendar className="pointer-events-none ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <input ref={dataInicioRef} type="date" value={dataInicio} onChange={(evento) => { setPeriodoSelecionado(null); setDiaSelecionado(null); setDataInicio(evento.target.value); }} className="pointer-events-none absolute h-px w-px opacity-0" aria-label="Data inicial" />
+              </label>
+              <label className="relative flex h-10 cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300" onClick={(evento) => { evento.preventDefault(); dataFimRef.current?.showPicker?.(); }}>
+                <span className="shrink-0">Até</span>
+                <span className="pointer-events-none flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-700">
+                  <span>{dataFim ? new Date(`${dataFim}T12:00:00`).toLocaleDateString('pt-BR') : 'dd/mm/aaaa'}</span>
+                  {dataFim && <span className="rounded-lg border border-blue-100 bg-blue-50 px-2 py-1 text-[9px] font-bold uppercase tracking-tight text-blue-700">{obterDiaDaSemana(dataFim)}</span>}
+                </span>
+                <Calendar className="pointer-events-none ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <input ref={dataFimRef} type="date" value={dataFim} onChange={(evento) => { setPeriodoSelecionado(null); setDiaSelecionado(null); setDataFim(evento.target.value); }} className="pointer-events-none absolute h-px w-px opacity-0" aria-label="Data final" />
+              </label>
+            </div>
+            <div className="flex flex-nowrap items-center justify-end gap-1.5">
+              <div className="flex h-10 items-center gap-1 rounded-xl border border-slate-200 bg-white p-1">
+                <button type="button" onClick={() => aplicarDia(-2)} aria-pressed={diaSelecionado === -2} className={`h-8 rounded-lg px-3 text-[11px] font-bold transition-all ${diaSelecionado === -2 ? 'bg-blue-50 text-blue-700 shadow-xs' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>Anteontem</button>
+                <button type="button" onClick={() => aplicarDia(-1)} aria-pressed={diaSelecionado === -1} className={`h-8 rounded-lg px-3 text-[11px] font-bold transition-all ${diaSelecionado === -1 ? 'bg-blue-50 text-blue-700 shadow-xs' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>Ontem</button>
+                <button type="button" onClick={() => aplicarDia(0)} aria-pressed={diaSelecionado === 0} className={`h-8 rounded-lg px-3 text-[11px] font-bold transition-all ${diaSelecionado === 0 ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>Hoje</button>
+              </div>
+              <span className="mx-0.5 h-6 w-px bg-slate-200" aria-hidden="true" />
+              <button type="button" onClick={() => aplicarPeriodo(7)} className={`h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors ${periodoSelecionado === 7 ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>7 dias</button>
+              <button type="button" onClick={() => aplicarPeriodo(15)} className={`hidden h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors md:block ${periodoSelecionado === 15 ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>15 dias</button>
+              <button type="button" onClick={() => aplicarPeriodo(30)} className={`h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors ${periodoSelecionado === 30 ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>30 dias</button>
+              <button type="button" onClick={() => aplicarPeriodo('mes')} className={`hidden h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors lg:block ${periodoSelecionado === 'mes' ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Este mês</button>
+              <button type="button" onClick={() => aplicarPeriodo('tudo')} className={`h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors ${periodoSelecionado === 'tudo' ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Tudo</button>
+              <span className="mx-0.5 h-6 w-px bg-slate-200" aria-hidden="true" />
+              <button type="button" onClick={() => { setBusca(''); setStatusFiltro(''); setDataInicio(''); setDataFim(''); setPeriodoSelecionado(null); setDiaSelecionado(null); }} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-rose-600 transition-colors hover:bg-rose-50">
+                <RotateCcw className="h-3.5 w-3.5" /> Limpar
+              </button>
+            </div>
+          </div>
         }
-        aoExportar={() => alert(`Exportando ${dadosFiltrados.length} atendimentos em formato CSV.`)}
-        acaoPrimaria={{
-          rotulo: 'Nova Ficha Clínica',
-          aoClicar: aoNovoAtendimento,
-        }}
         fixo={true}
       />
 
@@ -187,32 +259,26 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                   className="px-4.5 py-3"
                 />
                 <CabecalhoColunaExcel
+                  colunaId="profissionalNome"
+                  rotulo="PROFISSIONAL"
+                  estado={filtroExcel}
+                  className="px-3.5 py-3"
+                />
+                <CabecalhoColunaExcel
                   colunaId="especialidade"
                   rotulo="ESPECIALIDADE"
                   estado={filtroExcel}
                   className="px-3.5 py-3"
                 />
                 <CabecalhoColunaExcel
-                  colunaId="turno"
-                  rotulo="TURNO"
-                  estado={filtroExcel}
-                  className="px-3.5 py-3"
-                />
-                <CabecalhoColunaExcel
                   colunaId="escolaNome"
-                  rotulo="ESCOLA / POLO"
-                  estado={filtroExcel}
-                  className="px-3.5 py-3"
-                />
-                <CabecalhoColunaExcel
-                  colunaId="profissionalNome"
-                  rotulo="PROFISSIONAL RESPONSÁVEL"
+                  rotulo="ESCOLA"
                   estado={filtroExcel}
                   className="px-3.5 py-3"
                 />
                 <CabecalhoColunaExcel
                   colunaId="criadoEm"
-                  rotulo="DATA / HORA"
+                  rotulo="DATA"
                   estado={filtroExcel}
                   className="px-3.5 py-3"
                 />
@@ -224,7 +290,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
             <tbody className="divide-y divide-slate-100 text-xs">
               {dadosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-20 text-center">
+                  <td colSpan={6} className="py-20 text-center">
                     <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
                       <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-3 ring-8 ring-blue-50/60 shadow-xs">
                           <FileText className="w-7 h-7 text-blue-500" />
@@ -273,14 +339,13 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                         </div>
                       </div>
                     </td>
+                    <td className="py-3 px-3.5 text-slate-600 font-medium">
+                      {item.profissionalNome}
+                    </td>
                     <td className="py-3 px-3.5">
                       <EspecialidadeBadge especialidade={item.especialidade} compacto />
                     </td>
-                    <td className="py-3 px-3.5 text-slate-600 font-medium">
-                      {TURNO_LABELS[item.turno] || item.turno}
-                    </td>
                     <td className="py-3 px-3.5 text-slate-600 font-medium">{item.escolaNome}</td>
-                    <td className="py-3 px-3.5 text-slate-600">{item.profissionalNome}</td>
                     <td className="py-3 px-3.5 text-slate-500 font-mono text-[11px]">
                       {new Date(item.criadoEm).toLocaleDateString('pt-BR')} {new Date(item.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                     </td>

@@ -453,6 +453,7 @@ export interface OpcaoSelectCustom {
   corFundoIcone?: string;
   corIcone?: string;
   badge?: ReactNode;
+  desabilitado?: boolean;
 }
 
 export interface ModalSelectCustomProps {
@@ -493,6 +494,7 @@ export const ModalSelectCustom: FC<ModalSelectCustomProps> = ({
     corIcone: o.corIcone,
     subtexto: o.subtexto ?? o.textoBusca,
     badge: o.badge,
+    desabilitado: o.desabilitado,
   }));
 
   return (

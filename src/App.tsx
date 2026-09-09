@@ -396,7 +396,6 @@ export function App() {
 
     const sincronizarEmSegundoPlano = async () => {
       const cpfs = pacientes
-        .filter((p) => p.termoConsentimentoStatus === 'PENDENTE')
         .map((p) => sanitizarCpf(p.cpf))
         .filter((cpf) => cpf.length === 11);
 
@@ -419,10 +418,16 @@ export function App() {
               const novoStatus = itemCatraki.authorized
                 ? ('ACEITO' as const)
                 : ('PENDENTE' as const);
+              const autorizacaoCatraki = itemCatraki.authorized
+                ? ('AUTORIZADO' as const)
+                : itemCatraki.is_revoked || itemCatraki.status === 'revoked'
+                  ? ('REVOGADO' as const)
+                  : ('PENDENTE' as const);
 
               return {
                 ...p,
                 termoConsentimentoStatus: novoStatus,
+                autorizacaoCatraki,
                 codigoValidacaoCatraki: itemCatraki.authorized ? itemCatraki.validation_code : undefined,
                 assinadoEmCatraki: itemCatraki.authorized ? itemCatraki.signed_at : undefined,
               };
@@ -653,6 +658,7 @@ export function App() {
               <FilaDoDia
                 escolas={escolasGlobais}
                 pacientes={pacientes}
+                atendimentos={atendimentos}
                 aoIniciarAtendimento={() => {
                   // O modal de atendimento já trata o fluxo internamente na FilaDoDia
                 }}

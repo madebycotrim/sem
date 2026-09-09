@@ -1,17 +1,17 @@
 import { type FC, useState, useEffect, useRef } from 'react';
 import {
-  Stethoscope,
+  Building2,
+  Check,
   FileText,
-  ClipboardList,
-  Play,
 } from 'lucide-react';
 import {
   Modal,
   BotaoModal,
   ModalCampo,
 } from './Modal.tsx';
-import { ESPECIALIDADE_LABELS, type Especialidade } from '../../compartilhado/index.ts';
+import { type Especialidade } from '../../compartilhado/index.ts';
 import { EspecialidadeBadge, obterEstiloEspecialidade } from './EspecialidadeVisual.tsx';
+import { censurarCpf } from './TabelaPacientes.tsx';
 
 export interface DadosAtendimento {
   itemId: string;
@@ -29,7 +29,7 @@ export interface ModalIniciarAtendimentoProps {
   aberto: boolean;
   dados: DadosAtendimento | null;
   aoFechar: () => void;
-  aoConfirmar: (itemId: string, anotacoes: string) => void;
+  aoConfirmar: (itemId: string, anotacoes: string) => Promise<void> | void;
 }
 
 /** Gera iniciais do nome */
@@ -73,22 +73,23 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
 
   const estilo = obterEstiloEspecialidade(dados.especialidade);
   const IconeEsp = estilo.icone;
-  const nomeEsp = ESPECIALIDADE_LABELS[dados.especialidade] || dados.especialidade;
   const iniciais = obterIniciais(dados.pacienteNome);
   const corAvatar = obterCorAvatar(dados.pacienteNome);
 
-  const handleConfirmar = () => {
-    aoConfirmar(dados.itemId, anotacoes.trim());
+  const handleConfirmar = async () => {
+    await aoConfirmar(dados.itemId, anotacoes.trim());
+    aoFechar();
   };
 
   return (
     <Modal
       aberto={aberto}
       aoFechar={aoFechar}
-      titulo="Iniciar Atendimento"
-      subtitulo="Registre as informações da consulta antes de iniciar."
-      tamanho="xl"
-      icone={<Play className="w-5 h-5 text-blue-600" />}
+      titulo="Finalizar Atendimento"
+      subtitulo="Registre as informações da consulta antes de finalizar."
+      tamanho="lg"
+      icone={<Check className="w-5 h-5 text-blue-600" />}
+      contentClassName="p-0"
       rodape={
         <>
           <BotaoModal variante="secundario" rotulo="Cancelar" aoClicar={aoFechar} />
@@ -96,8 +97,8 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
             variante="primario"
             rotulo={
               <span className="flex items-center gap-2">
-                <Play className="w-4 h-4" />
-                Iniciar Atendimento
+                <Check className="w-4 h-4" />
+                Finalizar Atendimento
               </span>
             }
             aoClicar={handleConfirmar}
@@ -105,77 +106,67 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
         </>
       }
     >
-      <div className="px-6 py-5 space-y-4">
+      <div className="bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_72%)] px-7 py-7 space-y-5">
+
+        <div className="flex items-center justify-between gap-3 px-1">
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-600">Etapa 2 de 2</p>
+            <p className="mt-1 text-[13px] font-bold text-slate-800">Finalize o atendimento deste paciente</p>
+          </div>
+          <div className="flex items-center gap-1" aria-hidden="true">
+            <span className="h-1.5 w-2 rounded-full bg-blue-300" />
+            <span className="h-1.5 w-7 rounded-full bg-blue-600" />
+          </div>
+        </div>
 
         {/* ─── Card de Identificação ─────────────────────────────────────── */}
-        <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 overflow-hidden">
-          {/* Linha de cor da especialidade */}
-          <div className="h-1" style={{ backgroundColor: estilo.barra }} />
-
-          <div className="px-4 py-4 flex items-start gap-4">
-            {/* Avatar */}
-            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 font-extrabold text-base border border-white shadow-sm ${corAvatar}`}>
+        <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 overflow-hidden">
+          {/* Paciente selecionado */}
+          <div className="px-4 py-3 bg-white border-b border-slate-100 flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-extrabold text-sm border border-white shadow-sm ${corAvatar}`}>
               {iniciais}
             </div>
-
-            {/* Paciente info */}
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">
-                Paciente
-              </p>
-              <h3 className="text-[15px] font-extrabold text-slate-900 leading-tight truncate">
-                {dados.pacienteNome}
-              </h3>
-              <p className="text-[11.5px] text-slate-500 font-medium mt-0.5">
-                {dados.idade} anos · {dados.escolaNome}
+              <p className="text-[13px] font-extrabold text-slate-800 truncate">{dados.pacienteNome}</p>
+              <p className="text-[11px] text-slate-400 font-medium">
+                {dados.cpf ? `CPF: ${censurarCpf(dados.cpf)}` : 'CPF não informado'} · {dados.idade} anos
               </p>
             </div>
-
-            {/* Separador */}
-            <div className="w-px h-12 bg-slate-200 shrink-0 self-center" />
-
-            {/* Profissional info */}
-            {dados.profissional && (
-              <div className="shrink-0 text-right min-w-0 max-w-[200px]">
-                <div className="flex items-center justify-end gap-1 mb-0.5">
-                  <Stethoscope className="w-3 h-3 text-slate-400" />
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    Responsável
-                  </p>
-                </div>
-                <p className="text-[13px] font-extrabold text-slate-800 leading-tight truncate">
-                  {dados.profissional}
-                </p>
-                <div className="flex items-center justify-end gap-1.5 mt-1.5 flex-wrap">
-                  {dados.profissionalRegistro && (
-                    <span className="text-[10.5px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-lg">
-                      {dados.profissionalRegistro}
-                    </span>
-                  )}
-                  <EspecialidadeBadge especialidade={dados.especialidade} compacto />
-                </div>
-              </div>
-            )}
+            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg uppercase tracking-wide shrink-0">
+              Selecionado
+            </span>
           </div>
 
-          {/* Rodapé info: horários + especialidade */}
+          {/* Instituição */}
+          <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-100">
+            <div className="w-8 h-8 rounded-xl bg-blue-100/80 border border-blue-200/60 flex items-center justify-center shrink-0">
+              <Building2 className="w-4 h-4 text-blue-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Instituição</p>
+              <p className="text-[12.5px] font-bold text-slate-700 truncate">{dados.escolaNome}</p>
+            </div>
+          </div>
+
+          {/* Profissional responsável */}
+          <div className="px-4 py-3 flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${estilo.fundo} border-current/20`}>
+              <IconeEsp className={`w-4 h-4 ${estilo.texto}`} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Profissional responsável</p>
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="text-[12.5px] font-bold text-slate-700 truncate">{dados.profissional?.replace(/^Dr\.\s*/i, '') || 'Não informado'}</p>
+                <EspecialidadeBadge especialidade={dados.especialidade} compacto />
+              </div>
+            </div>
+          </div>
+
+          {/* Horários e registro */}
           <div className="px-4 py-2.5 bg-white border-t border-slate-100 flex items-center gap-4 text-[11px] font-semibold text-slate-500">
-            <span>
-              Chegada:{' '}
-              <span className="font-mono font-extrabold text-slate-800">{dados.horarioChegada}</span>
-            </span>
+            <span>Chegada: <span className="font-mono font-extrabold text-slate-800">{dados.horarioChegada}</span></span>
             <span className="w-px h-3 bg-slate-200" />
-            <span>
-              Início:{' '}
-              <span className="font-mono font-extrabold text-slate-800">
-                {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </span>
-            <span className="w-px h-3 bg-slate-200" />
-            <span className="flex items-center gap-1.5">
-              <IconeEsp className="w-3.5 h-3.5" style={{ color: estilo.barra }} />
-              <span style={{ color: estilo.barra }} className="font-bold">{nomeEsp}</span>
-            </span>
+            <span>Início: <span className="font-mono font-extrabold text-slate-800">{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></span>
           </div>
         </div>
 
@@ -205,15 +196,6 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
             )}
           </div>
         </ModalCampo>
-
-        {/* ─── Info: Ação que será realizada ────────────────────────────── */}
-        <div className="flex items-start gap-2.5 p-3 rounded-xl bg-blue-50/60 border border-blue-100">
-          <ClipboardList className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-          <p className="text-[11.5px] font-medium text-blue-700 leading-relaxed">
-            Ao confirmar, o paciente será movido para <strong className="font-extrabold">Em Atendimento</strong> e o atendimento ficará registrado no histórico clínico.
-            As anotações são opcionais e podem ser complementadas após o atendimento.
-          </p>
-        </div>
 
       </div>
     </Modal>

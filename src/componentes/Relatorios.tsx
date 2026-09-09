@@ -1,22 +1,17 @@
-import { useEffect, useMemo, useState, type FC } from 'react';
+import { useEffect, useMemo, useState, useRef, type FC } from 'react';
 import {
   Brain,
-  CalendarCheck2,
-  CalendarClock,
-  CalendarDays,
-  CalendarRange,
-  ChevronDown,
+  Calendar,
   Download,
   Ear,
   Eye,
   FileBarChart2,
-  Apple,
-  ListFilter,
   LoaderCircle,
   RotateCcw,
   Search,
   Sparkles,
   TriangleAlert,
+  Apple,
 } from 'lucide-react';
 import { utils, writeFile } from 'xlsx';
 import { requisicaoApi } from '../servicos/api.ts';
@@ -27,7 +22,9 @@ import {
   BarraFiltrosAtivos,
   type ConfiguracaoColuna,
 } from './tabelaExcel/index.ts';
+import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import { SeletorFiltroUniversal } from './SeletorFiltroUniversal.tsx';
+import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 
 export interface RelatoriosProps {
   escolas?: Array<{ id: string; nome: string }>;
@@ -61,28 +58,28 @@ const formatarDataBrasileira = (data: string) => {
   return new Date(`${data}T00:00:00`).toLocaleDateString('pt-BR');
 };
 
-const obterDiaSemanaExtenso = (dataIso: string): string => {
-  if (!dataIso) return '';
-  const [ano, mes, dia] = dataIso.split('-').map(Number);
-  if (!ano || !mes || !dia) return '';
-  const data = new Date(ano, mes - 1, dia);
-  const dias = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-  return dias[data.getDay()] || '';
-};
-
 export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   const [escolaFiltro, setEscolaFiltro] = useState('');
   const [especialidadeFiltro, setEspecialidadeFiltro] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('');
   const [profissionalFiltro, setProfissionalFiltro] = useState('');
-  const [dataInicio, setDataInicio] = useState(() => `${new Date().getFullYear()}-01-01`);
+  const [dataInicio, setDataInicio] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 29);
+    return d.toISOString().slice(0, 10);
+  });
   const [dataFim, setDataFim] = useState(() => new Date().toISOString().slice(0, 10));
-  const [periodoSelecionado, setPeriodoSelecionado] = useState('30');
+  const [periodoSelecionado, setPeriodoSelecionado] = useState<number | 'mes' | 'tudo' | null>(30);
   const [indicePico, setIndicePico] = useState<number | null>(null);
-  const [painelRecolhido, setPainelRecolhido] = useState(false);
-  const [relatorioGerado, setRelatorioGerado] = useState(false);
   const [buscaTabela, setBuscaTabela] = useState('');
   const [tooltipPosicao, setTooltipPosicao] = useState<{ x: number; y: number } | null>(null);
+  const [profissionaisDisponiveis, setProfissionaisDisponiveis] = useState<Array<{ id: string; nome: string; especialidade?: string | null }>>([]);
+  const [relatorioGerado, setRelatorioGerado] = useState(false);
+  const [filtrosModificados, setFiltrosModificados] = useState(false);
+
+  const dataInicioRef = useRef<HTMLInputElement>(null);
+  const dataFimRef = useRef<HTMLInputElement>(null);
+
   const [dados, setDados] = useState<RelatorioDados>({
     total: 0,
     totalEncaminhamentos: 0,
@@ -108,12 +105,45 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   const [carregando, setCarregando] = useState(false);
   const [exportando, setExportando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [profissionaisDisponiveis, setProfissionaisDisponiveis] = useState<Array<{ id: string; nome: string; especialidade?: string | null }>>([]);
+
+  const aplicarPeriodo = (dias: number | 'mes' | 'tudo') => {
+    const hoje = new Date();
+    const dataFinal = hoje.toISOString().slice(0, 10);
+    let dataInicial = '';
+
+    if (dias === 'tudo') {
+      dataInicial = '';
+    } else if (dias === 'mes') {
+      const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      dataInicial = primeiroDia.toISOString().slice(0, 10);
+    } else {
+      const inicio = new Date();
+      inicio.setDate(hoje.getDate() - (dias - 1));
+      dataInicial = inicio.toISOString().slice(0, 10);
+    }
+
+    setDataInicio(dataInicial);
+    setDataFim(dataFinal);
+    setPeriodoSelecionado(dias);
+    if (relatorioGerado) setFiltrosModificados(true);
+  };
+
+  const handleGerarRelatorio = () => {
+    if (dataInicio && dataFim && dataInicio > dataFim) {
+      setErro('A data inicial não pode ser posterior à data final.');
+      return;
+    }
+    setErro(null);
+    setRelatorioGerado(true);
+    setFiltrosModificados(false);
+  };
 
   useEffect(() => {
+    if (!relatorioGerado) return;
+
     const controlador = new AbortController();
     const carregarRelatorio = async () => {
-      if (dataInicio > dataFim) {
+      if (dataInicio && dataFim && dataInicio > dataFim) {
         setErro('A data inicial não pode ser posterior à data final.');
         return;
       }
@@ -121,14 +151,16 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       setCarregando(true);
       setErro(null);
 
-      if (statusFiltro && statusFiltro !== 'concluido') {
+      if (statusFiltro && statusFiltro !== 'CONCLUIDO' && statusFiltro !== 'concluido') {
         setDados({ total: 0, totalEncaminhamentos: 0, porEspecialidade: [], porEscola: [], porProfissional: [], serie: {} });
         setDadosTabela([]);
         setCarregando(false);
         return;
       }
 
-      const parametros = new URLSearchParams({ dataInicio, dataFim, pagina: '1', porPagina: '100' });
+      const parametros = new URLSearchParams({ pagina: '1', porPagina: '100' });
+      if (dataInicio) parametros.set('dataInicio', dataInicio);
+      if (dataFim) parametros.set('dataFim', dataFim);
       if (escolaFiltro) parametros.set('escolaLocalId', escolaFiltro);
       if (especialidadeFiltro) parametros.set('especialidade', especialidadeFiltro);
       if (profissionalFiltro) parametros.set('usuarioId', profissionalFiltro);
@@ -169,6 +201,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             encaminhamento: item.encaminhamentoExterno || 'Não informado',
           }))
         );
+        setFiltrosModificados(false);
       } catch (erroApi) {
         if (!controlador.signal.aborted) {
           setDados({ total: 0, totalEncaminhamentos: 0, porEspecialidade: [], porEscola: [], porProfissional: [], serie: {} });
@@ -182,7 +215,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
 
     void carregarRelatorio();
     return () => controlador.abort();
-  }, [dataInicio, dataFim, escolaFiltro, especialidadeFiltro, statusFiltro, profissionalFiltro]);
+  }, [relatorioGerado, dataInicio, dataFim, escolaFiltro, especialidadeFiltro, statusFiltro, profissionalFiltro]);
 
   useEffect(() => {
     let ativo = true;
@@ -190,9 +223,11 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     const carregarProfissionais = async () => {
       try {
         const resposta = await requisicaoApi<{ dados: Array<{ id: string; nome: string; especialidade?: string | null }> }>('/atendimentos/profissionais');
-        if (ativo) setProfissionaisDisponiveis(resposta.dados ?? []);
+        if (ativo && resposta?.dados) {
+          setProfissionaisDisponiveis(resposta.dados);
+        }
       } catch (erroApi) {
-        if (ativo) setErro(erroApi instanceof Error ? erroApi.message : 'Não foi possível carregar os profissionais.');
+        if (ativo) console.error('Erro ao carregar profissionais:', erroApi);
       }
     };
 
@@ -397,17 +432,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     }
   };
 
-  const handleGerarRelatorio = () => {
-    if (dataInicio > dataFim) {
-      setErro('A data inicial não pode ser posterior à data final.');
-      return;
-    }
-
-    setErro(null);
-    setPainelRecolhido(true);
-    setRelatorioGerado(true);
-  };
-
   const resumoCards = useMemo(() => {
     return [
       { label: 'Total', valor: totalGeral, detalhe: `${totalGeral === 1 ? 'atendimento' : 'atendimentos'}` },
@@ -439,211 +463,265 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     return alertas;
   }, [dados.porEspecialidade]);
 
-  const opcoesPeriodo = [
-    { chave: '7', label: '7 dias', icone: CalendarClock },
-    { chave: '15', label: '15 dias', icone: CalendarRange },
-    { chave: '30', label: '30 dias', icone: CalendarDays },
-    { chave: 'mes', label: 'Este mês', icone: CalendarCheck2 },
-    { chave: 'todos', label: 'Tudo', icone: ListFilter },
-  ];
-
-  const aplicarPeriodo = (chave: string) => {
-    const hoje = new Date();
-    const dataFinal = new Date(hoje);
-    const dataInicial = new Date(hoje);
-
-    switch (chave) {
-      case '7':
-        dataInicial.setDate(hoje.getDate() - 6);
-        break;
-      case '15':
-        dataInicial.setDate(hoje.getDate() - 14);
-        break;
-      case '30':
-        dataInicial.setDate(hoje.getDate() - 29);
-        break;
-      case 'mes':
-        dataInicial.setDate(1);
-        break;
-      case 'todos':
-        dataInicial.setFullYear(2024, 0, 1);
-        break;
-      default:
-        return;
-    }
-
-    setPeriodoSelecionado(chave);
-    setDataInicio(dataInicial.toISOString().slice(0, 10));
-    setDataFim(dataFinal.toISOString().slice(0, 10));
-  };
-
-  const campoFiltroBase = 'flex h-11 w-full items-center gap-2 rounded-xl border border-[#dfe7ee] bg-[#f7fafc] px-3 text-[15px] text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-200 hover:border-[#cfe1ee] focus-within:border-[#0d4d7a] focus-within:shadow-[0_0_0_3px_rgba(13,77,122,0.08)]';
-
   return (
-    <div className="flex flex-1 flex-col bg-[#f4f7fb] p-0 text-slate-800">
-      <div className="px-6 pb-6">
-        <h1 className="mt-2 text-[28px] sm:text-[36px] font-extrabold tracking-[-0.04em] text-[#0d4d7a]">Relatórios</h1>
-        <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Análises operacionais consolidadas, oficiais e rastreáveis</p>
-      </div>
-
-      <div className="mx-6 rounded-2xl border border-slate-200 bg-[#eef3f7] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Parâmetros do relatório</span>
-          <button
-            type="button"
-            onClick={() => setPainelRecolhido((atual) => !atual)}
-            className="inline-flex items-center gap-2 text-[13px] font-medium text-slate-500 hover:text-slate-700"
-          >
-            {painelRecolhido ? 'Expandir' : 'Recolher'}
-            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${painelRecolhido ? '-rotate-180' : ''}`} />
-          </button>
-        </div>
-
-        {!painelRecolhido && (
-          <>
-            <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <div>
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Início</label>
-            <div className={campoFiltroBase}>
-              <CalendarDays className="h-4 w-4 shrink-0 text-slate-500" />
-              <input type="date" value={dataInicio} onChange={(event) => setDataInicio(event.target.value)} className="h-full min-h-0 flex-1 bg-transparent text-[14px] font-medium leading-none text-slate-700 outline-none appearance-none cursor-pointer" aria-label="Data inicial" />
-              {dataInicio && (
-                <span className="shrink-0 rounded-lg bg-blue-50/90 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wider text-blue-700 border border-blue-200/80 shadow-2xs select-none pointer-events-none">
-                  {obterDiaSemanaExtenso(dataInicio)}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Fim</label>
-            <div className={campoFiltroBase}>
-              <CalendarDays className="h-4 w-4 shrink-0 text-slate-500" />
-              <input type="date" value={dataFim} onChange={(event) => setDataFim(event.target.value)} className="h-full min-h-0 flex-1 bg-transparent text-[14px] font-medium leading-none text-slate-700 outline-none appearance-none cursor-pointer" aria-label="Data final" />
-              {dataFim && (
-                <span className="shrink-0 rounded-lg bg-blue-50/90 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wider text-blue-700 border border-blue-200/80 shadow-2xs select-none pointer-events-none">
-                  {obterDiaSemanaExtenso(dataFim)}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <SeletorFiltroUniversal
-            categoria="status"
-            rotulo="Status"
-            valor={statusFiltro}
-            aoMudar={setStatusFiltro}
-            placeholder="Todos os status"
-          />
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <SeletorFiltroUniversal
-            categoria="instituicoes"
-            rotulo="Instituição"
-            valor={escolaFiltro}
-            aoMudar={setEscolaFiltro}
-            placeholder="Todas as instituições"
-            opcoes={(escolas || []).map((e) => ({ id: e.nome, valor: e.nome, nome: e.nome, rotulo: e.nome }))}
-          />
-
-          <SeletorFiltroUniversal
-            categoria="especialidades"
-            rotulo="Especialidade"
-            valor={especialidadeFiltro}
-            aoMudar={setEspecialidadeFiltro}
-            placeholder="Todas as especialidades"
-          />
-
-          <SeletorFiltroUniversal
-            categoria="profissionais"
-            rotulo="Profissional"
-            valor={profissionalFiltro}
-            aoMudar={setProfissionalFiltro}
-            placeholder="Todos os profissionais"
-            opcoes={profissionaisDisponiveis.map((p) => ({
-              id: p.id,
-              valor: p.id,
-              nome: p.nome,
-              rotulo: p.nome,
-              subtexto: p.especialidade ? (ESPECIALIDADE_LABELS[p.especialidade as Especialidade] ?? p.especialidade) : undefined,
-            }))}
-          />
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {opcoesPeriodo.map((opcao) => {
-              const Icone = opcao.icone;
-              const ativo = periodoSelecionado === opcao.chave;
-              const eUltimaOpcao = opcao.chave === 'todos';
-
-              return (
-                <div key={opcao.chave} className="flex items-center gap-2">
-                  {eUltimaOpcao && (
-                    <div className="mx-1 h-7 w-px bg-slate-300" aria-hidden="true" />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => aplicarPeriodo(opcao.chave)}
-                    className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-[15px] font-semibold transition ${
-                      ativo
-                        ? 'border-[#0d4d7a] bg-[#0d4d7a] text-white shadow-sm'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Icone className="h-3.5 w-3.5" />
-                    {opcao.label}
-                  </button>
+    <div className="flex flex-col flex-1 animate-fade-in font-sans">
+      {/* ─── Cabeçalho Fixo Modular ───── */}
+      <CabecalhoPagina
+        titulo="Relatórios"
+        subtitulo="ANÁLISES OPERACIONAIS CONSOLIDADAS, OFICIAIS E RASTREÁVEIS"
+        acoesExtras={
+          <div className="flex flex-col gap-2 w-full min-w-0">
+            {/* Linha 1: De | Até | Status | Instituição | Especialidade | Profissional */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-[150px_150px_1fr_1.6fr_1.2fr_1.6fr] items-center gap-2.5 w-full min-w-0">
+              {/* Data Inicial */}
+              <label
+                className="relative flex h-10 cursor-pointer items-center justify-between gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 w-full min-w-0 shadow-2xs"
+                onClick={(evento) => {
+                  evento.preventDefault();
+                  dataInicioRef.current?.showPicker?.();
+                }}
+              >
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="shrink-0 text-slate-400 font-bold text-[11px]">De</span>
+                  <span className="pointer-events-none whitespace-nowrap font-medium text-slate-700 text-xs">
+                    {dataInicio ? new Date(`${dataInicio}T12:00:00`).toLocaleDateString('pt-BR') : 'dd/mm/aaaa'}
+                  </span>
                 </div>
-              );
-            })}
+                <Calendar className="pointer-events-none h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <input
+                  ref={dataInicioRef}
+                  type="date"
+                  value={dataInicio}
+                  onChange={(evento) => {
+                    setPeriodoSelecionado(null);
+                    setDataInicio(evento.target.value);
+                    if (relatorioGerado) setFiltrosModificados(true);
+                  }}
+                  className="pointer-events-none absolute h-px w-px opacity-0"
+                  aria-label="Data inicial"
+                />
+              </label>
 
-            <button type="button" onClick={() => {
-              setEscolaFiltro('');
-              setEspecialidadeFiltro('');
-              setStatusFiltro('');
-              setProfissionalFiltro('');
-              setPeriodoSelecionado('mes');
-              setDataInicio(`${new Date().getFullYear()}-01-01`);
-              setDataFim(new Date().toISOString().slice(0, 10));
-            }} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[15px] font-semibold text-red-600 hover:bg-red-100">
-              <RotateCcw className="h-3.5 w-3.5" />
-              Limpar
-            </button>
-          </div>
+              {/* Data Final */}
+              <label
+                className="relative flex h-10 cursor-pointer items-center justify-between gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 w-full min-w-0 shadow-2xs"
+                onClick={(evento) => {
+                  evento.preventDefault();
+                  dataFimRef.current?.showPicker?.();
+                }}
+              >
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="shrink-0 text-slate-400 font-bold text-[11px]">Até</span>
+                  <span className="pointer-events-none whitespace-nowrap font-medium text-slate-700 text-xs">
+                    {dataFim ? new Date(`${dataFim}T12:00:00`).toLocaleDateString('pt-BR') : 'dd/mm/aaaa'}
+                  </span>
+                </div>
+                <Calendar className="pointer-events-none h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <input
+                  ref={dataFimRef}
+                  type="date"
+                  value={dataFim}
+                  onChange={(evento) => {
+                    setPeriodoSelecionado(null);
+                    setDataFim(evento.target.value);
+                    if (relatorioGerado) setFiltrosModificados(true);
+                  }}
+                  className="pointer-events-none absolute h-px w-px opacity-0"
+                  aria-label="Data final"
+                />
+              </label>
 
-          <button type="button" onClick={handleGerarRelatorio} className="inline-flex items-center gap-2 rounded-xl bg-[#0d4d7a] px-5 py-3 text-[15px] font-bold text-white shadow-[0_8px_18px_rgba(13,77,122,0.28)] hover:bg-[#0a3d64]">
-            <FileBarChart2 className="h-4 w-4" />
-            Gerar Relatório
-          </button>
-        </div>
-          </>
-        )}
-      </div>
+              {/* Status */}
+              <div className="w-full min-w-0">
+                <SeletorFiltroUniversal
+                  categoria="status"
+                  valor={statusFiltro}
+                  aoMudar={(val) => {
+                    setStatusFiltro(val);
+                    if (relatorioGerado) setFiltrosModificados(true);
+                  }}
+                  placeholder="Todos os status"
+                  tamanho="sm"
+                  fundoBranco
+                  pesquisavel={false}
+                />
+              </div>
 
-      {relatorioGerado && (
-      <>
-      <div className="mx-6 mt-8 rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-[#f7fafc] px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Relatório oficial</div>
-              <div className="mt-1 text-[13px] font-bold text-slate-800">Relatório Analítico de Atendimentos ({formatarDataBrasileira(dataInicio)} - {formatarDataBrasileira(dataFim)})</div>
+              {/* Instituição */}
+              <div className="w-full min-w-0">
+                <SeletorFiltroUniversal
+                  categoria="instituicoes"
+                  valor={escolaFiltro}
+                  aoMudar={(val) => {
+                    setEscolaFiltro(val);
+                    if (relatorioGerado) setFiltrosModificados(true);
+                  }}
+                  placeholder="Todas as instituições"
+                  tamanho="sm"
+                  fundoBranco
+                  opcoes={escolas.map((item) => ({ id: item.nome, valor: item.nome, nome: item.nome, rotulo: item.nome }))}
+                />
+              </div>
+
+              {/* Especialidade */}
+              <div className="w-full min-w-0">
+                <SeletorFiltroUniversal
+                  categoria="especialidades"
+                  valor={especialidadeFiltro}
+                  aoMudar={(val) => {
+                    setEspecialidadeFiltro(val);
+                    if (relatorioGerado) setFiltrosModificados(true);
+                  }}
+                  placeholder="Todas as especialidades"
+                  tamanho="sm"
+                  fundoBranco
+                  pesquisavel={false}
+                />
+              </div>
+
+              {/* Profissional */}
+              <div className="w-full min-w-0">
+                <SeletorFiltroUniversal
+                  categoria="profissionais"
+                  valor={profissionalFiltro}
+                  aoMudar={(val) => {
+                    setProfissionalFiltro(val);
+                    if (relatorioGerado) setFiltrosModificados(true);
+                  }}
+                  placeholder="Todos os profissionais"
+                  tamanho="sm"
+                  fundoBranco
+                  opcoes={profissionaisDisponiveis.map((p) => ({
+                    id: p.id,
+                    valor: p.id,
+                    nome: p.nome,
+                    rotulo: p.nome,
+                    badge: p.especialidade ? <EspecialidadeBadge especialidade={p.especialidade as Especialidade} compacto /> : undefined,
+                  }))}
+                />
+              </div>
+            </div>
+
+            {/* Linha 2: Botões Rápidos de Período + Limpar */}
+            <div className="flex flex-nowrap items-center justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={() => aplicarPeriodo(7)}
+                className={`h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors cursor-pointer ${
+                  periodoSelecionado === 7 ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                7 dias
+              </button>
+              <button
+                type="button"
+                onClick={() => aplicarPeriodo(15)}
+                className={`hidden h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors md:block cursor-pointer ${
+                  periodoSelecionado === 15 ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                15 dias
+              </button>
+              <button
+                type="button"
+                onClick={() => aplicarPeriodo(30)}
+                className={`h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors cursor-pointer ${
+                  periodoSelecionado === 30 ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                30 dias
+              </button>
+              <button
+                type="button"
+                onClick={() => aplicarPeriodo('mes')}
+                className={`hidden h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors lg:block cursor-pointer ${
+                  periodoSelecionado === 'mes' ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                Este mês
+              </button>
+              <button
+                type="button"
+                onClick={() => aplicarPeriodo('tudo')}
+                className={`h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors cursor-pointer ${
+                  periodoSelecionado === 'tudo' ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                Tudo
+              </button>
+              <span className="mx-0.5 h-6 w-px bg-slate-200" aria-hidden="true" />
+              <button
+                type="button"
+                onClick={() => {
+                  setBuscaTabela('');
+                  setStatusFiltro('');
+                  setEscolaFiltro('');
+                  setEspecialidadeFiltro('');
+                  setProfissionalFiltro('');
+                  setDataInicio('');
+                  setDataFim('');
+                  setPeriodoSelecionado(null);
+                  setErro(null);
+                  setFiltrosModificados(false);
+                  setRelatorioGerado(false);
+                }}
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-rose-600 transition-colors hover:bg-rose-50 cursor-pointer"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> Limpar
+              </button>
+              <span className="mx-0.5 h-6 w-px bg-slate-200" aria-hidden="true" />
+              <button
+                type="button"
+                onClick={handleGerarRelatorio}
+                className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-bold transition-all shadow-sm cursor-pointer ${
+                  filtrosModificados
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 ring-2 ring-blue-300 animate-pulse'
+                    : 'bg-[#034b7f] text-white hover:bg-[#023a63]'
+                }`}
+              >
+                <FileBarChart2 className="h-4 w-4" />
+                {relatorioGerado ? (filtrosModificados ? 'Atualizar Relatório' : 'Relatório Atualizado') : 'Gerar Relatório'}
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void handleExportarPlanilha()}
-              disabled={exportando}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#cfe1ee] bg-[#f7fafc] px-4 py-2.5 text-[15px] font-semibold text-[#0d4d7a] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition hover:border-[#bcd7eb] hover:bg-[#eef6fb] disabled:cursor-wait disabled:opacity-60"
-            >
-              {exportando ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {exportando ? 'Gerando planilha...' : 'Baixar planilha'}
-            </button>
+        }
+        fixo={false}
+      />
+
+      {!relatorioGerado ? (
+        <div className="flex flex-1 min-h-[400px] flex-col items-center justify-center p-8 text-center my-auto">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100/80 text-slate-400 mb-3">
+            <FileBarChart2 className="h-6 w-6" />
           </div>
+          <h3 className="text-sm font-semibold text-slate-700">Nenhum relatório gerado</h3>
+          <p className="mt-1 max-w-sm text-xs text-slate-400">
+            Ajuste os filtros acima e clique em <span className="font-medium text-slate-600">"Gerar Relatório"</span> para carregar os dados.
+          </p>
         </div>
+      ) : (
+        <>
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-[#f7fafc] px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Relatório oficial</div>
+                  <div className="mt-1 text-[13px] font-bold text-slate-800">
+                    Relatório Analítico de Atendimentos ({dataInicio ? formatarDataBrasileira(dataInicio) : 'Início'} - {dataFim ? formatarDataBrasileira(dataFim) : 'Fim'})
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleExportarPlanilha()}
+                  disabled={exportando}
+                  className="inline-flex items-center gap-2 rounded-xl border border-[#cfe1ee] bg-[#f7fafc] px-4 py-2.5 text-[15px] font-semibold text-[#0d4d7a] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition hover:border-[#bcd7eb] hover:bg-[#eef6fb] disabled:cursor-wait disabled:opacity-60 cursor-pointer"
+                >
+                  {exportando ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  {exportando ? 'Gerando planilha...' : 'Baixar planilha'}
+                </button>
+              </div>
+            </div>
 
         <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2 xl:grid-cols-5">
           {resumoCards.map((card, index) => (
@@ -674,7 +752,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         </div>
       </div>
 
-      <div className="mx-6 mt-8 grid grid-cols-1 gap-5 xl:grid-cols-[1.7fr_1.2fr_1fr]">
+      <div className="mt-8 grid grid-cols-1 gap-5 xl:grid-cols-[1.7fr_1.2fr_1fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-4 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Ranking de profissionais</div>
           <div className="space-y-4">
@@ -748,7 +826,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         </div>
       </div>
 
-      <div className="mx-6 mt-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-5 flex items-center justify-between">
           <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Gráfico por período</div>
           {picoGrafico && (
@@ -826,7 +904,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         </div>
       </div>
 
-      <div className="mx-6 mt-8 mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="mt-8 mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 bg-[#f7fafc] px-5 py-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
@@ -890,17 +968,17 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           </table>
         </div>
       </div>
-      </>
+        </>
       )}
 
       {erro && (
-        <div className="mx-6 mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[15px] font-medium text-red-700">
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[15px] font-medium text-red-700">
           {erro}
         </div>
       )}
 
       {carregando && (
-        <div className="mx-6 mb-4 flex items-center gap-2 text-[15px] font-medium text-slate-600">
+        <div className="mb-4 flex items-center gap-2 text-[15px] font-medium text-slate-600">
           <LoaderCircle className="h-4 w-4 animate-spin text-[#0d4d7a]" />
           Atualizando relatório...
         </div>

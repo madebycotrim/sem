@@ -22,6 +22,7 @@ export interface ItemPaciente {
   sexo?: string;
   escolaNome: string;
   termoConsentimentoStatus: 'ACEITO' | 'DISPENSADO' | 'PENDENTE';
+  autorizacaoCatraki?: 'AUTORIZADO' | 'REVOGADO' | 'PENDENTE';
   atendimentosCount: number;
   criadoEm: string;
   codigoValidacaoCatraki?: string;

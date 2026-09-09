@@ -1,4 +1,4 @@
-import { Apple, Brain, Ear, Eye, Sparkles, type LucideIcon } from 'lucide-react';
+import { Apple, Brain, Ear, Eye, Smile, Sparkles, type LucideIcon } from 'lucide-react';
 import { ESPECIALIDADE_LABELS, type Especialidade } from '../../compartilhado/index.ts';
 
 export interface EstiloEspecialidade {
@@ -18,7 +18,7 @@ export const obterEstiloEspecialidade = (especialidade?: string | null): EstiloE
     case 'PSICOLOGIA':
       return { icone: Brain, barra: '#6366f1', texto: 'text-indigo-700', fundo: 'bg-indigo-50', borda: 'border-indigo-200' };
     case 'ODONTOLOGIA':
-      return { icone: Sparkles, barra: '#f43f5e', texto: 'text-rose-700', fundo: 'bg-rose-50', borda: 'border-rose-200' };
+      return { icone: Smile, barra: '#f43f5e', texto: 'text-rose-700', fundo: 'bg-rose-50', borda: 'border-rose-200' };
     case 'OFTALMOLOGIA':
     case 'OTALMOLOGIA':
       return { icone: Eye, barra: '#14b8a6', texto: 'text-teal-700', fundo: 'bg-teal-50', borda: 'border-teal-200' };

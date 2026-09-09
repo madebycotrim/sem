@@ -1,4 +1,4 @@
-import { useState, type FC, useMemo } from 'react';
+import { useState, useEffect, type FC, useMemo } from 'react';
 import { ESPECIALIDADE_LABELS, Especialidade, Turno } from '../../compartilhado/index.ts';
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import {
@@ -11,9 +11,10 @@ import { Paginacao } from './Paginacao.tsx';
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 import { CardHoverPaciente } from './CardHoverPaciente.tsx';
 import { censurarCpf } from './TabelaPacientes.tsx';
-import { Check, Clock3, RotateCcw, CalendarDays, ClipboardCheck, Play } from 'lucide-react';
+import { Clock3, RotateCcw, CalendarDays, ClipboardCheck, Play } from 'lucide-react';
 import { ModalTriagem, type ItemPacienteTriagem } from './ModalTriagem.tsx';
 import { ModalIniciarAtendimento, type DadosAtendimento } from './ModalIniciarAtendimento.tsx';
+import type { ItemAtendimentoLista } from './Atendimentos.tsx';
 
 // Data de hoje no formato pt-BR para comparação (ex: "08/09/2026")
 const HOJE = new Date().toLocaleDateString('pt-BR');
@@ -47,6 +48,7 @@ export interface FilaDoDiaProps {
   aoNovoPaciente?: () => void;
   escolas?: Array<{ id: string; nome: string }>;
   pacientes?: ItemPacienteTriagem[];
+  atendimentos?: Pick<ItemAtendimentoLista, 'pacienteId' | 'especialidade'>[];
 }
 
 export const FilaDoDia: FC<FilaDoDiaProps> = ({
@@ -54,11 +56,34 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   aoNovoPaciente,
   escolas = [],
   pacientes = [],
+  atendimentos = [],
 }) => {
   const [busca, setBusca] = useState('');
   const [modalTriagemAberto, setModalTriagemAberto] = useState(false);
   const [modalAtendimentoAberto, setModalAtendimentoAberto] = useState(false);
   const [dadosAtendimentoAtivo, setDadosAtendimentoAtivo] = useState<DadosAtendimento | null>(null);
+  const [confirmandoAlteracaoId, setConfirmandoAlteracaoId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!confirmandoAlteracaoId) return undefined;
+
+    const fecharAoClicarFora = (evento: MouseEvent) => {
+      const alvo = evento.target as HTMLElement;
+      if (!alvo.closest('[data-confirmacao-alteracao]')) {
+        setConfirmandoAlteracaoId(null);
+      }
+    };
+    const fecharComEscape = (evento: KeyboardEvent) => {
+      if (evento.key === 'Escape') setConfirmandoAlteracaoId(null);
+    };
+
+    document.addEventListener('mousedown', fecharAoClicarFora);
+    document.addEventListener('keydown', fecharComEscape);
+    return () => {
+      document.removeEventListener('mousedown', fecharAoClicarFora);
+      document.removeEventListener('keydown', fecharComEscape);
+    };
+  }, [confirmandoAlteracaoId]);
 
   const [fila, setFila] = useState<ItemFila[]>([
     {
@@ -113,6 +138,17 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
     profissionalRegistro?: string;
     especialidade: Especialidade;
   }) => {
+    const cpfLimpo = (dados.cpf || '').replace(/\D/g, '');
+    const consultaDuplicada = fila.some((item) =>
+      cpfLimpo.length === 11 &&
+      (item.cpf || '').replace(/\D/g, '') === cpfLimpo &&
+      item.especialidade === dados.especialidade
+    );
+
+    if (consultaDuplicada) {
+      throw new Error('Este CPF já possui uma consulta registrada para esta especialidade. Não é permitido realizar outra consulta.');
+    }
+
     const agora = new Date();
     const novoItem: ItemFila = {
       id: `fila-${Date.now()}`,
@@ -179,7 +215,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       },
       {
         id: 'acoes',
-        rotulo: 'CHAMADA & AÇÕES',
+        rotulo: 'AÇÕES',
         desabilitarFiltro: true,
         desabilitarOrdenacao: true,
       },
@@ -213,10 +249,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   const indiceInicio = (paginaCorrigida - 1) * itensPorPagina;
   const dadosPaginados = dadosFiltrados.slice(indiceInicio, indiceInicio + itensPorPagina);
 
-  const totalAguardando = filaHoje.filter((f) => f.status === 'AGUARDANDO').length;
-  const totalConfirmados = filaHoje.filter((f) => f.status === 'CONFIRMADO').length;
-  const totalEmAtendimento = filaHoje.filter((f) => f.status === 'EM_ATENDIMENTO').length;
-  const totalConcluido = filaHoje.filter((f) => f.status === 'CONCLUIDO').length;
 
   // Data formatada por extenso para exibição no cabeçalho
   const dataHojeExtenso = new Date().toLocaleDateString('pt-BR', {
@@ -237,26 +269,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
           aoMudar: setBusca,
           placeholder: 'Buscar aluno por nome ou CPF...',
         }}
-        acoesExtras={
-          <div className="flex items-center gap-2 text-xs font-sans">
-            <span className="px-3 py-1.5 rounded-2xl bg-amber-50 text-amber-800 border border-amber-200/90 font-bold flex items-center gap-1.5 shadow-2xs whitespace-nowrap">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-              Aguardando: {totalAguardando}
-            </span>
-            <span className="px-3 py-1.5 rounded-2xl bg-violet-50 text-violet-800 border border-violet-200/90 font-bold flex items-center gap-1.5 shadow-2xs whitespace-nowrap">
-              <span className="w-2 h-2 rounded-full bg-violet-500" />
-              Confirmados: {totalConfirmados}
-            </span>
-            <span className="px-3 py-1.5 rounded-2xl bg-blue-50 text-blue-800 border border-blue-200/90 font-bold flex items-center gap-1.5 shadow-2xs whitespace-nowrap">
-              <span className="w-2 h-2 rounded-full bg-blue-500" />
-              Em Atendimento: {totalEmAtendimento}
-            </span>
-            <span className="px-3 py-1.5 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200/90 font-bold flex items-center gap-1.5 shadow-2xs whitespace-nowrap">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              Concluídos: {totalConcluido}
-            </span>
-          </div>
-        }
         acaoPrimaria={{
           rotulo: 'Triagem / Check-in',
           aoClicar: () => setModalTriagemAberto(true),
@@ -304,7 +316,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                   className="px-3"
                 />
                 <th scope="col" className="py-3 px-4 font-bold text-slate-600 text-right">
-                  CHAMADA & AÇÕES
+                  AÇÕES
                 </th>
               </tr>
             </thead>
@@ -328,7 +340,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                         <button
                           type="button"
                           onClick={() => filtroExcel.limparTodosFiltros()}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl transition-all cursor-pointer"
+                          className="inline-flex h-9 items-center gap-1.5 px-3.5 text-xs font-extrabold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl shadow-sm transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-100"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
                           <span>Limpar Filtros das Colunas</span>
@@ -337,7 +349,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                         <button
                           type="button"
                           onClick={() => setModalTriagemAberto(true)}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-2xl shadow-xs transition-all active:scale-[0.98] cursor-pointer"
+                          className="inline-flex h-9 items-center gap-1.5 px-4 text-xs font-extrabold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-xl shadow-[0_4px_12px_rgba(37,99,235,0.22)] transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
                         >
                           + Triagem / Check-in
                         </button>
@@ -404,7 +416,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                             )}
                           </div>
                           <span className="text-[11px] text-slate-500 font-normal">
-                            {item.idade} anos • CPF: {item.cpf ? censurarCpf(item.cpf) : 'Não informado'}
+                            CPF: {item.cpf ? censurarCpf(item.cpf) : 'Não informado'}
                           </span>
                         </div>
                       </CardHoverPaciente>
@@ -414,9 +426,9 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                       {item.profissional ? (
                         <div className="flex flex-col text-left">
                           <span className="font-semibold text-slate-900 uppercase tracking-tight text-xs truncate max-w-[210px]">
-                            {item.profissional}
+                            {item.profissional.replace(/^(Dr\.ª?|Dra?\.?)\s*/i, '')}
                           </span>
-                          <span className="text-[11px] text-blue-600 font-mono font-medium">
+                          <span className="text-[11px] text-slate-500 font-mono font-medium">
                             {item.profissionalRegistro || 'Registro N/I'}
                           </span>
                         </div>
@@ -460,14 +472,39 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                           <button
                             type="button"
                             onClick={() => alternarStatus(item.id, 'CONFIRMADO')}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-2xl shadow-2xs transition-all active:scale-95 cursor-pointer"
+                            className="inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl shadow-[0_2px_8px_rgba(245,158,11,0.12)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-100"
                           >
                             <ClipboardCheck className="w-3.5 h-3.5 text-amber-600" />
                             Confirmar
                           </button>
                         )}
-                        {/* PASSO 2: Iniciar atendimento — abre modal de prontuário */}
+                        {/* PASSO 2: Inicia o atendimento e abre o prontuário */}
                         {item.status === 'CONFIRMADO' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              alternarStatus(item.id, 'EM_ATENDIMENTO');
+                              setDadosAtendimentoAtivo({
+                                itemId: item.id,
+                                pacienteNome: item.pacienteNome,
+                                cpf: item.cpf,
+                                idade: item.idade,
+                                escolaNome: item.escolaNome,
+                                especialidade: item.especialidade,
+                                profissional: item.profissional,
+                                profissionalRegistro: item.profissionalRegistro,
+                                horarioChegada: item.horarioChegada,
+                              });
+                              setModalAtendimentoAberto(true);
+                            }}
+                            className="inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-xl shadow-[0_4px_12px_rgba(37,99,235,0.24)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+                          >
+                            <Play className="w-3.5 h-3.5" />
+                            Iniciar Atendimento
+                          </button>
+                        )}
+                        {/* Atendimento em andamento — retoma o prontuário */}
+                        {item.status === 'EM_ATENDIMENTO' && (
                           <button
                             type="button"
                             onClick={() => {
@@ -484,25 +521,63 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                               });
                               setModalAtendimentoAberto(true);
                             }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-2xl shadow-2xs transition-all active:scale-95 cursor-pointer"
+                            className="inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-xl shadow-[0_2px_8px_rgba(37,99,235,0.12)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
                           >
-                            <Play className="w-3.5 h-3.5" />
-                            Iniciar
-                          </button>
-                        )}
-                        {/* PASSO 3: Concluir atendimento — botão esmeralda */}
-                        {item.status === 'EM_ATENDIMENTO' && (
-                          <button
-                            type="button"
-                            onClick={() => alternarStatus(item.id, 'CONCLUIDO')}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-2xl transition-all active:scale-95 cursor-pointer"
-                          >
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            Concluir
+                            <Play className="w-3.5 h-3.5 text-blue-600" />
+                            Continuar
                           </button>
                         )}
                         {item.status === 'CONCLUIDO' && (
-                          <span className="text-[11px] text-slate-400 font-medium">Finalizado</span>
+                          <div className="relative inline-flex items-center" data-confirmacao-alteracao>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmandoAlteracaoId(item.id)}
+                              className="inline-flex p-0 text-[11px] text-slate-400 font-medium cursor-pointer"
+                            >
+                              <span className="group/finalizado relative inline-block hover:text-blue-700">
+                                Finalizado
+                                <span className="pointer-events-none absolute right-0 bottom-full mb-2 hidden items-center whitespace-nowrap rounded-2xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-blue-700 shadow-lg shadow-slate-900/5 group-hover/finalizado:flex animate-fade-in">
+                                  Alterar atendimento
+                                  <span className="absolute right-3 -bottom-1 h-2 w-2 rotate-45 border-r border-b border-blue-200 bg-blue-50" aria-hidden="true" />
+                                </span>
+                              </span>
+                            </button>
+                            {confirmandoAlteracaoId === item.id && (
+                              <div className="absolute right-0 bottom-full mb-2 inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-900/10 whitespace-nowrap z-50 animate-fade-in">
+                                <span className="text-[12px] font-medium text-slate-500">Deseja alterar?</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmandoAlteracaoId(null)}
+                                  className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors font-semibold cursor-pointer"
+                                >
+                                  Não
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConfirmandoAlteracaoId(null);
+                                    alternarStatus(item.id, 'EM_ATENDIMENTO');
+                                    setDadosAtendimentoAtivo({
+                                      itemId: item.id,
+                                      pacienteNome: item.pacienteNome,
+                                      cpf: item.cpf,
+                                      idade: item.idade,
+                                      escolaNome: item.escolaNome,
+                                      especialidade: item.especialidade,
+                                      profissional: item.profissional,
+                                      profissionalRegistro: item.profissionalRegistro,
+                                      horarioChegada: item.horarioChegada,
+                                    });
+                                    setModalAtendimentoAberto(true);
+                                  }}
+                                  className="px-2.5 py-1 text-[11px] bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg transition-colors font-bold shadow-sm cursor-pointer"
+                                >
+                                  Sim
+                                </button>
+                                <div className="absolute right-3 -bottom-1.5 w-3 h-3 bg-white border-r border-b border-slate-200 rotate-45" aria-hidden="true" />
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     </td>
@@ -529,10 +604,11 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         aoConfirmar={handleConfirmarTriagem}
         escolas={escolas}
         pacientes={pacientes}
+        atendimentos={atendimentos}
         aoCriarNovoPaciente={aoNovoPaciente}
       />
 
-      {/* Modal de Iniciar Atendimento (Prontuário Clínico) */}
+      {/* Modal de finalização do atendimento (Prontuário Clínico) */}
       <ModalIniciarAtendimento
         aberto={modalAtendimentoAberto}
         dados={dadosAtendimentoAtivo}
@@ -541,7 +617,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
           setDadosAtendimentoAtivo(null);
         }}
         aoConfirmar={(itemId, _anotacoes) => {
-          alternarStatus(itemId, 'EM_ATENDIMENTO');
+          alternarStatus(itemId, 'CONCLUIDO');
           const item = fila.find((f) => f.id === itemId);
           if (item) {
             aoIniciarAtendimento({

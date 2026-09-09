@@ -88,6 +88,13 @@ export function formatarCpf(cpf: string): string {
 }
 
 /**
+ * Normaliza CPF para comparação e persistência, removendo máscara e espaços.
+ */
+export function normalizarCpf(cpf?: string | null): string {
+  return (cpf ?? '').replace(/\D/g, '').slice(0, 11);
+}
+
+/**
  * Mascara o CPF para conformidade com a LGPD (ex: 042.***.***-91)
  */
 export function mascararCpf(cpf?: string | null): string {

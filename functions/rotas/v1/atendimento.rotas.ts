@@ -65,6 +65,23 @@ rotasAtendimento.post(
       return c.json({ erro: 'Escola/local de atendimento não encontrado.' }, 404);
     }
 
+    const consultaExistente = await prisma.atendimento.findFirst({
+      where: {
+        pacienteId: dados.pacienteId,
+        especialidade: dados.especialidade,
+      },
+      select: { id: true },
+    });
+
+    if (consultaExistente) {
+      return c.json(
+        {
+          erro: 'Este CPF já possui uma consulta registrada para esta especialidade. Não é permitido realizar outra consulta.',
+        },
+        409
+      );
+    }
+
     const consentimento = await prisma.consentimento.findFirst({
       where: { pacienteId: dados.pacienteId },
       orderBy: { criadoEm: 'desc' },
@@ -81,21 +98,34 @@ rotasAtendimento.post(
       );
     }
 
-    const atendimento = await prisma.atendimento.create({
-      data: {
-        pacienteId: dados.pacienteId,
-        escolaLocalId: dados.escolaLocalId,
-        usuarioId: usuario.userId,
-        especialidade: dados.especialidade,
-        turno: dados.turno,
-        status: StatusAtendimento.CONCLUIDO,
-        resumo: dados.resumo,
-        procedimentos: dados.procedimentos ?? null,
-        insumosUtilizados: dados.insumosUtilizados ?? null,
-        encaminhamentoExterno: dados.encaminhamentoExterno ?? null,
-        chaveIdempotencia: dados.idempotencyKey,
-      },
-    });
+    let atendimento;
+    try {
+      atendimento = await prisma.atendimento.create({
+        data: {
+          pacienteId: dados.pacienteId,
+          escolaLocalId: dados.escolaLocalId,
+          usuarioId: usuario.userId,
+          especialidade: dados.especialidade,
+          turno: dados.turno,
+          status: StatusAtendimento.CONCLUIDO,
+          resumo: dados.resumo,
+          procedimentos: dados.procedimentos ?? null,
+          insumosUtilizados: dados.insumosUtilizados ?? null,
+          encaminhamentoExterno: dados.encaminhamentoExterno ?? null,
+          chaveIdempotencia: dados.idempotencyKey,
+        },
+      });
+    } catch (erro) {
+      if (String(erro).toLowerCase().includes('unique')) {
+        return c.json(
+          {
+            erro: 'Este CPF já possui uma consulta registrada para esta especialidade. Não é permitido realizar outra consulta.',
+          },
+          409
+        );
+      }
+      throw erro;
+    }
 
     const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1';
 
@@ -301,6 +331,7 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
 
       return {
         id: a.id,
+        pacienteId: a.pacienteId,
         pacienteNome,
         especialidade: a.especialidade,
         turno: a.turno,

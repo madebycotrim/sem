@@ -13,9 +13,44 @@ import type { Bindings } from '../../config/env.js';
 
 export const rotasPaciente = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
-const mascararCpf = (cpf: string) => {
-  const digitos = cpf.replace(/\D/g, '');
-  return digitos.length === 11 ? `***.***.***-${digitos.slice(-2)}` : '***';
+const normalizarCpf = (valor?: string | null) => (valor ?? '').replace(/\D/g, '').slice(0, 11);
+
+const verificarCpfDuplicado = async (
+  prisma: ReturnType<typeof getPrisma>,
+  cpf: string,
+  kekHex: string,
+  ignorarPacienteId?: string
+) => {
+  const cpfNormalizado = normalizarCpf(cpf);
+
+  const pacientes = await prisma.paciente.findMany({
+    where: { ativo: true },
+    select: { id: true, nomeEnc: true, dekCifrada: true, ivPii: true, tagPii: true },
+  });
+
+  for (const paciente of pacientes) {
+    if (ignorarPacienteId && paciente.id === ignorarPacienteId) continue;
+
+    try {
+      const pii = JSON.parse(
+        await descriptografarPii(
+          paciente.nomeEnc,
+          paciente.dekCifrada,
+          paciente.ivPii,
+          paciente.tagPii,
+          kekHex
+        )
+      ) as { cpf?: string };
+
+      if (normalizarCpf(pii.cpf) === cpfNormalizado && cpfNormalizado.length === 11) {
+        return true;
+      }
+    } catch {
+      // registra ilegível: ignora para não bloquear indevidamente um cadastro válido
+    }
+  }
+
+  return false;
 };
 
 // Proteção global do grupo de rotas de pacientes
@@ -34,10 +69,18 @@ rotasPaciente.post('/', autorizarAcao('criarPaciente'), zValidator('json', criar
   const usuario = c.get('usuario');
   const prisma = getPrisma(c.env.DB);
   const kekHex = c.env.KEK_HEX;
+  const cpfNormalizado = normalizarCpf(dados.cpf);
 
   const escola = await prisma.escolaLocal.findFirst({ where: { id: dados.escolaLocalId, ativo: true } });
   if (!escola) {
     return c.json({ erro: 'A instituição selecionada não está ativa.' }, 422);
+  }
+
+  if (cpfNormalizado.length === 11) {
+    const cpfDuplicado = await verificarCpfDuplicado(prisma, cpfNormalizado, kekHex);
+    if (cpfDuplicado) {
+      return c.json({ erro: 'Já existe um paciente cadastrado com este CPF.' }, 409);
+    }
   }
 
   const piiTextoPlano = JSON.stringify({
@@ -139,7 +182,7 @@ rotasPaciente.get('/', async (c) => {
         return {
           id: p.id,
           nome: pii.nome,
-          cpf: mascararCpf(pii.cpf),
+          cpf: pii.cpf,
           dataNascimento: pii.dataNascimento,
           telefone: null,
           sexo: pii.sexo ?? undefined,
@@ -199,6 +242,14 @@ rotasPaciente.patch('/:id', autorizarAcao('editarPaciente'), zValidator('json', 
     piiAtual = JSON.parse(await descriptografarPii(existente.nomeEnc, existente.dekCifrada, existente.ivPii, existente.tagPii, c.env.KEK_HEX));
   } catch {
     return c.json({ erro: 'Não foi possível atualizar os dados protegidos do paciente.' }, 500);
+  }
+
+  const cpfNovo = normalizarCpf(dados.cpf ?? piiAtual.cpf);
+  if (cpfNovo.length === 11) {
+    const cpfDuplicado = await verificarCpfDuplicado(prisma, cpfNovo, c.env.KEK_HEX, id);
+    if (cpfDuplicado) {
+      return c.json({ erro: 'Já existe outro paciente cadastrado com este CPF.' }, 409);
+    }
   }
 
   const piiCifrada = await criptografarPii(JSON.stringify({

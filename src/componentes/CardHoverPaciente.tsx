@@ -21,6 +21,7 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
 }) => {
   const [visivel, setVisivel] = useState(false);
   const [posicao, setPosicao] = useState({ top: 0, left: 0 });
+  const ponteiroRef = useRef({ x: 0, y: 0 });
   const triggerRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const timerAbrirRef = useRef<number | null>(null);
@@ -30,39 +31,49 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
   const telefone = paciente.telefone || 'Não informado';
 
   const atualizarPosicao = () => {
-    if (!triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    const larguraCard = 330;
-    const alturaCard = 320;
+    const card = cardRef.current;
+    if (!card) return;
 
-    let top = rect.top - 10;
-    let left = rect.right + 12;
+    const margem = 14;
+    const distancia = 18;
+    const largura = card.offsetWidth || 330;
+    const altura = card.offsetHeight || 320;
+    const { x, y } = ponteiroRef.current;
+    const limiteDireita = window.innerWidth - margem;
+    const limiteInferior = window.innerHeight - margem;
+    const candidatos = [
+      { left: x + distancia, top: y + distancia },
+      { left: x - largura - distancia, top: y + distancia },
+      { left: x + distancia, top: y - altura - distancia },
+      { left: x - largura - distancia, top: y - altura - distancia },
+    ];
 
-    // Se estourar a borda direita da tela, posiciona à esquerda ou abaixo
-    if (left + larguraCard > window.innerWidth - 16) {
-      left = Math.max(16, rect.left - larguraCard - 12);
-    }
+    const candidatoDisponivel = candidatos.find(
+      ({ left, top }) =>
+        left >= margem &&
+        top >= margem &&
+        left + largura <= limiteDireita &&
+        top + altura <= limiteInferior
+    );
+    const escolhido = candidatoDisponivel || candidatos[0];
 
-    // Se estourar a borda inferior da tela, alinha pelo fundo
-    if (top + alturaCard > window.innerHeight - 16) {
-      top = Math.max(16, window.innerHeight - alturaCard - 16);
-    }
-
-    // Se estourar o topo
-    if (top < 16) {
-      top = 16;
-    }
-
-    setPosicao({ top, left });
+    setPosicao({
+      left: Math.min(Math.max(margem, escolhido.left), Math.max(margem, limiteDireita - largura)),
+      top: Math.min(Math.max(margem, escolhido.top), Math.max(margem, limiteInferior - altura)),
+    });
   };
 
-  const lidarMouseEnter = () => {
+  const registrarPosicaoDoPonteiro = (evento: React.MouseEvent<HTMLElement>) => {
+    ponteiroRef.current = { x: evento.clientX, y: evento.clientY };
+  };
+
+  const lidarMouseEnter = (evento?: React.MouseEvent<HTMLElement>) => {
+    if (evento) registrarPosicaoDoPonteiro(evento);
     if (timerFecharRef.current) {
       clearTimeout(timerFecharRef.current);
       timerFecharRef.current = null;
     }
     timerAbrirRef.current = window.setTimeout(() => {
-      atualizarPosicao();
       setVisivel(true);
     }, 140);
   };
@@ -78,6 +89,12 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
   };
 
   useEffect(() => {
+    if (!visivel) return;
+    const frame = window.requestAnimationFrame(atualizarPosicao);
+    return () => window.cancelAnimationFrame(frame);
+  }, [visivel]);
+
+  useEffect(() => {
     return () => {
       if (timerAbrirRef.current) clearTimeout(timerAbrirRef.current);
       if (timerFecharRef.current) clearTimeout(timerFecharRef.current);
@@ -90,6 +107,7 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
     <div
       ref={triggerRef}
       onMouseEnter={lidarMouseEnter}
+      onMouseMove={registrarPosicaoDoPonteiro}
       onMouseLeave={lidarMouseLeave}
       className="inline-block relative cursor-pointer"
     >
@@ -176,21 +194,21 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
                   </span>
                 </div>
                 <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-100/90 flex flex-col">
-                  <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Termo LGPD</span>
-                  {paciente.termoConsentimentoStatus === 'ACEITO' ? (
+                  <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Autorização Catraki</span>
+                  {paciente.autorizacaoCatraki === 'AUTORIZADO' ? (
                     <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-600 mt-0.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Autorizado
                     </span>
-                  ) : paciente.termoConsentimentoStatus === 'DISPENSADO' ? (
-                    <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-[#14438f] mt-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#14438f]" />
-                      Disp. Legal
+                  ) : paciente.autorizacaoCatraki === 'REVOGADO' ? (
+                    <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-rose-600 mt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                      Revogado
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-slate-500 mt-0.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                      Pendente
+                      Não autorizado
                     </span>
                   )}
                 </div>

@@ -1,4 +1,4 @@
-import { type FC, useState, useEffect, useMemo, useRef } from 'react';
+import { type FC, useState, useEffect, useMemo } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -6,24 +6,23 @@ import {
   BarChart3,
   Brain,
   Building2,
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
+  CalendarDays,
   ClipboardCheck,
   Clock3,
   Ear,
   Eye,
-  Filter,
   MapPin,
-  RefreshCw,
+  RotateCcw,
   Smile,
   TrendingUp,
   UsersRound,
   XCircle,
 } from 'lucide-react';
-import { ESPECIALIDADE_LABELS, STATUS_ATENDIMENTO_LABELS, StatusAtendimento, TURNO_LABELS } from '../../compartilhado/index.ts';
+import { ESPECIALIDADE_LABELS, STATUS_ATENDIMENTO_LABELS, StatusAtendimento, type Especialidade } from '../../compartilhado/index.ts';
 import { CabecalhoPagina } from '../componentes/CabecalhoPagina.tsx';
+import { EspecialidadeBadge } from '../componentes/EspecialidadeVisual.tsx';
 import { SeletorFiltroUniversal } from '../componentes/Modal.tsx';
+import { requisicaoApi } from '../servicos/api.ts';
 
 const NumeroAnimado: FC<{ valor: number; duracao?: number }> = ({ valor, duracao = 450 }) => {
   const [valorExibido, setValorExibido] = useState(0);
@@ -51,67 +50,6 @@ const formatarDataBr = (dataIso: string): string => {
   if (!dataIso) return '';
   const [ano, mes, dia] = dataIso.split('-');
   return `${dia}/${mes}/${ano}`;
-};
-
-const SeletorData: FC<{
-  rotulo: string;
-  valor: string;
-  onChange: (novaData: string) => void;
-}> = ({ rotulo, valor, onChange }) => {
-  const refInput = useRef<HTMLInputElement>(null);
-
-  const alterarDia = (incremento: number) => {
-    if (!valor) return;
-    const [ano, mes, dia] = valor.split('-').map(Number);
-    const data = new Date(ano, mes - 1, dia);
-    data.setDate(data.getDate() + incremento);
-    const novoAno = data.getFullYear();
-    const novoMes = String(data.getMonth() + 1).padStart(2, '0');
-    const novoDia = String(data.getDate()).padStart(2, '0');
-    onChange(`${novoAno}-${novoMes}-${novoDia}`);
-  };
-
-  return (
-    <div className="inline-flex items-center gap-2">
-      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{rotulo}</span>
-      <div className="relative inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-2.5 py-1.5 shadow-xs transition-colors hover:border-slate-300">
-        <button
-          type="button"
-          onClick={() => alterarDia(-1)}
-          className="relative z-10 flex h-6 w-6 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-          title="Dia anterior"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-
-        <div
-          className="relative flex cursor-pointer items-center gap-2 px-1"
-          onClick={() => refInput.current?.showPicker?.()}
-        >
-          <span className="text-xs font-semibold text-slate-700 select-none">
-            {formatarDataBr(valor)}
-          </span>
-          <Calendar className="h-4 w-4 text-slate-400" />
-          <input
-            ref={refInput}
-            type="date"
-            value={valor}
-            onChange={(e) => e.target.value && onChange(e.target.value)}
-            className="absolute inset-0 cursor-pointer opacity-0"
-          />
-        </div>
-
-        <button
-          type="button"
-          onClick={() => alterarDia(1)}
-          className="relative z-10 flex h-6 w-6 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-          title="Próximo dia"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
 };
 
 interface AtendimentoAnalitico {
@@ -143,12 +81,72 @@ interface PainelAnaliticoProps {
 const CORES_ESPECIALIDADES = ['bg-blue-600', 'bg-indigo-600', 'bg-sky-500', 'bg-emerald-500', 'bg-amber-500'];
 
 export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacientes, escolas }) => {
-  const hoje = new Date().toISOString().slice(0, 10);
-  const [dataInicio, setDataInicio] = useState(hoje);
-  const [dataFim, setDataFim] = useState(hoje);
+  const [dataInicio, setDataInicio] = useState(() => `${new Date().getFullYear()}-01-01`);
+  const [dataFim, setDataFim] = useState(() => new Date().toISOString().slice(0, 10));
+  const [statusFiltro, setStatusFiltro] = useState('');
   const [especialidade, setEspecialidade] = useState('');
   const [profissional, setProfissional] = useState('');
   const [escola, setEscola] = useState('');
+  const [profissionaisSaude, setProfissionaisSaude] = useState<Array<{ id: string; nome: string; especialidade?: string | null }>>([]);
+
+  useEffect(() => {
+    let ativo = true;
+    const carregarProfissionais = async () => {
+      try {
+        const resposta = await requisicaoApi<{ dados: Array<{ id: string; nome: string; especialidade?: string | null }> }>('/atendimentos/profissionais');
+        if (ativo && resposta?.dados) {
+          setProfissionaisSaude(resposta.dados);
+        }
+      } catch (erro) {
+        console.error('Erro ao carregar profissionais de saúde:', erro);
+      }
+    };
+    void carregarProfissionais();
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  const opcoesProfissionais = useMemo(() => {
+    const mapaNomes = new Map<string, { valor: string; rotulo: string; especialidade?: string | null }>();
+
+    // 1. Inclui todos os usuários cadastrados com cargo de profissional de saúde
+    profissionaisSaude.forEach((p) => {
+      if (p.nome && p.nome.trim()) {
+        mapaNomes.set(p.nome.trim(), {
+          valor: p.nome.trim(),
+          rotulo: p.nome.trim(),
+          especialidade: p.especialidade,
+        });
+      }
+    });
+
+    // 2. Inclui também profissionais que já possuem atendimentos registrados no histórico
+    atendimentos.forEach((a) => {
+      if (a.profissionalNome && a.profissionalNome.trim() && !mapaNomes.has(a.profissionalNome.trim())) {
+        mapaNomes.set(a.profissionalNome.trim(), {
+          valor: a.profissionalNome.trim(),
+          rotulo: a.profissionalNome.trim(),
+        });
+      }
+    });
+
+    return Array.from(mapaNomes.values()).sort((a, b) => a.rotulo.localeCompare(b.rotulo));
+  }, [profissionaisSaude, atendimentos]);
+
+  const atendimentosFiltrados = atendimentos.filter((atendimento) => {
+    const data = atendimento.criadoEm.slice(0, 10);
+    const dentroDataInicio = !dataInicio || data >= dataInicio;
+    const dentroDataFim = !dataFim || data <= dataFim;
+    return (
+      dentroDataInicio &&
+      dentroDataFim &&
+      (!especialidade || atendimento.especialidade === especialidade) &&
+      (!profissional || atendimento.profissionalNome === profissional) &&
+      (!escola || atendimento.escolaNome === escola) &&
+      (!statusFiltro || (atendimento.status || StatusAtendimento.CONCLUIDO) === statusFiltro)
+    );
+  });
 
   const totalConsultasTodasUnidades = atendimentos.length;
   const totalConsultasConcluidas = atendimentos.filter((atendimento) =>
@@ -160,38 +158,22 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
   const totalConsultasCanceladas = atendimentos.filter((atendimento) =>
     ['CANCELADO', 'FALTOU', 'CANCELADA'].includes(atendimento.status || '')
   ).length;
-
-  const especialidadesTotal = [
+  const indicadores = [
+    { rotulo: 'Total de consultas', valor: totalConsultasTodasUnidades, detalhe: 'em todas as unidades', icone: Activity, cor: 'text-blue-700', fundo: 'bg-blue-50' },
+    { rotulo: 'Total concluídas', valor: totalConsultasConcluidas, detalhe: 'atendimentos finalizados', icone: ClipboardCheck, cor: 'text-emerald-700', fundo: 'bg-emerald-50' },
+    { rotulo: 'Total pendentes', valor: totalConsultasPendentes, detalhe: 'aguardando ou em andamento', icone: Clock3, cor: 'text-amber-700', fundo: 'bg-amber-50' },
+    { rotulo: 'Total canceladas', valor: totalConsultasCanceladas, detalhe: 'cancelamentos e faltas', icone: XCircle, cor: 'text-rose-700', fundo: 'bg-rose-50' },
+  ];
+  const totaisEspecialidades = [
     { id: 'ODONTOLOGIA', nome: 'Odontologia', icone: Smile, cor: 'text-blue-600', fundo: 'bg-blue-50' },
     { id: 'OFTALMOLOGIA', nome: 'Oftalmologia', icone: Eye, cor: 'text-indigo-600', fundo: 'bg-indigo-50' },
     { id: 'AUDIOMETRIA', nome: 'Audiometria', icone: Ear, cor: 'text-sky-600', fundo: 'bg-sky-50' },
     { id: 'NUTRICAO', nome: 'Nutrição', icone: Apple, cor: 'text-emerald-600', fundo: 'bg-emerald-50' },
     { id: 'PSICOLOGIA', nome: 'Psicologia', icone: Brain, cor: 'text-amber-600', fundo: 'bg-amber-50' },
-  ].map((item) => ({
-    ...item,
-    total: atendimentos.filter((atendimento) => atendimento.especialidade === item.id).length,
+  ].map((especialidadeItem) => ({
+    ...especialidadeItem,
+    total: atendimentos.filter((atendimento) => atendimento.especialidade === especialidadeItem.id).length,
   }));
-
-  const opcoesProfissionais = useMemo(() => {
-    const lista = Array.from(
-      new Set(
-        atendimentos
-          .map((a) => a.profissionalNome)
-          .filter((nome): nome is string => Boolean(nome && nome.trim()))
-      )
-    ).sort((a, b) => a.localeCompare(b));
-    return lista.map((nome) => ({ valor: nome, rotulo: nome }));
-  }, [atendimentos]);
-
-  const atendimentosFiltrados = atendimentos.filter((atendimento) => {
-    const data = atendimento.criadoEm.slice(0, 10);
-    const dentroDataInicio = !dataInicio || data >= dataInicio;
-    const dentroDataFim = !dataFim || data <= dataFim;
-    return dentroDataInicio && dentroDataFim &&
-      (!especialidade || atendimento.especialidade === especialidade) &&
-      (!profissional || atendimento.profissionalNome === profissional) &&
-      (!escola || atendimento.escolaNome === escola);
-  });
 
   const contagemEspecialidades = Object.keys(ESPECIALIDADE_LABELS).map((id, indice) => ({
     id,
@@ -199,13 +181,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
     total: atendimentosFiltrados.filter((atendimento) => atendimento.especialidade === id).length,
     cor: CORES_ESPECIALIDADES[indice],
   }));
-  const contagemTurnos = Object.keys(TURNO_LABELS).map((id) => ({
-    id,
-    nome: TURNO_LABELS[id as keyof typeof TURNO_LABELS],
-    total: atendimentosFiltrados.filter((atendimento) => atendimento.turno === id).length,
-  }));
   const maiorEspecialidade = Math.max(...contagemEspecialidades.map((item) => item.total), 1);
-  const maiorTurno = Math.max(...contagemTurnos.map((item) => item.total), 1);
   const periodoLabel = useMemo(() => {
     if (dataInicio && dataFim) {
       if (dataInicio === dataFim) return formatarDataBr(dataInicio);
@@ -230,12 +206,17 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
     total: atendimentosFiltrados.filter((atendimento) => new Date(atendimento.criadoEm).getDay() === indice).length,
   }));
   const maiorDia = Math.max(...consultasPorDia.map((item) => item.total), 1);
-  const diaDePico = consultasPorDia.reduce((pico, item) => item.total > pico.total ? item : pico, consultasPorDia[0]);
+  const diaDePico = atendimentosFiltrados.length
+    ? consultasPorDia.reduce((pico, item) => item.total > pico.total ? item : pico, consultasPorDia[0])
+    : null;
   const horas = Array.from({ length: 10 }, (_, indice) => indice + 8).map((hora) => ({
     hora: `${String(hora).padStart(2, '0')}h`,
     total: atendimentosFiltrados.filter((atendimento) => new Date(atendimento.criadoEm).getHours() === hora).length,
   }));
   const maiorHora = Math.max(...horas.map((item) => item.total), 1);
+  const horaDePico = atendimentosFiltrados.length
+    ? horas.reduce((pico, item) => item.total > pico.total ? item : pico, horas[0])
+    : null;
   const contagemStatus = Object.keys(STATUS_ATENDIMENTO_LABELS).map((status) => ({
     id: status as StatusAtendimento,
     nome: STATUS_ATENDIMENTO_LABELS[status as StatusAtendimento],
@@ -254,162 +235,194 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
       <div className="mb-5 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
         {/* Resumo Operacional */}
         <section aria-label="Resumo operacional de consultas" className="mb-5">
-          <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2.5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-              Resumo operacional
-            </span>
+          <div className="mb-4 flex items-end justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                Resumo operacional
+              </span>
+              <p className="mt-1 text-[11px] text-slate-400">Distribuição acumulada de consultas</p>
+            </div>
+            <span className="shrink-0 text-[11px] font-semibold text-slate-400">Todo o período</span>
           </div>
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            {[
-              {
-                rotulo: 'TOTAL DE CONSULTAS',
-                valor: totalConsultasTodasUnidades,
-                detalhe: 'todas as unidades',
-                icone: Activity,
-                cor: 'text-blue-600',
-                fundo: 'bg-blue-50',
-              },
-              {
-                rotulo: 'TOTAL DE CONSULTAS CONCLUÍDAS',
-                valor: totalConsultasConcluidas,
-                detalhe: 'atendimentos finalizados',
-                icone: ClipboardCheck,
-                cor: 'text-emerald-600',
-                fundo: 'bg-emerald-50',
-              },
-              {
-                rotulo: 'TOTAL DE CONSULTAS PENDENTES',
-                valor: totalConsultasPendentes,
-                detalhe: 'em andamento ou aguardando',
-                icone: Clock3,
-                cor: 'text-amber-600',
-                fundo: 'bg-amber-50',
-              },
-              {
-                rotulo: 'TOTAL DE CONSULTAS CANCELADAS',
-                valor: totalConsultasCanceladas,
-                detalhe: 'cancelamentos e faltas',
-                icone: XCircle,
-                cor: 'text-rose-600',
-                fundo: 'bg-rose-50',
-              },
-            ].map((indicador) => {
+            {indicadores.map((indicador) => {
               const Icone = indicador.icone;
               return (
                 <div
                   key={indicador.rotulo}
-                  className="flex min-h-[92px] items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3 text-left transition-colors hover:bg-slate-50"
+                  className="rounded-xl border border-slate-200/80 bg-white px-4 py-3.5 text-left shadow-xs transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm"
                 >
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
                       {indicador.rotulo}
                     </p>
-                    <p className="mt-1 text-2xl font-extrabold leading-none text-[#0b2545]">
+                    <p className="mt-1.5 text-3xl font-extrabold leading-none text-[#0b2545]">
                       <NumeroAnimado valor={indicador.valor} />
                     </p>
-                    <p className="mt-1 text-[10px] font-medium text-slate-400">{indicador.detalhe}</p>
-                  </div>
-                  <span
-                    className={`flex h-11 w-11 items-center justify-center rounded-2xl ${indicador.fundo} ${indicador.cor}`}
-                  >
-                    <Icone className="h-5 w-5" />
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Consultas por Especialidade */}
-        <section aria-label="Consultas por especialidade total">
-          <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2.5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-              Consultas por especialidade
-            </span>
-            <span className="text-[11px] font-semibold text-slate-400">Total acumulado</span>
-          </div>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-            {especialidadesTotal.map((especialidadeItem) => {
-              const Icone = especialidadeItem.icone;
-              return (
-                <div
-                  key={especialidadeItem.id}
-                  className="flex min-h-[116px] flex-col justify-between rounded-xl border border-slate-100 bg-slate-50/70 p-4 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
-                      {especialidadeItem.nome}
-                    </span>
-                    <span
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${especialidadeItem.fundo} ${especialidadeItem.cor}`}
-                    >
+                    </div>
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${indicador.fundo} ${indicador.cor}`}>
                       <Icone className="h-4 w-4" />
                     </span>
                   </div>
-                  <div>
-                    <p className="text-3xl font-extrabold leading-none text-[#0b2545]">
-                      <NumeroAnimado valor={especialidadeItem.total} />
-                    </p>
-                    <p className="mt-1 text-[10px] font-medium text-slate-400">total de consultas</p>
+                  <div className="mt-3">
+                    <p className="text-[10px] font-medium text-slate-400">{indicador.detalhe}</p>
                   </div>
                 </div>
               );
             })}
           </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+            {totaisEspecialidades.map((especialidadeItem) => {
+              const Icone = especialidadeItem.icone;
+              return (
+                <div key={especialidadeItem.id} className="flex items-center justify-between gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-2 transition-colors hover:bg-slate-50">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${especialidadeItem.fundo} ${especialidadeItem.cor}`}>
+                      <Icone className="h-3 w-3" />
+                    </span>
+                    <span className="truncate text-[9px] font-bold uppercase tracking-[0.04em] text-slate-500">{especialidadeItem.nome}</span>
+                  </div>
+                  <span className="text-base font-extrabold leading-none text-[#0b2545]">{especialidadeItem.total}</span>
+                </div>
+              );
+            })}
+          </div>
         </section>
+
       </div>
 
-      <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-blue-600" />
-            <span className="text-xs font-bold uppercase tracking-[0.15em] text-[#0b2545]">Filtros analíticos</span>
-          </div>
+      <div className="mb-5 rounded-2xl border border-slate-200 bg-[#eef3f7] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Filtro Analitico</span>
           <button
             type="button"
             onClick={() => {
-              setDataInicio(hoje);
-              setDataFim(hoje);
-              setEspecialidade('');
-              setProfissional('');
               setEscola('');
+              setEspecialidade('');
+              setStatusFiltro('');
+              setProfissional('');
+              setDataInicio(`${new Date().getFullYear()}-01-01`);
+              setDataFim(new Date().toISOString().slice(0, 10));
             }}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-blue-700"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-500 transition-colors hover:text-rose-600 cursor-pointer"
           >
-            <RefreshCw className="h-3.5 w-3.5" /> Limpar filtros
+            <RotateCcw className="h-3 w-3" />
+            Limpar
           </button>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <SeletorData rotulo="DE" valor={dataInicio} onChange={setDataInicio} />
-            <SeletorData rotulo="A" valor={dataFim} onChange={setDataFim} />
+
+        <div className="mt-5 flex flex-col gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-[150px_150px_1fr_1.6fr_1.2fr_1.6fr] items-center gap-2.5 w-full min-w-0">
+            <label
+              className="relative flex h-10 cursor-pointer items-center justify-between gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 w-full min-w-0 shadow-2xs"
+              onClick={(evento) => {
+                evento.preventDefault();
+                const input = document.getElementById('painel-analitico-data-inicio') as HTMLInputElement | null;
+                input?.showPicker?.();
+              }}
+            >
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="shrink-0 text-slate-400 font-bold text-[11px]">De</span>
+                <span className="pointer-events-none whitespace-nowrap font-medium text-slate-700 text-xs">
+                  {dataInicio ? new Date(`${dataInicio}T12:00:00`).toLocaleDateString('pt-BR') : 'dd/mm/aaaa'}
+                </span>
+              </div>
+              <CalendarDays className="pointer-events-none h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <input
+                id="painel-analitico-data-inicio"
+                type="date"
+                value={dataInicio}
+                onChange={(event) => {
+                  setDataInicio(event.target.value);
+                }}
+                className="pointer-events-none absolute h-px w-px opacity-0"
+                aria-label="Data inicial"
+              />
+            </label>
+
+            <label
+              className="relative flex h-10 cursor-pointer items-center justify-between gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 w-full min-w-0 shadow-2xs"
+              onClick={(evento) => {
+                evento.preventDefault();
+                const input = document.getElementById('painel-analitico-data-fim') as HTMLInputElement | null;
+                input?.showPicker?.();
+              }}
+            >
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="shrink-0 text-slate-400 font-bold text-[11px]">Até</span>
+                <span className="pointer-events-none whitespace-nowrap font-medium text-slate-700 text-xs">
+                  {dataFim ? new Date(`${dataFim}T12:00:00`).toLocaleDateString('pt-BR') : 'dd/mm/aaaa'}
+                </span>
+              </div>
+              <CalendarDays className="pointer-events-none h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <input
+                id="painel-analitico-data-fim"
+                type="date"
+                value={dataFim}
+                onChange={(event) => {
+                  setDataFim(event.target.value);
+                }}
+                className="pointer-events-none absolute h-px w-px opacity-0"
+                aria-label="Data final"
+              />
+            </label>
+
+            <div className="w-full min-w-0">
+              <SeletorFiltroUniversal
+                categoria="status"
+                valor={statusFiltro}
+                aoMudar={setStatusFiltro}
+                placeholder="Todos os status"
+                tamanho="sm"
+                fundoBranco
+                pesquisavel={false}
+              />
+            </div>
+
+            <div className="w-full min-w-0">
+              <SeletorFiltroUniversal
+                categoria="instituicoes"
+                valor={escola}
+                aoMudar={setEscola}
+                placeholder="Todas as instituições"
+                tamanho="sm"
+                fundoBranco
+                opcoes={escolas.map((item) => ({ id: item.nome, valor: item.nome, nome: item.nome, rotulo: item.nome }))}
+              />
+            </div>
+
+            <div className="w-full min-w-0">
+              <SeletorFiltroUniversal
+                categoria="especialidades"
+                valor={especialidade}
+                aoMudar={setEspecialidade}
+                placeholder="Todas as especialidades"
+                tamanho="sm"
+                fundoBranco
+                pesquisavel={false}
+              />
+            </div>
+
+            <div className="w-full min-w-0">
+              <SeletorFiltroUniversal
+                categoria="profissionais"
+                valor={profissional}
+                aoMudar={setProfissional}
+                placeholder="Todos os profissionais"
+                tamanho="sm"
+                fundoBranco
+                opcoes={opcoesProfissionais.map((p) => ({
+                  id: p.valor,
+                  valor: p.valor,
+                  nome: p.rotulo,
+                  rotulo: p.rotulo,
+                  badge: p.especialidade ? <EspecialidadeBadge especialidade={p.especialidade as Especialidade} compacto /> : undefined,
+                }))}
+              />
+            </div>
           </div>
-          <div className="min-w-[180px] flex-1">
-            <SeletorFiltroUniversal
-              categoria="especialidades"
-              valor={especialidade}
-              aoMudar={setEspecialidade}
-              placeholder="Todas as especialidades"
-            />
-          </div>
-          <div className="min-w-[180px] flex-1">
-            <SeletorFiltroUniversal
-              categoria="profissionais"
-              valor={profissional}
-              aoMudar={setProfissional}
-              placeholder="Todos os profissionais"
-              opcoes={opcoesProfissionais.map((p) => ({ id: p.valor, valor: p.valor, nome: p.rotulo, rotulo: p.rotulo }))}
-            />
-          </div>
-          <div className="min-w-[180px] flex-1">
-            <SeletorFiltroUniversal
-              categoria="instituicoes"
-              valor={escola}
-              aoMudar={setEscola}
-              placeholder="Todas as instituições"
-              opcoes={escolas.map((item) => ({ id: item.nome, valor: item.nome, nome: item.nome, rotulo: item.nome }))}
-            />
-          </div>
+
         </div>
       </div>
 
@@ -417,8 +430,8 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
         {[
           { rotulo: 'Consultas no período', valor: atendimentosFiltrados.length, detalhe: periodoLabel, icone: Activity, cor: 'text-blue-600', fundo: 'bg-blue-50' },
           { rotulo: 'Especialidades ativas', valor: contagemEspecialidades.filter((item) => item.total > 0).length, detalhe: 'com registros', icone: BarChart3, cor: 'text-indigo-600', fundo: 'bg-indigo-50' },
-          { rotulo: 'Pacientes pendentes', valor: pacientes.filter((paciente) => paciente.termoConsentimentoStatus === 'PENDENTE').length, detalhe: 'consentimento', icone: UsersRound, cor: 'text-amber-600', fundo: 'bg-amber-50' },
-          { rotulo: 'Instituições', valor: escolas.length, detalhe: 'cadastradas', icone: TrendingUp, cor: 'text-emerald-600', fundo: 'bg-emerald-50' },
+          { rotulo: 'Profissionais ativos', valor: rankingProfissionais.length, detalhe: 'com registro no período', icone: UsersRound, cor: 'text-amber-600', fundo: 'bg-amber-50' },
+          { rotulo: 'Unidades atendidas', valor: rankingUnidades.length, detalhe: 'com registro no período', icone: Building2, cor: 'text-emerald-600', fundo: 'bg-emerald-50' },
         ].map((indicador) => {
           const Icone = indicador.icone;
           return <div key={indicador.rotulo} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs"><div className="flex items-start justify-between"><span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{indicador.rotulo}</span><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${indicador.fundo} ${indicador.cor}`}><Icone className="h-4 w-4" /></span></div><p className="mt-3 text-3xl font-extrabold leading-none text-[#0b2545]">{indicador.valor}</p><p className="mt-1 text-[11px] font-medium text-slate-400">{indicador.detalhe}</p></div>;
@@ -426,22 +439,18 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
       </div>
 
       <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-        <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3"><Activity className="h-4 w-4 text-blue-600" /><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Status do atendimento</h2></div>
+        <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><div className="flex items-center gap-2"><Activity className="h-4 w-4 text-blue-600" /><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Status do atendimento</h2></div><span className="text-[11px] font-semibold text-slate-400">{atendimentosFiltrados.length} no período</span></div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          {contagemStatus.map((item) => <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"><p className="truncate text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{item.nome}</p><p className="mt-2 text-2xl font-extrabold text-[#0b2545]">{item.total}</p></div>)}
+          {contagemStatus.map((item) => <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"><p className="truncate text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{item.nome}</p><p className="mt-2 text-2xl font-extrabold text-[#0b2545]">{item.total}</p><p className="mt-1 text-[10px] text-slate-400">registros</p></div>)}
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs lg:col-span-3">
+      <div className="grid grid-cols-1 gap-4">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-3"><div className="flex items-center gap-2"><BarChart3 className="h-4 w-4 text-blue-600" /><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Consultas por especialidade</h2></div><span className="text-[11px] text-slate-400">{periodoLabel}</span></div>
-          <div className="space-y-4">{contagemEspecialidades.map((item) => <div key={item.id}><div className="mb-1.5 flex justify-between text-xs font-semibold text-slate-700"><span>{item.nome}</span><span>{item.total}</span></div><div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className={`${item.cor} h-full rounded-full transition-all duration-500`} style={{ width: `${(item.total / maiorEspecialidade) * 100}%` }} /></div></div>)}</div>
+          {atendimentosFiltrados.length ? <div className="space-y-4">{contagemEspecialidades.map((item) => <div key={item.id}><div className="mb-1.5 flex justify-between text-xs font-semibold text-slate-700"><span>{item.nome}</span><span>{item.total}</span></div><div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className={`${item.cor} h-full rounded-full transition-all duration-500`} style={{ width: `${(item.total / maiorEspecialidade) * 100}%` }} /></div></div>)}</div> : <div className="flex h-44 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 text-xs font-medium text-slate-400">Nenhuma consulta no período selecionado.</div>}
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs lg:col-span-2">
-          <div className="mb-5 flex items-center gap-2 border-b border-slate-100 pb-3"><Clock3 className="h-4 w-4 text-blue-600" /><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Distribuição por turno</h2></div>
-          <div className="space-y-5">{contagemTurnos.map((item) => <div key={item.id}><div className="mb-1.5 flex justify-between text-xs font-semibold text-slate-700"><span>{item.nome}</span><span>{item.total}</span></div><div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600 transition-all duration-500" style={{ width: `${(item.total / maiorTurno) * 100}%` }} /></div></div>)}</div>
-        </section>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -450,7 +459,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
             <div className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-blue-600" /><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Linha temporal</h2></div>
             <span className="text-[11px] text-slate-400">{periodoLabel}</span>
           </div>
-          <div className="flex h-44 items-end gap-2 border-b border-slate-100 px-2 pb-2">
+          {atendimentosFiltrados.length ? <div className="flex h-44 items-end gap-2 border-b border-slate-100 px-2 pb-2">
             {consultasPorDia.map((item) => (
               <div key={item.dia} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
                 <span className="text-[10px] font-bold text-slate-500">{item.total || ''}</span>
@@ -458,7 +467,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
                 <span className="text-[10px] font-semibold text-slate-400">{item.dia}</span>
               </div>
             ))}
-          </div>
+          </div> : <div className="flex h-44 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 text-xs font-medium text-slate-400">Sem dados para montar a linha temporal.</div>}
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
@@ -466,7 +475,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-700">Dia de pico</p><p className="mt-2 text-lg font-extrabold text-[#0b2545]">{diaDePico?.dia || '-'}</p><p className="mt-1 text-[10px] text-blue-700">maior volume no período</p></div>
             <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">Média diária</p><p className="mt-2 text-lg font-extrabold text-[#0b2545]">{consultasPorDia.length ? (atendimentosFiltrados.length / consultasPorDia.length).toFixed(1) : '0'}</p><p className="mt-1 text-[10px] text-emerald-700">consultas por dia</p></div>
-            <div className="col-span-2 rounded-xl border border-amber-100 bg-amber-50/60 p-4"><div className="mb-2 flex justify-between text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700"><span>Demanda por horário</span><span>Pico: {horas.reduce((pico, item) => item.total > pico.total ? item : pico, horas[0]).hora}</span></div><div className="flex h-10 items-end gap-1">{horas.map((item) => <div key={item.hora} className="flex-1 rounded-t bg-amber-400" style={{ height: `${Math.max((item.total / maiorHora) * 100, item.total ? 12 : 3)}%` }} title={`${item.hora}: ${item.total}`} />)}</div><div className="mt-1 flex justify-between text-[9px] text-amber-700"><span>08h</span><span>12h</span><span>17h</span></div></div>
+            <div className="col-span-2 rounded-xl border border-amber-100 bg-amber-50/60 p-4"><div className="mb-2 flex justify-between text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700"><span>Demanda por horário</span><span>{horaDePico ? `Pico: ${horaDePico.hora}` : 'Sem dados'}</span></div>{atendimentosFiltrados.length ? <div className="flex h-10 items-end gap-1">{horas.map((item) => <div key={item.hora} className="flex-1 rounded-t bg-amber-400" style={{ height: `${Math.max((item.total / maiorHora) * 100, item.total ? 12 : 3)}%` }} title={`${item.hora}: ${item.total}`} />)}</div> : <div className="flex h-10 items-center justify-center text-[10px] text-amber-700">Nenhuma consulta no período</div>}<div className="mt-1 flex justify-between text-[9px] text-amber-700"><span>08h</span><span>12h</span><span>17h</span></div></div>
           </div>
         </section>
       </div>

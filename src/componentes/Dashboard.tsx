@@ -166,26 +166,21 @@ export const Dashboard: FC<DashboardProps> = ({
         </div>
       </section>
 
-      <section className="mb-5" aria-label="Consultas por especialidade hoje">
-        <div className="mb-2 flex items-center justify-between px-1">
-          <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Consultas por especialidade</span>
-          <span className="text-[11px] font-semibold text-slate-400">Hoje</span>
-        </div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <section className="mb-3" aria-label="Consultas por especialidade hoje">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
           {especialidadesTotal.map((especialidade) => {
             const Icone = especialidade.icone;
             return (
-              <div key={especialidade.id} className="flex min-h-[116px] flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">{especialidade.nome}</span>
-                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${especialidade.fundo} ${especialidade.cor}`}>
-                    <Icone className="h-4 w-4" />
-                  </span>
+              <div key={especialidade.id} className="group flex items-center gap-2.5 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 shadow-xs transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm">
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${especialidade.fundo} ${especialidade.cor}`}>
+                  <Icone className="h-3.5 w-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[9px] font-bold uppercase tracking-[0.07em] text-slate-500">{especialidade.nome}</p>
                 </div>
-                <div>
-                  <p className={carregando ? 'h-8 w-10 animate-pulse rounded-md bg-slate-200' : 'text-3xl font-extrabold leading-none text-[#0b2545]'}>{carregando ? '' : <NumeroAnimado valor={especialidade.total} />}</p>
-                  <p className="mt-1 text-[10px] font-medium text-slate-400">atendimentos hoje</p>
-                </div>
+                <span className={carregando ? 'h-6 w-6 animate-pulse rounded-md bg-slate-200' : 'text-2xl font-extrabold leading-none text-[#0b2545]'}>
+                  {carregando ? '' : <NumeroAnimado valor={especialidade.total} />}
+                </span>
               </div>
             );
           })}
@@ -293,7 +288,11 @@ export const Dashboard: FC<DashboardProps> = ({
                   </span>
                 </div>
               )) : (
-                <p className="py-5 text-center text-xs font-medium text-slate-400">Nenhum atendimento registrado.</p>
+                <div className="flex min-h-[138px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 text-center">
+                  <p className="text-xs font-semibold text-slate-600">Ainda não há atendimentos hoje.</p>
+                  <p className="mt-1 text-[10px] font-medium text-slate-400">Use a ação “Registrar atendimento” para iniciar os registros.</p>
+                  <span className="mt-3 text-[10px] font-bold text-blue-600">Ver histórico completo →</span>
+                </div>
               )}
             </div>
           </div>

@@ -152,6 +152,7 @@ model Atendimento {
   atualizadoEm          DateTime @updatedAt @map("atualizado_em")
 
   @@map("atendimentos")
+  @@unique([pacienteId, especialidade], map: "atendimentos_paciente_especialidade_key")
 }
 
 // ─── Configuração RBAC (Dinâmica) ────────────────────────────────────────────

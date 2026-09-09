@@ -123,9 +123,8 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
 
       {/* ─── Linha 2: Barra Contínua de Ações ───────────────────────────────── */}
       {temBarraAcoes && (
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 w-full">
-          {/* Lado Esquerdo: Campo de Busca Longo */}
-          {busca ? (
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-start justify-between gap-3 w-full">
+          {busca && (
             <div className="relative flex-1 max-w-xl min-w-[280px]">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                 <Search className="w-4 h-4" />
@@ -135,17 +134,17 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
                 value={busca.valor}
                 onChange={(e) => busca.aoMudar(e.target.value)}
                 placeholder={busca.placeholder || 'Buscar por nome ou CPF...'}
-                className="w-full h-10 pl-10 pr-9 text-[13px] bg-white border rounded-xl text-slate-700 placeholder-slate-400 focus:outline-none transition-all shadow-sm"
+                className="w-full h-10 pl-10 pr-9 text-xs font-semibold bg-white border border-slate-200 rounded-2xl text-slate-700 placeholder:text-slate-400 focus:outline-none transition-all shadow-xs"
                 style={{
-                  borderColor: '#d0e9f3',
+                  borderColor: '#e2e8f0',
                 }}
                 onFocus={e => {
                   e.target.style.borderColor = '#034b7f';
                   e.target.style.boxShadow = '0 0 0 3px rgba(3,75,127,0.08)';
                 }}
                 onBlur={e => {
-                  e.target.style.borderColor = '#d0e9f3';
-                  e.target.style.boxShadow = '0 1px 2px rgba(0,0,0,0.04)';
+                  e.target.style.borderColor = '#e2e8f0';
+                  e.target.style.boxShadow = '0 1px 2px rgba(15,23,42,0.04)';
                 }}
               />
               {busca.valor && (
@@ -159,12 +158,10 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
                 </button>
               )}
             </div>
-          ) : (
-            <div className="flex-1" />
           )}
 
           {/* Lado Direito: Filtros, Sincronização, Exportação e Ação Primária */}
-          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap shrink-0">
+          <div className={`flex items-center gap-2.5 flex-wrap sm:flex-nowrap ${busca ? 'shrink-0' : 'w-full flex-1 min-w-0'}`}>
             {/* Filtro: Apenas com Avisos */}
             {filtroAvisos && (
               <button
