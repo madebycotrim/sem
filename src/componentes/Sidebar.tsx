@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Stethoscope,
   Users,
+  X,
 } from 'lucide-react';
 import catrakiLogo from '../assets/catraki.png';
 import sesiSaudeLogo from '../assets/SESI-SAUDE.png';
@@ -70,43 +71,46 @@ export const Sidebar: FC<SidebarProps> = ({
     /* ─── Barra Lateral Dock Minimalista e Moderna (68px Fixos) ───────────── */
     <div className="relative w-[68px] min-w-[68px] h-screen select-none z-30 font-sans">
       <aside
-        className="fixed top-0 left-0 w-[68px] h-screen bg-white/95 backdrop-blur-md border-r border-slate-200/90 shadow-2xs flex flex-col justify-between items-center py-3.5 z-40 overflow-visible"
+        className="fixed top-0 left-0 w-[68px] h-screen bg-white/95 backdrop-blur-md border-r border-slate-200/90 shadow-2xs flex flex-col justify-between items-center py-3 z-40 overflow-visible"
         aria-label="Navegação Lateral do Catraki"
       >
         {/* ─── 1. Topo: Logos Oficiais Catraki + SESI Saúde (Parceria) ───── */}
-        <div className="flex flex-col items-center justify-center shrink-0 pt-0.5 pb-2 gap-1 group relative">
+        <div
+          className="flex flex-col items-center justify-center shrink-0 pt-0.5 pb-2 gap-1 group relative w-full"
+          title="Parceria Catraki × SESI Saúde"
+        >
           <button
             type="button"
             onClick={() => aoMudarSecao('dashboard')}
-            className="p-0.5 cursor-pointer transition-transform hover:scale-105"
+            className="p-1 rounded-xl hover:bg-slate-100/80 transition-all cursor-pointer hover:scale-105 active:scale-95"
             aria-label="Catraki"
           >
             <img
               src={catrakiLogo}
               alt="Catraki"
-              className="w-8 h-8 object-contain"
+              className="w-8 h-8 object-contain drop-shadow-2xs"
             />
           </button>
 
-          {/* Símbolo de Parceria Estilizado: Linha x Linha */}
-          <div className="flex items-center justify-center w-full px-3.5 my-0.5 gap-1.5 opacity-85">
-            <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-slate-200 to-slate-400/80 rounded-full" />
-            <span className="text-[9px] font-black text-slate-400 select-none leading-none scale-90">
-              ×
-            </span>
-            <div className="flex-1 h-[1px] bg-gradient-to-l from-transparent via-slate-200 to-slate-400/80 rounded-full" />
+          {/* Símbolo de Parceria Estilizado: Badge Micro-chip com linhas em gradiente */}
+          <div className="flex items-center justify-center w-full px-3.5 my-0.5 gap-1.5 opacity-85 group-hover:opacity-100 transition-all">
+            <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-slate-200 to-slate-300" />
+            <div className="w-3.5 h-3.5 rounded-full bg-slate-100/90 border border-slate-200/90 flex items-center justify-center shadow-3xs group-hover:border-blue-300 group-hover:bg-blue-50 group-hover:scale-110 transition-all">
+              <X className="w-2 h-2 text-slate-400 group-hover:text-blue-600 stroke-[2.5] transition-colors" />
+            </div>
+            <div className="flex-1 h-[1px] bg-gradient-to-l from-transparent via-slate-200 to-slate-300" />
           </div>
 
           <button
             type="button"
             onClick={() => aoMudarSecao('dashboard')}
-            className="p-0.5 cursor-pointer transition-transform hover:scale-105"
+            className="p-1 rounded-xl hover:bg-slate-100/80 transition-all cursor-pointer hover:scale-105 active:scale-95"
             aria-label="SESI Saúde"
           >
             <img
               src={sesiSaudeLogo}
               alt="SESI Saúde"
-              className="w-9 h-auto max-h-7 object-contain"
+              className="w-9 h-auto max-h-7 object-contain drop-shadow-2xs"
             />
           </button>
         </div>

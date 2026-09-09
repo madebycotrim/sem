@@ -72,8 +72,12 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
     if (!confirmandoAlteracaoId) return undefined;
 
     const fecharAoClicarFora = (evento: MouseEvent) => {
-      const alvo = evento.target as HTMLElement;
-      if (!alvo.closest('[data-confirmacao-alteracao]')) {
+      const alvo = evento?.target as HTMLElement | undefined;
+      if (alvo && typeof alvo.closest === 'function') {
+        if (!alvo.closest('[data-confirmacao-alteracao]')) {
+          setConfirmandoAlteracaoId(null);
+        }
+      } else {
         setConfirmandoAlteracaoId(null);
       }
     };

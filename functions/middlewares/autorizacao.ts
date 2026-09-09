@@ -23,6 +23,11 @@ export function autorizarPerfis(
 
     const perfilUsuario = usuario.perfil as PerfilAcesso;
 
+    // BOOTSTRAP tem acesso total incondicional a todas as rotas
+    if (perfilUsuario === 'BOOTSTRAP') {
+      return await next();
+    }
+
     if (!perfisPermitidos.includes(perfilUsuario)) {
       return c.json(
         { erro: 'Acesso negado. Seu perfil não tem permissão para esta ação.' },
@@ -52,8 +57,8 @@ export function autorizarAcao(
 
     const perfilUsuario = usuario.perfil as PerfilAcesso;
 
-    // Admin Bypass: Tem acesso incondicional a todas as ações
-    if (perfilUsuario === 'ADMIN') {
+    // Bootstrap e Admin Bypass: Tem acesso incondicional a todas as ações
+    if (perfilUsuario === 'ADMIN' || perfilUsuario === 'BOOTSTRAP') {
       return await next();
     }
 

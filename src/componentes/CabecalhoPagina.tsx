@@ -185,7 +185,7 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
             {seletor && (
               <SelectModal
                 value={seletor.valor}
-                onChange={(e) => seletor.aoMudar(e.target.value)}
+                onChange={(e: any) => seletor.aoMudar(e?.target?.value ?? (typeof e === 'string' ? e : ''))}
                 className="h-10 min-w-[180px] w-auto text-xs"
                 placeholder={seletor.placeholder}
                 opcoes={seletor.opcoes.map((opc) => ({ valor: opc.id, rotulo: opc.nome }))}
@@ -196,7 +196,7 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
             {seletorSecundario && (
               <SelectModal
                 value={seletorSecundario.valor}
-                onChange={(e) => seletorSecundario.aoMudar(e.target.value)}
+                onChange={(e: any) => seletorSecundario.aoMudar(e?.target?.value ?? (typeof e === 'string' ? e : ''))}
                 className="h-10 min-w-[180px] w-auto text-xs"
                 placeholder={seletorSecundario.placeholder}
                 opcoes={seletorSecundario.opcoes.map((opc) => ({ valor: opc.id, rotulo: opc.nome }))}

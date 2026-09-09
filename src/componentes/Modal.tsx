@@ -158,7 +158,8 @@ export const Modal: FC<ModalProps> = ({
       setHouveAlteracao(false);
     } else {
       const handleInteracao = (e: Event) => {
-        const target = e.target as HTMLElement;
+        const target = e?.target as HTMLElement | undefined;
+        if (!target || typeof target.closest !== 'function') return;
         // Ignora cliques em botões normais que não são switches
         if (e.type === 'click' && target.closest('button')) {
           const btn = target.closest('button');
