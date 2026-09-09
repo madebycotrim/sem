@@ -13,6 +13,13 @@ const app = new Hono<{ Bindings: Bindings }>();
 // Middlewares Globais
 app.use('*', logger());
 app.use('*', secureHeaders());
+
+// Tratamento Global de Erros
+app.onError((err, c) => {
+  console.error('Erro na requisição:', err);
+  return c.json({ erro: 'Erro interno no servidor.' }, 500);
+});
+
 app.use('/api/*', async (c, next) => {
   const env = carregarEnv(c.env);
   const corsMiddleware = cors({
@@ -34,13 +41,20 @@ app.get('/api/health', (c) =>
 
 // Servir arquivos estáticos do dist quando a rota não for da API
 app.notFound(async (c) => {
+  if (c.req.path.startsWith('/api')) {
+    return c.json({ erro: 'Endpoint não encontrado.' }, 404);
+  }
+
   const assetsFetch = c.env?.ASSETS && typeof c.env.ASSETS.fetch === 'function'
     ? c.env.ASSETS.fetch.bind(c.env.ASSETS)
     : null;
 
   if (assetsFetch) {
     try {
-      return await assetsFetch(c.req.raw);
+      const res = await assetsFetch(c.req.raw);
+      if (res && res.status < 400) {
+        return res;
+      }
     } catch (erro) {
       console.error('Falha ao buscar asset estático:', erro);
     }
