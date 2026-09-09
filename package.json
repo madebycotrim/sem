@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "dev:pages": "wrangler pages dev dist --port 8787 --d1 DB=saude-em-movimento-db",
-    "build": "tsc --noEmit && vite build",
+    "build": "prisma generate --schema=prisma/schema.prisma && tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",

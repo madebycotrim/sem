@@ -5,6 +5,8 @@ import { secureHeaders } from 'hono/secure-headers';
 import { logger } from 'hono/logger';
 import { carregarEnv, type Bindings } from './config/env.js';
 import { rotasV1 } from './rotas/v1/index.js';
+import { middlewareLogAcesso } from './middlewares/log-acesso.js';
+import { middlewareRateLimit } from './middlewares/rate-limit.js';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -19,6 +21,8 @@ app.use('*', async (c, next) => {
   });
   return corsMiddleware(c, next);
 });
+app.use('/api/*', middlewareRateLimit);
+app.use('/api/*', middlewareLogAcesso);
 
 // Registrar Rotas da API V1
 app.route('/api/v1', rotasV1);
