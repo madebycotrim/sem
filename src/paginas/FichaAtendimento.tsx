@@ -23,7 +23,7 @@ interface FichaAtendimentoProps {
 
 export function FichaAtendimento({
   pacientePreSelecionado,
-  escolas = [{ id: 'seed-escola-001', nome: 'CEF 01 de Brasília' }],
+  escolas = [],
   aoVoltar,
 }: FichaAtendimentoProps) {
   const {
@@ -38,7 +38,7 @@ export function FichaAtendimento({
     defaultValues: {
       idempotencyKey: crypto.randomUUID(),
       pacienteId: pacientePreSelecionado?.id || '',
-      escolaLocalId: escolas[0]?.id || 'seed-escola-001',
+      escolaLocalId: escolas[0]?.id || '',
       especialidade: Especialidade.ODONTOLOGIA,
       turno: Turno.MANHA,
       resumo: '',
@@ -104,7 +104,7 @@ export function FichaAtendimento({
     reset({
       idempotencyKey: crypto.randomUUID(),
       pacienteId: '',
-      escolaLocalId: escolas[0]?.id || 'seed-escola-001',
+      escolaLocalId: escolas[0]?.id || '',
       especialidade: Especialidade.ODONTOLOGIA,
       turno: Turno.MANHA,
       resumo: '',

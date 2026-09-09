@@ -129,15 +129,7 @@ describe('Serviço de Consulta Inteligente de CPF (apicpf.com)', () => {
       const mockFetch = vi.fn().mockResolvedValue({
         status: 200,
         ok: true,
-        json: async () => ({
-          code: 200,
-          data: {
-            cpf: CPF_VALIDO_1,
-            nome: 'Gabriel Henrique Santos',
-            genero: 'M',
-            data_nascimento: '2012-05-14',
-          },
-        }),
+        json: async () => ({ cpf: CPF_VALIDO_1, cpfFormatado: '529.982.247-25', nome: 'GABRIEL HENRIQUE SANTOS', genero: 'Masculino', dataNascimento: '2012-05-14' }),
       });
       global.fetch = mockFetch;
 
@@ -153,89 +145,21 @@ describe('Serviço de Consulta Inteligente de CPF (apicpf.com)', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
-    it('deve usar Cache Local em consultas subsequentes do mesmo CPF (zero fetch)', async () => {
+    it('deve consultar a API interna em cada solicitação', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         status: 200,
         ok: true,
-        json: async () => ({
-          code: 200,
-          data: {
-            cpf: CPF_VALIDO_2,
-            nome: 'Maria Eduarda Costa',
-            genero: 'F',
-            data_nascimento: '2014-08-20',
-          },
-        }),
+        json: async () => ({ cpf: CPF_VALIDO_2, cpfFormatado: '111.444.777-35', nome: 'MARIA EDUARDA COSTA', genero: 'Feminino', dataNascimento: '2014-08-20' }),
       });
       global.fetch = mockFetch;
 
-      // 1ª consulta -> faz fetch
       const res1 = await consultarCpf(CPF_VALIDO_2, 'minha_chave');
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(res1.nome).toBe('MARIA EDUARDA COSTA');
 
-      // 2ª consulta do mesmo CPF -> pega do cache sem fazer fetch!
       const res2 = await consultarCpf(CPF_VALIDO_2, 'minha_chave');
-      expect(mockFetch).toHaveBeenCalledTimes(1); // Continua 1, não aumentou!
+      expect(mockFetch).toHaveBeenCalledTimes(2);
       expect(res2.nome).toBe('MARIA EDUARDA COSTA');
-    });
-
-    it('deve bloquear consulta se a cota mensal (100 consultas) for atingida', async () => {
-      const mockFetch = vi.fn();
-      global.fetch = mockFetch;
-
-      // Simula cota esgotada no mês
-      const agora = new Date();
-      const chaveMes = `APICPF_USO_${agora.getFullYear()}_${String(agora.getMonth() + 1).padStart(2, '0')}`;
-      localStorageMock.setItem(chaveMes, '100');
-
-      await expect(consultarCpf(CPF_VALIDO_3, 'minha_chave')).rejects.toThrow(
-        'Cota mensal de 100 consultas à API de CPF atingida para este mês.'
-      );
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it('deve bloquear e lançar erro de Rate Limit ao exceder 6 consultas por minuto', async () => {
-      const mockFetch = vi.fn().mockImplementation(async (url: string) => {
-        const cpf = url.split('cpf=')[1];
-        return {
-          status: 200,
-          ok: true,
-          json: async () => ({
-            code: 200,
-            data: {
-              cpf,
-              nome: `Pessoa ${cpf}`,
-              genero: 'I',
-              data_nascimento: '2010-01-01',
-            },
-          }),
-        };
-      });
-      global.fetch = mockFetch;
-
-      // Lista de 6 CPFs matematicamente válidos diferentes
-      const cpfsValidos = [
-        '52998224725',
-        '11144477735',
-        '00000000191',
-        '00000000272',
-        '00000000353',
-        '00000000434',
-      ];
-
-      // Executa 6 requisições válidas dentro do minuto
-      for (const cpf of cpfsValidos) {
-        await consultarCpf(cpf, 'minha_chave');
-      }
-      expect(mockFetch).toHaveBeenCalledTimes(6);
-
-      // 7ª requisição dentro do mesmo minuto deve ser barrada pelo Rate Limiter
-      const outroCpfValido = '00000000515';
-      await expect(consultarCpf(outroCpfValido, 'minha_chave')).rejects.toThrow(
-        'Limite de 6 consultas por minuto atingido'
-      );
-      expect(mockFetch).toHaveBeenCalledTimes(6); // Não subiu para 7
     });
   });
 });

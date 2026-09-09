@@ -48,7 +48,7 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
     const body = (await res.json()) as any;
     expect(body.usuario.email).toBe('medico@saude.dev');
     expect(body.usuario.perfil).toBe('PROFISSIONAL_SAUDE');
-    expect(body.token).toBeTruthy();
+    expect(body.token).toBeUndefined();
 
     const cookie = res.headers.get('set-cookie');
     expect(cookie).toContain('token=');

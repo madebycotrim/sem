@@ -1,7 +1,6 @@
 import { useState, type FC, useEffect } from 'react';
 import { Modal, BotaoModal } from './Modal.tsx';
 import { 
-  PERMISSOES_PADRAO, 
   PERFIL_ACESSO_LABELS, 
   type PerfilAcesso, 
   type PermissoesPerfil 
@@ -66,10 +65,7 @@ const ToggleSwitch: FC<{ ativo: boolean; desabilitado?: boolean; aoAlternar: () 
 export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) => {
   const perfisParaConfigurar: PerfilAcesso[] = ['ADMIN', 'PROFISSIONAL_SAUDE', 'TRIAGEM_RECEPCAO', 'DPO'];
   const [perfilAtivo, setPerfilAtivo] = useState<PerfilAcesso>('PROFISSIONAL_SAUDE');
-  const [estadoPermissoes, setEstadoPermissoes] = useState<Record<PerfilAcesso, PermissoesPerfil>>(() => {
-    const salva = localStorage.getItem('permissoes_rbac');
-    return salva ? JSON.parse(salva) : PERMISSOES_PADRAO;
-  });
+  const [estadoPermissoes, setEstadoPermissoes] = useState<Partial<Record<PerfilAcesso, PermissoesPerfil>>>({});
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
 
@@ -78,15 +74,11 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
     let montado = true;
     if (aberto) {
       setSalvo(false);
-      const salva = localStorage.getItem('permissoes_rbac');
-      if (salva) setEstadoPermissoes(JSON.parse(salva));
-      
       const buscarDoServidor = async () => {
         try {
-          const res = await requisicaoApi<{ permissoes: Record<PerfilAcesso, PermissoesPerfil> }>('/rbac/permissoes');
+          const res = await requisicaoApi<{ permissoes: Partial<Record<PerfilAcesso, PermissoesPerfil>> }>('/rbac/permissoes');
           if (montado) {
             setEstadoPermissoes(res.permissoes);
-            localStorage.setItem('permissoes_rbac', JSON.stringify(res.permissoes));
           }
         } catch (e) {
           console.error('Falha ao buscar permissoes do servidor', e);
@@ -103,14 +95,16 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
   const alternarModulo = (chave: keyof PermissoesPerfil['modulos']) => {
     if (ehAdminGlobal) return;
     setEstadoPermissoes((prev) => {
-      const valorAtual = prev[perfilAtivo].modulos[chave];
+      const permissao = prev[perfilAtivo];
+      if (!permissao) return prev;
+      const valorAtual = permissao.modulos[chave];
       const novoValor = valorAtual === 'LIVRE' ? 'BLOQUEADO' : 'LIVRE';
       return {
         ...prev,
         [perfilAtivo]: {
-          ...prev[perfilAtivo],
+          ...permissao,
           modulos: {
-            ...prev[perfilAtivo].modulos,
+            ...permissao.modulos,
             [chave]: novoValor,
           },
         },
@@ -121,14 +115,16 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
   const alternarAcao = (chave: keyof PermissoesPerfil['acoes']) => {
     if (ehAdminGlobal) return;
     setEstadoPermissoes((prev) => {
-      const valorAtual = prev[perfilAtivo].acoes[chave];
+      const permissao = prev[perfilAtivo];
+      if (!permissao) return prev;
+      const valorAtual = permissao.acoes[chave];
       const novoValor = valorAtual === 'LIVRE' ? 'BLOQUEADO' : 'LIVRE';
       return {
         ...prev,
         [perfilAtivo]: {
-          ...prev[perfilAtivo],
+          ...permissao,
           acoes: {
-            ...prev[perfilAtivo].acoes,
+            ...permissao.acoes,
             [chave]: novoValor,
           },
         },
@@ -140,10 +136,10 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
     setSalvando(true);
     try {
       await requisicaoApi('/rbac/permissoes', {
-        metodo: 'POST',
+        metodo: 'PUT',
         corpo: { permissoes: estadoPermissoes }
       });
-      localStorage.setItem('permissoes_rbac', JSON.stringify(estadoPermissoes));
+      window.dispatchEvent(new CustomEvent('permissoes_atualizadas', { detail: estadoPermissoes }));
       setSalvo(true);
       setTimeout(() => setSalvo(false), 3000);
       aoFechar();
@@ -249,7 +245,7 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
                 {(Object.entries(NOME_MODULOS) as [keyof PermissoesPerfil['modulos'], string][]).map(([chave, label]) => {
-                  const ativo = permissaoAtual.modulos[chave] === 'LIVRE';
+                  const ativo = permissaoAtual?.modulos[chave] === 'LIVRE';
                   return (
                     <div
                       key={chave}
@@ -278,7 +274,7 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
               </h3>
               <div className="flex flex-col gap-2">
                 {(Object.entries(NOME_ACOES) as [keyof PermissoesPerfil['acoes'], string][]).map(([chave, label]) => {
-                  const ativo = permissaoAtual.acoes[chave] === 'LIVRE';
+                  const ativo = permissaoAtual?.acoes[chave] === 'LIVRE';
                   return (
                     <div
                       key={chave}

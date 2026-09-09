@@ -6,7 +6,7 @@ import { middlewareAutenticacao, type AppVariables } from '../../middlewares/aut
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import { registrarAuditoria } from '../../middlewares/auditoria.js';
 import type { Bindings } from '../../config/env.js';
-import { PERMISSOES_PADRAO, type PerfilAcesso, type PermissoesPerfil } from '../../../compartilhado/index.js';
+import { type PerfilAcesso, type PermissoesPerfil } from '../../../compartilhado/index.js';
 
 export const rotasRbac = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
@@ -19,30 +19,23 @@ rotasRbac.use('*', middlewareAutenticacao);
 rotasRbac.get('/permissoes', async (c) => {
   try {
     const prisma = getPrisma(c.env.DB);
-    const permissoes: Record<string, PermissoesPerfil> = { ...PERMISSOES_PADRAO };
+    const permissoes: Partial<Record<PerfilAcesso, PermissoesPerfil>> = {};
     
     if (prisma && (prisma as any).configuracaoRbac) {
       const configuracoes = await prisma.configuracaoRbac.findMany();
       
       for (const config of configuracoes) {
-        if (permissoes[config.perfil as PerfilAcesso]) {
-          try {
-            permissoes[config.perfil as PerfilAcesso] = {
-              modulos: typeof config.modulos === 'string' ? JSON.parse(config.modulos) : config.modulos,
-              acoes: typeof config.acoes === 'string' ? JSON.parse(config.acoes) : config.acoes,
-            };
-          } catch {
-            // Em caso de JSON inválido, mantém a permissão padrão
-          }
-        }
+        permissoes[config.perfil as PerfilAcesso] = {
+          modulos: typeof config.modulos === 'string' ? JSON.parse(config.modulos) : config.modulos,
+          acoes: typeof config.acoes === 'string' ? JSON.parse(config.acoes) : config.acoes,
+        };
       }
     }
 
     return c.json({ permissoes });
   } catch (err) {
     console.error('Erro ao buscar configurações RBAC do banco:', err);
-    // Fallback seguro em caso de erro na consulta ao banco
-    return c.json({ permissoes: PERMISSOES_PADRAO });
+    return c.json({ erro: 'Não foi possível carregar as configurações RBAC.' }, 500);
   }
 });
 

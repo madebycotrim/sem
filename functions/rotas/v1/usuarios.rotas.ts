@@ -147,7 +147,7 @@ rotasUsuarios.put(
       return c.json({ erro: 'Usuário não encontrado' }, 404);
     }
 
-    if (usuarioExistente.email === c.env.ADMIN_BOOTSTRAP_EMAIL || id === usuarioLogado.userId && dados.perfil === 'ADMIN' && usuarioLogado.perfil !== 'ADMIN') {
+    if (id === usuarioLogado.userId && dados.perfil === 'ADMIN' && usuarioLogado.perfil !== 'ADMIN') {
       return c.json({ erro: 'Este usuário não pode ser promovido ou alterado por esta operação.' }, 403);
     }
 

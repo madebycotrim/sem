@@ -6,6 +6,7 @@ import { CabecalhoPagina } from './componentes/CabecalhoPagina.tsx';
 import { TabelaPacientes, type ItemPaciente } from './componentes/TabelaPacientes.tsx';
 import { ModalNovoPaciente, type FormNovoPaciente } from './componentes/ModalNovoPaciente.tsx';
 import { FilaDoDia } from './componentes/FilaDoDia.tsx';
+import type { ItemProfissionalTriagem } from './componentes/ModalTriagem.tsx';
 import { Atendimentos, type ItemAtendimentoLista } from './componentes/Atendimentos.tsx';
 import { Dashboard } from './componentes/Dashboard.tsx';
 import { Escolas, type EscolaPolo } from './componentes/Escolas.tsx';
@@ -18,7 +19,7 @@ import { PainelAnalitico } from './paginas/PainelAnalitico.tsx';
 import { Relatorios } from './componentes/Relatorios.tsx';
 import { requisicaoApi } from './servicos/api.ts';
 import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCatraki.ts';
-import { PERMISSOES_PADRAO, type PermissoesPerfil, type PerfilAcesso, type StatusAtendimento } from '../compartilhado/index.ts';
+import { type PermissoesPerfil, type PerfilAcesso, type StatusAtendimento } from '../compartilhado/index.ts';
 
 interface RespostaListaPacientes {
   dados: Array<{
@@ -82,18 +83,12 @@ export function App() {
   const [carregandoSessao, setCarregandoSessao] = useState(true);
 
   // Permissões RBAC dinâmicas
-  const [permissoesRbac, setPermissoesRbac] = useState<Record<PerfilAcesso, PermissoesPerfil>>(() => {
-    const salva = localStorage.getItem('permissoes_rbac');
-    return salva ? JSON.parse(salva) : PERMISSOES_PADRAO;
-  });
+  const [permissoesRbac, setPermissoesRbac] = useState<Partial<Record<PerfilAcesso, PermissoesPerfil>>>({});
 
   useEffect(() => {
     const handleAtualizacao = (event: Event) => {
       if ('detail' in event && event.detail) {
         setPermissoesRbac((event as CustomEvent).detail);
-      } else {
-        const salva = localStorage.getItem('permissoes_rbac');
-        if (salva) setPermissoesRbac(JSON.parse(salva));
       }
     };
     window.addEventListener('permissoes_atualizadas', handleAtualizacao);
@@ -104,20 +99,16 @@ export function App() {
     const perfil = usuarioLogado?.perfil || '';
     if (perfil === 'BOOTSTRAP') return true;
     if (perfil === 'ADMIN') return true;
-    if (perfil && permissoesRbac[perfil as PerfilAcesso]) {
-      return permissoesRbac[perfil as PerfilAcesso].modulos[secao] === 'LIVRE';
-    }
-    return false;
+    const permissoesDoPerfil = perfil ? permissoesRbac[perfil as PerfilAcesso] : undefined;
+    return permissoesDoPerfil?.modulos[secao] === 'LIVRE';
   };
 
   const temPermissao = (acao: keyof PermissoesPerfil['acoes']) => {
     const perfil = usuarioLogado?.perfil || '';
     if (perfil === 'BOOTSTRAP') return true;
     if (perfil === 'ADMIN') return true;
-    if (perfil && permissoesRbac[perfil as PerfilAcesso]) {
-      return permissoesRbac[perfil as PerfilAcesso].acoes[acao] === 'LIVRE';
-    }
-    return false;
+    const permissoesDoPerfil = perfil ? permissoesRbac[perfil as PerfilAcesso] : undefined;
+    return permissoesDoPerfil?.acoes[acao] === 'LIVRE';
   };
 
   useEffect(() => {
@@ -133,9 +124,8 @@ export function App() {
           setUsuarioLogado(res.trocaSenhaObrigatoria ? null : res.usuario);
           
           try {
-            const rbacRes = await requisicaoApi<{ permissoes: Record<PerfilAcesso, PermissoesPerfil> }>('/rbac/permissoes');
+            const rbacRes = await requisicaoApi<{ permissoes: Partial<Record<PerfilAcesso, PermissoesPerfil>> }>('/rbac/permissoes');
             setPermissoesRbac(rbacRes.permissoes);
-            localStorage.setItem('permissoes_rbac', JSON.stringify(rbacRes.permissoes));
           } catch (e) {
             console.error('Erro ao carregar permissões', e);
           }
@@ -183,9 +173,9 @@ export function App() {
 
   // Lista de Escolas Global
   const [escolasGlobais, setEscolasGlobais] = useState<EscolaPolo[]>([]);
+  const [profissionais, setProfissionais] = useState<ItemProfissionalTriagem[]>([]);
 
   const limparNavegacaoAoDeslogar = () => {
-    localStorage.removeItem('catraki_secao_ativa');
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
     setSecaoAtiva('dashboard');
     setUsuarioLogado(null);
@@ -206,24 +196,19 @@ export function App() {
     setSecaoAtiva(secao);
     setMostrarPacientesPendentes(false);
     window.location.hash = secao;
-    localStorage.setItem('catraki_secao_ativa', secao);
   };
 
   useEffect(() => {
-    const secaoInicial = obterSecaoInicial();
     const possuiSecaoExplicita = SECOES_VALIDAS.includes(
       window.location.hash.replace(/^#/, '') as SecaoMenu
     );
     if (!possuiSecaoExplicita && window.location.hash) {
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
     }
-    localStorage.setItem('catraki_secao_ativa', secaoInicial);
-
     const escutarHashChange = () => {
       const hash = window.location.hash.replace(/^#/, '') as SecaoMenu;
       if (SECOES_VALIDAS.includes(hash)) {
         setSecaoAtiva(hash);
-        localStorage.setItem('catraki_secao_ativa', hash);
       }
     };
 
@@ -246,6 +231,21 @@ export function App() {
       }
     };
     carregarEscolas();
+    return () => { ativo = false; };
+  }, [autenticado]);
+
+  useEffect(() => {
+    if (!autenticado) return;
+    let ativo = true;
+    const carregarProfissionais = async () => {
+      try {
+        const resposta = await requisicaoApi<{ dados: ItemProfissionalTriagem[] }>('/atendimentos/profissionais');
+        if (ativo) setProfissionais(resposta.dados);
+      } catch (erro) {
+        if (ativo) setProfissionais([]);
+      }
+    };
+    carregarProfissionais();
     return () => { ativo = false; };
   }, [autenticado]);
 
@@ -533,7 +533,7 @@ export function App() {
   }
 
   return (
-    <ProvedorPermissoes perfilLogado={usuarioLogado?.perfil || null}>
+    <ProvedorPermissoes perfilLogado={usuarioLogado?.perfil || null} permissoes={permissoesRbac}>
       <div className="flex min-h-screen bg-[#f4f7fb] text-slate-800 font-sans">
       {/* ─── Sidebar Lateral (8 Módulos Essenciais) ────────────────────────── */}
       <Sidebar
@@ -659,6 +659,7 @@ export function App() {
                 escolas={escolasGlobais}
                 pacientes={pacientes}
                 atendimentos={atendimentos}
+                profissionais={profissionais}
                 aoIniciarAtendimento={() => {
                   // O modal de atendimento já trata o fluxo internamente na FilaDoDia
                 }}

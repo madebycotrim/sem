@@ -26,40 +26,6 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
   const body = c.req.valid('json');
   const prisma = getPrisma(c.env.DB);
 
-  // Verifica se é o e-mail de bootstrap
-  if (
-    c.env.ADMIN_BOOTSTRAP_EMAIL && 
-    body.email === c.env.ADMIN_BOOTSTRAP_EMAIL
-  ) {
-    if (c.env.ADMIN_BOOTSTRAP_PASSWORD && body.senha !== c.env.ADMIN_BOOTSTRAP_PASSWORD) {
-      return c.json({ erro: 'Credenciais inválidas.' }, 401);
-    }
-
-    const token = await sign({
-      userId: '00000000-0000-0000-0000-000000000000',
-      email: body.email,
-      perfil: 'BOOTSTRAP',
-      mfaVerificado: true,
-      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 8, // 8h
-    }, c.env.JWT_SECRET);
-
-    setCookie(c, 'token', token, {
-      path: '/', httpOnly: true, secure: c.env.NODE_ENV === 'production', sameSite: 'Strict', maxAge: 28800
-    });
-
-    return c.json({
-      usuario: {
-        id: '00000000-0000-0000-0000-000000000000',
-        email: body.email,
-        nomeCompleto: 'MATEUS R F COTRIM',
-        perfil: 'BOOTSTRAP',
-        mfaAtivo: false,
-        mfaVerificado: true,
-      },
-      token
-    });
-  }
-
   const usuario = await prisma.usuario.findUnique({
     where: { email: body.email },
   });
@@ -109,7 +75,6 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
       mfaVerificado,
     },
     trocaSenhaObrigatoria: usuario.senhaTemporaria,
-    token, // Para clientes que usam Header Authorization (mobile / SSR)
   });
 });
 
@@ -203,23 +168,6 @@ rotasAuth.post(
 rotasAuth.get('/me', middlewareAutenticacao, async (c) => {
   const usuarioLogado = c.get('usuario');
   const prisma = getPrisma(c.env.DB);
-
-  // Ignora o banco se for bootstrap
-  if (usuarioLogado.email === c.env.ADMIN_BOOTSTRAP_EMAIL) {
-    return c.json({
-      usuario: {
-        id: usuarioLogado.userId,
-        email: usuarioLogado.email,
-        nomeCompleto: 'MATEUS R F COTRIM',
-        perfil: 'BOOTSTRAP',
-        mfaAtivo: false,
-        ativo: true,
-        trocaSenhaObrigatoria: false,
-        criadoEm: new Date(),
-        mfaVerificado: usuarioLogado.mfaVerificado,
-      },
-    });
-  }
 
   const usuario = await prisma.usuario.findUnique({
     where: { id: usuarioLogado.userId },

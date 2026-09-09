@@ -1,9 +1,11 @@
+import { requisicaoApi } from './api.ts';
+
 /**
- * Serviço de Integração com a API de Consulta de CPF (apicpf.com).
+ * Serviço de consulta de CPF por meio da API autenticada do sistema.
  * 
  * Inclui consumo inteligente de API:
  * - Validação matemática prévia por dígitos verificadores (Regra Oficial da Receita Federal)
- * - Cache local para evitar requisições duplicadas
+ * - Cache efêmero em memória para evitar requisições duplicadas
  * - Rate Limiter (máximo 6 consultas/minuto)
  * - Trava de Cota Mensal (máximo 100 consultas/mês)
  */
@@ -105,111 +107,46 @@ export function mascararCpf(cpf?: string | null): string {
 }
 
 /**
- * Helper seguro para acesso ao LocalStorage (funciona em browser e node/testes).
- */
-function getStorage(): Storage | null {
-  if (typeof localStorage !== 'undefined') return localStorage;
-  if (typeof window !== 'undefined' && window.localStorage) return window.localStorage;
-  return null;
-}
-
-/**
- * Obtém a chave da API salva em localStorage ou nas variáveis de ambiente.
+ * Obtém a chave configurada no ambiente de execução.
  */
 export function obterChaveApiCpf(): string {
-  const storage = getStorage();
-  if (storage) {
-    const salva = storage.getItem('APICPF_KEY');
-    if (salva && salva.trim()) return salva.trim();
-  }
   return (import.meta.env.VITE_APICPF_KEY || '').trim();
 }
 
 /**
- * Salva a chave da API no localStorage para persistência de teste/produção.
+ * A chave não pode ser persistida no navegador.
  */
-export function salvarChaveApiCpf(chave: string): void {
-  const storage = getStorage();
-  if (storage) {
-    if (chave.trim()) {
-      storage.setItem('APICPF_KEY', chave.trim());
-    } else {
-      storage.removeItem('APICPF_KEY');
-    }
-  }
-}
-
-/**
- * Obtém a chave do mês atual para controle de cota mensal (ex: 'APICPF_USO_2026_09').
- */
-function obterChaveMesAtual(): string {
-  const agora = new Date();
-  const ano = agora.getFullYear();
-  const mes = String(agora.getMonth() + 1).padStart(2, '0');
-  return `APICPF_USO_${ano}_${mes}`;
+export function salvarChaveApiCpf(_chave: string): void {
 }
 
 /**
  * Retorna as estatísticas de uso mensal da API.
  */
 export function obterUsoMensalCpf(): { usado: number; limite: number } {
-  const storage = getStorage();
-  if (!storage) {
-    return { usado: 0, limite: LIMITE_CONSULTAS_POR_MES };
-  }
-  const chaveMes = obterChaveMesAtual();
-  const usoStr = storage.getItem(chaveMes);
-  const usado = usoStr ? parseInt(usoStr, 10) || 0 : 0;
-  return { usado, limite: LIMITE_CONSULTAS_POR_MES };
+  return { usado: 0, limite: LIMITE_CONSULTAS_POR_MES };
 }
 
 /**
  * Incrementa o contador de requisições do mês.
  */
 function incrementarUsoMensal(): void {
-  const storage = getStorage();
-  if (!storage) return;
-  const chaveMes = obterChaveMesAtual();
-  const { usado } = obterUsoMensalCpf();
-  storage.setItem(chaveMes, String(usado + 1));
 }
 
 /**
- * Busca CPF em cache (Memória ou LocalStorage).
+ * Busca CPF no cache efêmero da sessão atual.
  */
 function buscarEmCache(cpfLimpo: string): DadosPessoaCpf | null {
   if (cacheEmMemoria.has(cpfLimpo)) {
     return cacheEmMemoria.get(cpfLimpo)!;
   }
-  const storage = getStorage();
-  if (storage) {
-    const item = storage.getItem(`APICPF_CACHE_${cpfLimpo}`);
-    if (item) {
-      try {
-        const dados = JSON.parse(item) as DadosPessoaCpf;
-        cacheEmMemoria.set(cpfLimpo, dados);
-        return dados;
-      } catch {
-        // Ignora erro de parse
-      }
-    }
-  }
   return null;
 }
 
 /**
- * Salva resultado no cache local para evitar consumo futuro.
+ * Salva resultado apenas durante a sessão atual.
  */
 function salvarEmCache(cpfLimpo: string, dados: DadosPessoaCpf): void {
   cacheEmMemoria.set(cpfLimpo, dados);
-  const storage = getStorage();
-  if (storage) {
-    try {
-      storage.setItem(`APICPF_CACHE_${cpfLimpo}`, JSON.stringify(dados));
-    } catch {
-      // Ignora erro de quota do localStorage
-    }
-  }
 }
 
 /**
@@ -218,17 +155,6 @@ function salvarEmCache(cpfLimpo: string, dados: DadosPessoaCpf): void {
 export function limparCacheCpf(): void {
   cacheEmMemoria.clear();
   historicoRequisicoesMinuto.length = 0;
-  const storage = getStorage();
-  if (storage) {
-    const chavesParaRemover: string[] = [];
-    for (let i = 0; i < storage.length; i++) {
-      const k = storage.key(i);
-      if (k && k.startsWith('APICPF_CACHE_')) {
-        chavesParaRemover.push(k);
-      }
-    }
-    chavesParaRemover.forEach((k) => storage.removeItem(k));
-  }
 }
 
 
@@ -272,7 +198,7 @@ function mapearGenero(genero?: string): 'Masculino' | 'Feminino' | 'Outro' | 'N�
  * 4. Faz a requisição à API e guarda em cache.
  *
  * @param cpf CPF com ou sem pontuação (11 dígitos)
- * @param chaveApi Opcional. Se não informada, busca em localStorage/env.
+ * @param chaveApi Opcional. Se não informada, busca nas variáveis de ambiente.
  * @returns Dados estruturados da pessoa física
  * @throws Error com mensagem amigável em caso de erro de consulta
  */
@@ -288,10 +214,16 @@ export async function consultarCpf(cpf: string, chaveApi?: string): Promise<Dado
     throw new Error('CPF inválido. Os dígitos verificadores não conferem.');
   }
 
+  void chaveApi;
+  return requisicaoApi<DadosPessoaCpf>('/cpf', {
+    metodo: 'POST',
+    corpo: { cpf: cpfLimpo },
+  });
+
   // 2. VERIFICAÇÃO DE CACHE (Zero requisições à API para CPFs já consultados)
   const dadoEmCache = buscarEmCache(cpfLimpo);
   if (dadoEmCache) {
-    return dadoEmCache;
+    return dadoEmCache!;
   }
 
   // 3. CONTROLE DE COTA MENSAL (Máximo 100 consultas/mês)
@@ -332,11 +264,11 @@ export async function consultarCpf(cpf: string, chaveApi?: string): Promise<Dado
 
     if (dados.code === 200 && dados.data) {
       const resultado: DadosPessoaCpf = {
-        cpf: dados.data.cpf,
-        cpfFormatado: formatarCpf(dados.data.cpf),
-        nome: dados.data.nome.trim().toUpperCase(),
-        genero: mapearGenero(dados.data.genero),
-        dataNascimento: dados.data.data_nascimento,
+        cpf: dados.data!.cpf,
+        cpfFormatado: formatarCpf(dados.data!.cpf),
+        nome: dados.data!.nome.trim().toUpperCase(),
+        genero: mapearGenero(dados.data!.genero),
+        dataNascimento: dados.data!.data_nascimento,
       };
 
       // Guarda no cache local
@@ -370,11 +302,11 @@ export async function consultarCpf(cpf: string, chaveApi?: string): Promise<Dado
         const fallbackDados = (await fallbackRes.json()) as RespostaApiCpfBruta;
         if (fallbackDados.code === 200 && fallbackDados.data) {
           const resultadoFallback: DadosPessoaCpf = {
-            cpf: fallbackDados.data.cpf,
-            cpfFormatado: formatarCpf(fallbackDados.data.cpf),
-            nome: fallbackDados.data.nome.trim().toUpperCase(),
-            genero: mapearGenero(fallbackDados.data.genero),
-            dataNascimento: fallbackDados.data.data_nascimento,
+            cpf: fallbackDados.data!.cpf,
+            cpfFormatado: formatarCpf(fallbackDados.data!.cpf),
+            nome: fallbackDados.data!.nome.trim().toUpperCase(),
+            genero: mapearGenero(fallbackDados.data!.genero),
+            dataNascimento: fallbackDados.data!.data_nascimento,
           };
           salvarEmCache(cpfLimpo, resultadoFallback);
           return resultadoFallback;

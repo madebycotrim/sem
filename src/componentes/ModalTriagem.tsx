@@ -52,17 +52,9 @@ export interface ModalTriagemProps {
   escolas?: Array<{ id: string; nome: string }>;
   pacientes?: ItemPacienteTriagem[];
   atendimentos?: Array<{ pacienteId: string; especialidade: Especialidade }>;
+  profissionais?: ItemProfissionalTriagem[];
   aoCriarNovoPaciente?: () => void;
 }
-
-// Profissionais de Saúde Padrão para seleção no Sistema
-const PROFISSIONAIS_PADRAO: ItemProfissionalTriagem[] = [
-  { id: 'prof-1', nome: 'Mateus R. F. Cotrim', especialidade: 'OFTALMOLOGIA', registro: 'CRM/DF 24512' },
-  { id: 'prof-2', nome: 'Ana Luiza Souza', especialidade: 'ODONTOLOGIA', registro: 'CRO/DF 11840' },
-  { id: 'prof-3', nome: 'Carlos Eduardo Silva', especialidade: 'AUDIOMETRIA', registro: 'CRFa/DF 8412' },
-  { id: 'prof-4', nome: 'Paula Rocha Lima', especialidade: 'NUTRICAO', registro: 'CRN/DF 9320' },
-  { id: 'prof-5', nome: 'Mariana Costa Santos', especialidade: 'PSICOLOGIA', registro: 'CRP/DF 15420' },
-];
 
 // Avatar com inicial do nome
 const AvatarLetra: FC<{ nome: string; tamanho?: 'sm' | 'md' | 'lg' }> = ({ nome, tamanho = 'md' }) => {
@@ -84,6 +76,7 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
   escolas = [],
   pacientes = [],
   atendimentos = [],
+  profissionais = [],
   aoCriarNovoPaciente,
 }) => {
   const [instituicaoSelecionadaId, setInstituicaoSelecionadaId] = useState('');
@@ -100,26 +93,10 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
   const [editandoInstituicao, setEditandoInstituicao] = useState(false);
 
   // Lista consolidada de instituições
-  const listaInstituicoes = useMemo(() => {
-    if (escolas.length > 0) return escolas;
-    return [
-      { id: 'inst-1', nome: 'CEMEIT DE TAGUATINGA' },
-      { id: 'inst-2', nome: 'CEF 01 DE BRASÍLIA' },
-      { id: 'inst-3', nome: 'EC 02 DE CEILÂNDIA' },
-      { id: 'inst-4', nome: 'POLO SESI SAÚDE' },
-    ];
-  }, [escolas]);
+  const listaInstituicoes = escolas;
 
   // Lista consolidada de pacientes
-  const listaPacientes = useMemo(() => {
-    if (pacientes.length > 0) return pacientes;
-    return [
-      { id: 'pac-1', nome: 'GABRIEL ALVES SILVA', cpf: '04218933091', dataNascimento: '2012-04-10', escolaNome: 'CEMEIT DE TAGUATINGA' },
-      { id: 'pac-2', nome: 'BEATRIZ COSTA SOARES', cpf: '05199210084', dataNascimento: '2014-08-22', escolaNome: 'CEF 01 DE BRASÍLIA' },
-      { id: 'pac-3', nome: 'LUCAS PEREIRA LIMA', cpf: '03310488012', dataNascimento: '2010-11-05', escolaNome: 'EC 02 DE CEILÂNDIA' },
-      { id: 'pac-4', nome: 'SOFIA MARTINS DUARTE', cpf: '06822490077', dataNascimento: '2015-02-18', escolaNome: 'POLO SESI SAÚDE' },
-    ];
-  }, [pacientes]);
+  const listaPacientes = pacientes;
 
   // Paciente objeto selecionado
   const pacienteSelecionado = useMemo(() => {
@@ -128,8 +105,8 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
 
   // Profissional objeto selecionado
   const profissionalSelecionado = useMemo(() => {
-    return PROFISSIONAIS_PADRAO.find((p) => p.id === profissionalSelecionadoId) ?? null;
-  }, [profissionalSelecionadoId]);
+    return profissionais.find((p) => p.id === profissionalSelecionadoId) ?? null;
+  }, [profissionalSelecionadoId, profissionais]);
 
   const especialidadesJaRealizadas = useMemo(
     () => new Set(
@@ -290,7 +267,7 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
     corIcone: 'text-blue-600',
   }));
 
-  const opcoesProfissional: OpcaoSelectCustom[] = PROFISSIONAIS_PADRAO.map((p) => {
+  const opcoesProfissional: OpcaoSelectCustom[] = profissionais.map((p) => {
     const estiloEsp = obterEstiloEspecialidade(p.especialidade);
     const IconeEsp = estiloEsp.icone;
     return {

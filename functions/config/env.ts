@@ -20,7 +20,7 @@ const envSchema = z.object({
 
   SESSION_INACTIVITY_TIMEOUT_MINUTES: z.coerce.number().int().min(1).default(10),
 
-  CORS_ORIGINS: z.string().default('http://localhost:5173,https://sem.catraki.com.br'),
+  CORS_ORIGINS: z.string().min(1, 'CORS_ORIGINS deve listar as origens autorizadas'),
 
   RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(100),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60_000),
@@ -34,9 +34,8 @@ const envSchema = z.object({
 
   MFA_ISSUER: z.string().default('Catraki SEM'),
 
-  ADMIN_BOOTSTRAP_EMAIL: z.string().optional(),
-  ADMIN_BOOTSTRAP_PASSWORD: z.string().optional(),
-  
+  APICPF_KEY: z.string().min(1).optional(),
+
   DB: z.any().optional(), // Cloudflare D1 Database binding
   ASSETS: z.any().optional(), // Cloudflare Pages static assets binding
 });

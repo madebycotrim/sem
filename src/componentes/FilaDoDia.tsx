@@ -9,10 +9,9 @@ import {
 } from './tabelaExcel/index.ts';
 import { Paginacao } from './Paginacao.tsx';
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
-import { CardHoverPaciente } from './CardHoverPaciente.tsx';
 import { censurarCpf } from './TabelaPacientes.tsx';
 import { Clock3, RotateCcw, CalendarDays, ClipboardCheck, Play } from 'lucide-react';
-import { ModalTriagem, type ItemPacienteTriagem } from './ModalTriagem.tsx';
+import { ModalTriagem, type ItemPacienteTriagem, type ItemProfissionalTriagem } from './ModalTriagem.tsx';
 import { ModalIniciarAtendimento, type DadosAtendimento } from './ModalIniciarAtendimento.tsx';
 import type { ItemAtendimentoLista } from './Atendimentos.tsx';
 
@@ -49,6 +48,8 @@ export interface FilaDoDiaProps {
   escolas?: Array<{ id: string; nome: string }>;
   pacientes?: ItemPacienteTriagem[];
   atendimentos?: Pick<ItemAtendimentoLista, 'pacienteId' | 'especialidade'>[];
+  fila?: ItemFila[];
+  profissionais?: ItemProfissionalTriagem[];
 }
 
 export const FilaDoDia: FC<FilaDoDiaProps> = ({
@@ -57,6 +58,8 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   escolas = [],
   pacientes = [],
   atendimentos = [],
+  fila = [],
+  profissionais = [],
 }) => {
   const [busca, setBusca] = useState('');
   const [modalTriagemAberto, setModalTriagemAberto] = useState(false);
@@ -85,49 +88,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
     };
   }, [confirmandoAlteracaoId]);
 
-  const [fila, setFila] = useState<ItemFila[]>([
-    {
-      id: 'fila-1',
-      pacienteNome: 'GABRIEL ALVES SILVA',
-      cpf: '042.189.330-91',
-      idade: 12,
-      escolaNome: 'CEMEIT DE TAGUATINGA',
-      especialidade: 'OFTALMOLOGIA',
-      status: 'AGUARDANDO',
-      horarioChegada: '08:15',
-      dataChegada: new Date().toLocaleDateString('pt-BR'),
-      profissional: 'Dr. Mateus R. F. Cotrim',
-      profissionalRegistro: 'CRM/DF 24512',
-    },
-    {
-      id: 'fila-2',
-      pacienteNome: 'BEATRIZ COSTA SOARES',
-      cpf: '051.992.100-84',
-      idade: 10,
-      escolaNome: 'CEF 01 DE BRASÍLIA',
-      especialidade: 'ODONTOLOGIA',
-      status: 'EM_ATENDIMENTO',
-      horarioChegada: '08:30',
-      dataChegada: new Date().toLocaleDateString('pt-BR'),
-      profissional: 'Dra. Ana Luiza Souza',
-      profissionalRegistro: 'CRO/DF 11840',
-    },
-    {
-      id: 'fila-3',
-      pacienteNome: 'LUCAS PEREIRA LIMA',
-      cpf: '033.104.880-12',
-      idade: 14,
-      escolaNome: 'EC 02 DE CEILÂNDIA',
-      especialidade: 'AUDIOMETRIA',
-      status: 'CONCLUIDO',
-      horarioChegada: '07:50',
-      dataChegada: new Date().toLocaleDateString('pt-BR'),
-      profissional: 'Dr. Carlos Eduardo Silva',
-      profissionalRegistro: 'CRFa/DF 8412',
-    },
-  ]);
-
-  const handleConfirmarTriagem = (dados: {
+  const handleConfirmarTriagem = async (dados: {
     pacienteId: string;
     pacienteNome: string;
     cpf?: string;
@@ -149,27 +110,11 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       throw new Error('Este CPF já possui uma consulta registrada para esta especialidade. Não é permitido realizar outra consulta.');
     }
 
-    const agora = new Date();
-    const novoItem: ItemFila = {
-      id: `fila-${Date.now()}`,
-      pacienteNome: dados.pacienteNome,
-      cpf: dados.cpf,
-      idade: dados.idade,
-      escolaNome: dados.escolaNome,
-      especialidade: dados.especialidade,
-      status: 'AGUARDANDO',
-      horarioChegada: agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      dataChegada: agora.toLocaleDateString('pt-BR'),
-      profissional: dados.profissionalNome,
-      profissionalRegistro: dados.profissionalRegistro,
-    };
-    setFila((prev) => [novoItem, ...prev]);
+    throw new Error('A criação de triagens depende da API de fila, que ainda não está disponível.');
   };
 
-  const alternarStatus = (id: string, novoStatus: StatusPresenca) => {
-    setFila((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: novoStatus } : item))
-    );
+  const alternarStatus = async (_id: string, _novoStatus: StatusPresenca) => {
+    throw new Error('A atualização da fila depende da API de fila, que ainda não está disponível.');
   };
 
   // Configuração das colunas para o Sistema Excel
@@ -375,51 +320,21 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                     </td>
 
                     <td className="py-3 px-4 font-semibold text-slate-900">
-                      <CardHoverPaciente
-                        paciente={{
-                          id: item.id,
-                          nome: item.pacienteNome,
-                          cpf: item.cpf,
-                          dataNascimento: `${new Date().getFullYear() - item.idade}-05-10`,
-                          escolaNome: item.escolaNome,
-                          termoConsentimentoStatus: 'ACEITO',
-                          atendimentosCount: 1,
-                          criadoEm: new Date().toISOString(),
-                          perfil: 'Aluno Regular',
-                          turma:
-                            item.idade <= 10
-                              ? `${item.idade - 5}º Ano — Fundamental I`
-                              : item.idade <= 14
-                              ? `${item.idade - 5}º Ano — Fundamental II`
-                              : `${item.idade - 14}ª Série — Ensino Médio`,
-                          telefone: '(61) 98452-1190',
-                        }}
-                        aoIniciarAtendimento={() =>
-                          aoIniciarAtendimento({
-                            id: item.id,
-                            nome: item.pacienteNome,
-                            especialidade: item.especialidade,
-                            turno: item.turno,
-                            horario: item.horarioChegada,
-                          })
-                        }
-                      >
-                        <div className="flex flex-col text-left">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-slate-900 uppercase tracking-tight text-xs">
-                              {item.pacienteNome}
-                            </span>
-                            {item.prioridade && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-100 text-rose-800 uppercase">
-                                Prioridade
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[11px] text-slate-500 font-normal">
-                            CPF: {item.cpf ? censurarCpf(item.cpf) : 'Não informado'}
+                      <div className="flex flex-col text-left">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-900 uppercase tracking-tight text-xs">
+                            {item.pacienteNome}
                           </span>
+                          {item.prioridade && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-100 text-rose-800 uppercase">
+                              Prioridade
+                            </span>
+                          )}
                         </div>
-                      </CardHoverPaciente>
+                        <span className="text-[11px] text-slate-500 font-normal">
+                          CPF: {item.cpf ? censurarCpf(item.cpf) : 'Não informado'}
+                        </span>
+                      </div>
                     </td>
 
                     <td className="py-3 px-3">
@@ -605,6 +520,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         escolas={escolas}
         pacientes={pacientes}
         atendimentos={atendimentos}
+        profissionais={profissionais}
         aoCriarNovoPaciente={aoNovoPaciente}
       />
 

@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
-import { type PerfilAcesso, PERMISSOES_PADRAO, type PermissoesPerfil } from '../../compartilhado/index.js';
+import { type PerfilAcesso, type PermissoesPerfil } from '../../compartilhado/index.js';
+import { getPrisma } from '../infraestrutura/banco/prisma.js';
 import type { Bindings } from '../config/env.js';
 import type { AppVariables } from './autenticacao.js';
 
@@ -20,11 +21,6 @@ export function autorizarPerfis(
 
     const perfilUsuario = usuario.perfil as PerfilAcesso;
 
-    // Bootstrap Bypass: Tem acesso incondicional
-    if (usuario.email === c.env.ADMIN_BOOTSTRAP_EMAIL) {
-      return await next();
-    }
-
     if (!perfisPermitidos.includes(perfilUsuario)) {
       return c.json(
         { erro: 'Acesso negado. Seu perfil não tem permissão para esta ação.' },
@@ -40,7 +36,7 @@ export function autorizarPerfis(
  * Middleware de Autorização Baseada em Ações (RBAC Fino)
  * 
  * Verifica se o perfil tem a permissão explícita para a ação,
- * consultando as permissões padrão do sistema.
+ * consultando a configuração persistida no banco de dados.
  */
 export function autorizarAcao(
   acao: keyof PermissoesPerfil['acoes']
@@ -54,17 +50,28 @@ export function autorizarAcao(
 
     const perfilUsuario = usuario.perfil as PerfilAcesso;
 
-    // Bootstrap Bypass: Tem acesso incondicional
-    if (usuario.email === c.env.ADMIN_BOOTSTRAP_EMAIL) {
-      return await next();
-    }
-
     // Admin Bypass: Tem acesso incondicional a todas as ações
     if (perfilUsuario === 'ADMIN') {
       return await next();
     }
 
-    const permissoesDoPerfil = PERMISSOES_PADRAO[perfilUsuario];
+    const prisma = getPrisma(c.env.DB);
+    const configuracao = await prisma.configuracaoRbac.findUnique({
+      where: { perfil: perfilUsuario },
+      select: { acoes: true },
+    });
+    let permissoesDoPerfil: Pick<PermissoesPerfil, 'acoes'> | null = null;
+    try {
+      if (configuracao) {
+        permissoesDoPerfil = {
+          acoes: typeof configuracao.acoes === 'string'
+            ? JSON.parse(configuracao.acoes)
+            : configuracao.acoes,
+        };
+      }
+    } catch {
+      permissoesDoPerfil = null;
+    }
     if (!permissoesDoPerfil || permissoesDoPerfil.acoes[acao] !== 'LIVRE') {
       return c.json(
         { erro: `Acesso negado. Ação ${String(acao)} restrita para o seu perfil.` },
