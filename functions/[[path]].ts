@@ -34,9 +34,23 @@ app.get('/api/health', (c) =>
 
 // Servir arquivos estáticos do dist quando a rota não for da API
 app.notFound(async (c) => {
-  if (c.env?.ASSETS) {
-    return c.env.ASSETS.fetch(c.req.raw);
+  const assetsFetch = c.env?.ASSETS && typeof c.env.ASSETS.fetch === 'function'
+    ? c.env.ASSETS.fetch.bind(c.env.ASSETS)
+    : null;
+
+  if (assetsFetch) {
+    try {
+      return await assetsFetch(c.req.raw);
+    } catch (erro) {
+      console.error('Falha ao buscar asset estático:', erro);
+    }
   }
+
+  // Evita ruído de erro no console do navegador quando não há favicon configurado.
+  if (c.req.path === '/favicon.ico') {
+    return c.body(null, 204);
+  }
+
   return c.text('Not Found', 404);
 });
 
