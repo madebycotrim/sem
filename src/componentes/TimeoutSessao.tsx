@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { TriangleAlert } from 'lucide-react';
+import { Botao } from './Botao.tsx';
 
 /**
  * Timeout de Sessão por Inatividade.
@@ -179,29 +180,24 @@ export function TimeoutSessao({
         </p>
 
         <div className="flex gap-3">
-          <button
+          <Botao
             onClick={handleContinuar}
-            className="
-              flex-1 rounded-2xl bg-emerald-600 px-4 py-2.5
-              text-sm font-semibold text-white
-              hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500
-              focus:ring-offset-2 transition-colors
-            "
+            variante="sucesso"
+            tamanho="md"
+            formato="pilula"
+            className="flex-1"
             autoFocus
           >
             Continuar trabalhando
-          </button>
-          <button
+          </Botao>
+          <Botao
             onClick={aoExpirar}
-            className="
-              rounded-2xl border border-gray-300 px-4 py-2.5
-              text-sm font-semibold text-gray-700
-              hover:bg-gray-50 focus:ring-2 focus:ring-gray-400
-              focus:ring-offset-2 transition-colors
-            "
+            variante="secundario"
+            tamanho="md"
+            formato="pilula"
           >
             Sair agora
-          </button>
+          </Botao>
         </div>
       </div>
     </div>,

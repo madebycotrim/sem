@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowRight, CircleAlert, KeyRound, LoaderCircle, Mail } from 'lucide-react';
+import { ArrowRight, CircleAlert, KeyRound, Mail } from 'lucide-react';
 import { requisicaoApi } from '../servicos/api.ts';
+import { Botao } from '../componentes/Botao.tsx';
 import catrakiLogo from '../assets/catraki.png';
 
 const formLoginSchema = z.object({
@@ -169,13 +170,18 @@ export function Login({ aoLogar }: LoginProps) {
                   </div>
                 )}
 
-                <button
+                <Botao
                   type="submit"
-                  disabled={salvandoTroca}
-                  className="w-full h-12 mt-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-[14px] rounded-xl shadow-lg shadow-blue-600/30 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  variante="primario"
+                  tamanho="lg"
+                  formato="pilula"
+                  larguraTotal={true}
+                  carregando={salvandoTroca}
+                  textoCarregando="Salvando nova senha..."
+                  className="mt-4"
                 >
-                  {salvandoTroca ? <LoaderCircle className="w-5 h-5 animate-spin text-white" /> : <span>Salvar nova senha</span>}
-                </button>
+                  Salvar nova senha
+                </Botao>
               </form>
             </>
           ) : (
@@ -248,23 +254,19 @@ export function Login({ aoLogar }: LoginProps) {
             )}
 
             {/* Botão de Submit */}
-            <button
+            <Botao
               type="submit"
-              disabled={carregando}
-              className="w-full h-12 mt-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-[14px] rounded-xl shadow-lg shadow-blue-600/30 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              variante="primario"
+              tamanho="lg"
+              formato="pilula"
+              larguraTotal={true}
+              carregando={carregando}
+              textoCarregando="Autenticando..."
+              iconeDireita={<ArrowRight className="w-4 h-4 ml-1" />}
+              className="mt-4 text-[14px]"
             >
-              {carregando ? (
-                <>
-                  <LoaderCircle className="w-5 h-5 animate-spin text-white" />
-                  <span>Autenticando...</span>
-                </>
-              ) : (
-                <>
-                  <span>Entrar no Sistema</span>
-                  <ArrowRight className="w-4 h-4 ml-1" />
-                </>
-              )}
-            </button>
+              Entrar no Sistema
+            </Botao>
           </form>
           </>
           )}

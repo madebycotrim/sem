@@ -13,6 +13,7 @@ import { ModalValidacaoCatraki } from './ModalValidacaoCatraki.tsx';
 import { CardHoverPaciente } from './CardHoverPaciente.tsx';
 import { usePermissoes } from '../contextos/ContextoPermissoes.tsx';
 import { Archive, ChevronDown, Clock3, FilePlus2, LoaderCircle, Pencil, Plus, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
+import { Botao } from './Botao.tsx';
 
 export interface ItemPaciente {
   id: string;
@@ -265,24 +266,25 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                       </p>
 
                       {temAlgumFiltroAtivo ? (
-                        <button
-                          type="button"
+                        <Botao
+                          variante="secundario"
+                          tamanho="sm"
+                          formato="pilula"
                           onClick={() => filtroExcel.limparTodosFiltros()}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition-all cursor-pointer"
+                          icone={<Clock3 className="w-3.5 h-3.5" />}
                         >
-                          <Clock3 className="w-3.5 h-3.5" />
-                          <span>Limpar Filtros das Colunas</span>
-                        </button>
+                          Limpar Filtros das Colunas
+                        </Botao>
                       ) : temPermissaoAcao('criarPaciente') && (
-                        <button
-                          type="button"
+                        <Botao
+                          variante="primario"
+                          tamanho="md"
+                          formato="pilula"
                           onClick={aoNovoPaciente}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-xl shadow-xs transition-all active:scale-[0.98] cursor-pointer"
-                          style={{ background: 'linear-gradient(135deg, #034b7f 0%, #14438f 100%)', boxShadow: '0 2px 8px rgba(3,75,127,0.25)' }}
+                          icone={<Plus className="w-3.5 h-3.5" />}
                         >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Cadastrar Novo Paciente</span>
-                        </button>
+                          Cadastrar Novo Paciente
+                        </Botao>
                       )}
                     </div>
                   </td>

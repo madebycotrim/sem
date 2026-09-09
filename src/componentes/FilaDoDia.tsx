@@ -10,7 +10,8 @@ import {
 import { Paginacao } from './Paginacao.tsx';
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 import { censurarCpf } from './TabelaPacientes.tsx';
-import { Clock3, RotateCcw, CalendarDays, ClipboardCheck, Play } from 'lucide-react';
+import { Clock3, RotateCcw, CalendarDays, ClipboardCheck, Play, Plus } from 'lucide-react';
+import { Botao } from './Botao.tsx';
 import { ModalTriagem, type ItemPacienteTriagem, type ItemProfissionalTriagem } from './ModalTriagem.tsx';
 import { ModalIniciarAtendimento, type DadosAtendimento } from './ModalIniciarAtendimento.tsx';
 import type { ItemAtendimentoLista } from './Atendimentos.tsx';
@@ -282,22 +283,25 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                           : 'A fila de hoje está vazia. Realize um check-in para adicionar o primeiro paciente do dia.'}
                       </p>
                       {temAlgumFiltroAtivo ? (
-                        <button
-                          type="button"
+                        <Botao
+                          variante="secundario"
+                          tamanho="sm"
+                          formato="pilula"
                           onClick={() => filtroExcel.limparTodosFiltros()}
-                          className="inline-flex h-9 items-center gap-1.5 px-3.5 text-xs font-extrabold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl shadow-sm transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-100"
+                          icone={<RotateCcw className="w-3.5 h-3.5" />}
                         >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Limpar Filtros das Colunas</span>
-                        </button>
+                          Limpar Filtros das Colunas
+                        </Botao>
                       ) : (
-                        <button
-                          type="button"
+                        <Botao
+                          variante="primario"
+                          tamanho="md"
+                          formato="pilula"
                           onClick={() => setModalTriagemAberto(true)}
-                          className="inline-flex h-9 items-center gap-1.5 px-4 text-xs font-extrabold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-xl shadow-[0_4px_12px_rgba(37,99,235,0.22)] transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+                          icone={<Plus className="w-3.5 h-3.5" />}
                         >
-                          + Triagem / Check-in
-                        </button>
+                          Triagem / Check-in
+                        </Botao>
                       )}
                     </div>
                   </td>

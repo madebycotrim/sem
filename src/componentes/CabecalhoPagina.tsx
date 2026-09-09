@@ -1,6 +1,7 @@
 import { type FC, type ReactNode } from 'react';
 import { AlertTriangle, ChevronDown, Download, LoaderCircle, Plus, Search, X, Wifi, WifiOff } from 'lucide-react';
 import { SelectModal } from './Modal';
+import { Botao } from './Botao.tsx';
 
 export interface OpcaoSeletor {
   id: string;
@@ -246,14 +247,14 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
 
             {/* Botão de Exportação */}
             {aoExportar && (
-              <button
-                type="button"
+              <Botao
+                variante="secundario"
+                tamanho="iconeMd"
+                formato="pilula"
                 onClick={aoExportar}
-                className="h-10.5 w-10.5 flex items-center justify-center text-slate-600 bg-white border border-slate-200/90 rounded-2xl hover:bg-slate-50 hover:text-slate-800 transition-all shadow-2xs cursor-pointer"
                 title="Exportar registros (CSV / Relatório)"
-              >
-                <Download className="w-4 h-4" />
-              </button>
+                icone={<Download className="w-4 h-4" />}
+              />
             )}
 
             {/* Ações Extras Customizadas */}
@@ -261,23 +262,16 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
 
             {/* Botão de Ação Primária */}
             {acaoPrimaria && (
-              <button
-                type="button"
+              <Botao
+                variante="primario"
+                tamanho="md"
+                formato="pilula"
                 onClick={acaoPrimaria.aoClicar}
                 disabled={acaoPrimaria.desabilitado}
-                className="h-10 flex items-center gap-2 px-5 text-xs font-semibold text-white rounded-xl shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer whitespace-nowrap"
-                style={{
-                  background: 'linear-gradient(135deg, #034b7f 0%, #14438f 100%)',
-                  boxShadow: '0 2px 8px rgba(3,75,127,0.25)',
-                }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 16px rgba(3,75,127,0.35)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 2px 8px rgba(3,75,127,0.25)'; }}
+                icone={acaoPrimaria.icone || <Plus className="w-4 h-4" />}
               >
-                {acaoPrimaria.icone || (
-                  <Plus className="w-4 h-4" />
-                )}
-                <span>{acaoPrimaria.rotulo.replace(/^\+\s*/, '')}</span>
-              </button>
+                {acaoPrimaria.rotulo.replace(/^\+\s*/, '')}
+              </Botao>
             )}
           </div>
         </div>

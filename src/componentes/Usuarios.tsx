@@ -15,6 +15,7 @@ import { requisicaoApi } from '../servicos/api.ts';
 import { ModalNovoUsuario, type FormNovoUsuario } from './ModalNovoUsuario.tsx';
 import { ModalRedefinirSenhaUsuario } from './ModalRedefinirSenhaUsuario.tsx';
 import { ModalPermissoes } from './ModalPermissoes.tsx';
+import { Botao } from './Botao.tsx';
 
 export interface UsuarioItem {
   id: string;
@@ -271,13 +272,15 @@ export const Usuarios: FC = () => {
                         </svg>
                       </div>
                       <p className="text-xs font-bold text-slate-800 mb-1">{erro}</p>
-                      <button
-                        type="button"
+                      <Botao
+                        variante="secundario"
+                        tamanho="sm"
+                        formato="pilula"
                         onClick={carregarUsuarios}
-                        className="mt-2 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all cursor-pointer"
+                        className="mt-2"
                       >
                         Tentar Novamente
-                      </button>
+                      </Botao>
                     </div>
                   </td>
                 </tr>
@@ -305,17 +308,14 @@ export const Usuarios: FC = () => {
                       </p>
 
                       {temAlgumFiltroAtivo && (
-                        <button
-                          type="button"
+                        <Botao
+                          variante="secundario"
+                          tamanho="sm"
+                          formato="pilula"
                           onClick={() => filtroExcel.limparTodosFiltros()}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl transition-all cursor-pointer"
                         >
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="1 4 1 10 7 10" />
-                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-                          </svg>
-                          <span>Limpar Filtros</span>
-                        </button>
+                          Limpar Filtros
+                        </Botao>
                       )}
                     </div>
                   </td>

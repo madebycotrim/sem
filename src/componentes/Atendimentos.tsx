@@ -12,6 +12,7 @@ import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { Paginacao } from './Paginacao.tsx';
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 import { SelectModal } from './Modal.tsx';
+import { Botao } from './Botao.tsx';
 import { STATUS_ATENDIMENTO_LABELS, StatusAtendimento } from '../../compartilhado/index.ts';
 
 export interface ItemAtendimentoLista {
@@ -304,14 +305,15 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                           : 'Clique em Novo Atendimento para registrar a primeira consulta.'}
                       </p>
                       {temAlgumFiltroAtivo && (
-                        <button
-                          type="button"
+                        <Botao
+                          variante="secundario"
+                          tamanho="sm"
+                          formato="pilula"
                           onClick={() => filtroExcel.limparTodosFiltros()}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl transition-all cursor-pointer"
+                          icone={<RotateCcw className="w-3.5 h-3.5" />}
                         >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Limpar Filtros das Colunas</span>
-                        </button>
+                          Limpar Filtros das Colunas
+                        </Botao>
                       )}
                     </div>
                   </td>

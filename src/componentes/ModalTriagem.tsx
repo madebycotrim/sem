@@ -16,6 +16,7 @@ import {
   ModalSelectCustom,
   type OpcaoSelectCustom,
 } from './Modal.tsx';
+import { Botao } from './Botao.tsx';
 import { Especialidade } from '../../compartilhado/index.ts';
 import { mascararCpf } from '../servicos/apiCpf.ts';
 import { EspecialidadeBadge, obterEstiloEspecialidade } from './EspecialidadeVisual.tsx';
@@ -504,20 +505,22 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
               </div>
 
               <div className="flex items-center justify-end gap-2.5 pt-1">
-                <button
-                  type="button"
+                <Botao
+                  variante="secundario"
+                  tamanho="sm"
+                  formato="pilula"
                   onClick={cancelarAlteracaoInstituicao}
-                  className="h-9 px-4 text-xs font-bold rounded-xl text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-100"
                 >
                   Não
-                </button>
-                <button
-                  type="button"
+                </Botao>
+                <Botao
+                  variante="primario"
+                  tamanho="sm"
+                  formato="pilula"
                   onClick={confirmarAlteracaoInstituicao}
-                  className="h-9 px-4 text-xs font-extrabold rounded-xl text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
                 >
                   Sim, alterar
-                </button>
+                </Botao>
               </div>
             </div>
           </div>,

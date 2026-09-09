@@ -10,8 +10,9 @@ import {
   useContext,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { CircleAlert, LoaderCircle, Trash2, X } from 'lucide-react';
+import { CircleAlert, Trash2, X } from 'lucide-react';
 import { SeletorFiltroUniversal, type OpcaoFiltroItem, type CategoriaFiltro } from './SeletorFiltroUniversal.tsx';
+import { Botao } from './Botao.tsx';
 
 export { SeletorFiltroUniversal };
 export type { OpcaoFiltroItem, CategoriaFiltro };
@@ -405,13 +406,6 @@ export const BotaoModal: FC<BotaoModalProps> = ({
 }) => {
   const { tentarFechar } = useModalContexto();
 
-  const estilosVariante =
-    variante === 'primario'
-      ? 'bg-gradient-to-r from-[#0066ff] via-[#0f6ae8] to-[#0256d0] text-white border border-blue-500/30 shadow-[0_6px_20px_rgba(0,102,255,0.30)] hover:shadow-[0_8px_24px_rgba(0,102,255,0.42)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-2xl font-extrabold tracking-tight'
-      : variante === 'perigo'
-        ? 'bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white border border-rose-600/30 shadow-[0_6px_20px_rgba(225,29,72,0.28)] hover:shadow-[0_8px_24px_rgba(225,29,72,0.40)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-2xl font-extrabold tracking-tight'
-        : 'bg-white text-slate-700 border border-slate-200/90 shadow-sm hover:bg-slate-50 hover:border-slate-300 hover:text-slate-900 hover:scale-[1.01] active:scale-[0.98] transition-all duration-200 rounded-2xl font-bold tracking-tight';
-
   const tratarClique = () => {
     if (aoClicar) {
       aoClicar();
@@ -421,22 +415,20 @@ export const BotaoModal: FC<BotaoModalProps> = ({
   };
 
   return (
-    <button
+    <Botao
       type={tipo}
       form={formId}
-      disabled={desabilitado || carregando}
+      variante={variante}
+      tamanho="md"
+      formato="pilula"
+      carregando={carregando}
+      textoCarregando="Aguarde..."
+      disabled={desabilitado}
       onClick={tratarClique}
-      className={`h-11 min-w-[130px] px-5 text-[13px] transition-all duration-200 ease-out flex items-center justify-center gap-2 cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 ${estilosVariante} ${className}`}
+      className={`min-w-[130px] ${className}`}
     >
-      {carregando ? (
-        <>
-          <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
-          <span>Aguarde...</span>
-        </>
-      ) : (
-        rotulo
-      )}
-    </button>
+      {rotulo}
+    </Botao>
   );
 };
 

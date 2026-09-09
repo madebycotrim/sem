@@ -23,6 +23,7 @@ import {
   type ConfiguracaoColuna,
 } from './tabelaExcel/index.ts';
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
+import { Botao } from './Botao.tsx';
 import { SeletorFiltroUniversal } from './SeletorFiltroUniversal.tsx';
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 
@@ -650,8 +651,10 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                 Tudo
               </button>
               <span className="mx-0.5 h-6 w-px bg-slate-200" aria-hidden="true" />
-              <button
-                type="button"
+              <Botao
+                variante="secundario"
+                tamanho="sm"
+                formato="pilula"
                 onClick={() => {
                   setBuscaTabela('');
                   setStatusFiltro('');
@@ -665,23 +668,22 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   setFiltrosModificados(false);
                   setRelatorioGerado(false);
                 }}
-                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-rose-600 transition-colors hover:bg-rose-50 cursor-pointer"
+                icone={<RotateCcw className="h-3.5 w-3.5" />}
+                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-slate-200"
               >
-                <RotateCcw className="h-3.5 w-3.5" /> Limpar
-              </button>
+                Limpar
+              </Botao>
               <span className="mx-0.5 h-6 w-px bg-slate-200" aria-hidden="true" />
-              <button
-                type="button"
+              <Botao
+                variante={filtrosModificados ? 'destaque' : 'primario'}
+                tamanho="md"
+                formato="pilula"
                 onClick={handleGerarRelatorio}
-                className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-bold transition-all shadow-sm cursor-pointer ${
-                  filtrosModificados
-                    ? 'bg-blue-600 text-white hover:bg-blue-700 ring-2 ring-blue-300 animate-pulse'
-                    : 'bg-[#034b7f] text-white hover:bg-[#023a63]'
-                }`}
+                icone={<FileBarChart2 className="h-4 w-4" />}
+                className={filtrosModificados ? 'ring-2 ring-blue-300 animate-pulse' : ''}
               >
-                <FileBarChart2 className="h-4 w-4" />
                 {relatorioGerado ? (filtrosModificados ? 'Atualizar Relatório' : 'Relatório Atualizado') : 'Gerar Relatório'}
-              </button>
+              </Botao>
             </div>
           </div>
         }
