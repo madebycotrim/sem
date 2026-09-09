@@ -690,6 +690,7 @@ export function App() {
                 pacientes={pacientes}
                 atendimentos={atendimentos}
                 profissionais={profissionais}
+                aoAtualizarStatus={handleAtualizarStatusAtendimento}
                 aoIniciarAtendimento={() => {
                   // O modal de atendimento já trata o fluxo internamente na FilaDoDia
                 }}

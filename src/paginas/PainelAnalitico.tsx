@@ -226,15 +226,15 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
   return (
     <div className="flex flex-1 flex-col animate-fade-in font-sans">
       <CabecalhoPagina
-        titulo="Painel Analítico"
+        titulo="Dashboard"
         subtitulo="VISÃO OPERACIONAL E INDICADORES DE ATENDIMENTO"
         fixo
       />
 
-      {/* ─── Card em Destaque: Visão Operacional Acumulada ─────────────────── */}
+      {/* ─── Card 1: Visão Operacional Acumulada ───────────────────────── */}
       <div className="mb-5 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
         {/* Resumo Operacional */}
-        <section aria-label="Resumo operacional de consultas" className="mb-5">
+        <section aria-label="Resumo operacional de consultas">
           <div className="mb-4 flex items-end justify-between gap-3 border-b border-slate-100 pb-3">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
@@ -254,12 +254,12 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
-                      {indicador.rotulo}
-                    </p>
-                    <p className="mt-1.5 text-3xl font-extrabold leading-none text-[#0b2545]">
-                      <NumeroAnimado valor={indicador.valor} />
-                    </p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                        {indicador.rotulo}
+                      </p>
+                      <p className="mt-1.5 text-3xl font-extrabold leading-none text-[#0b2545]">
+                        <NumeroAnimado valor={indicador.valor} />
+                      </p>
                     </div>
                     <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${indicador.fundo} ${indicador.cor}`}>
                       <Icone className="h-4 w-4" />
@@ -289,31 +289,37 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
             })}
           </div>
         </section>
-
       </div>
 
-      <div className="mb-5 rounded-2xl border border-slate-200 bg-[#eef3f7] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Filtro Analitico</span>
-          <button
-            type="button"
-            onClick={() => {
-              setEscola('');
-              setEspecialidade('');
-              setStatusFiltro('');
-              setProfissional('');
-              setDataInicio(`${new Date().getFullYear()}-01-01`);
-              setDataFim(new Date().toISOString().slice(0, 10));
-            }}
-            className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-500 transition-colors hover:text-rose-600 cursor-pointer"
-          >
-            <RotateCcw className="h-3 w-3" />
-            Limpar
-          </button>
-        </div>
+      {/* ─── Card 2: Filtros Analíticos + Resultados da Pesquisa + Gráficos ──── */}
+      <div className="mb-5 rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs flex flex-col gap-6">
+        
+        {/* 1. Filtros Analíticos */}
+        <section aria-label="Filtros analíticos">
+          <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              Filtros analíticos
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setEscola('');
+                setEspecialidade('');
+                setStatusFiltro('');
+                setProfissional('');
+                setDataInicio(`${new Date().getFullYear()}-01-01`);
+                setDataFim(new Date().toISOString().slice(0, 10));
+              }}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-500 transition-colors hover:text-rose-600 cursor-pointer"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Limpar filtros
+            </button>
+          </div>
 
-        <div className="mt-5 flex flex-col gap-3">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-[150px_150px_1fr_1.6fr_1.2fr_1.6fr] items-center gap-2.5 w-full min-w-0">
+          {/* Ordem solicitada: data, especialidade, profissionais, instituições, status */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[140px_140px_1.2fr_1.6fr_1.5fr_1.2fr] items-center gap-2.5 w-full min-w-0">
+            {/* 1. Data Início */}
             <label
               className="relative flex h-10 cursor-pointer items-center justify-between gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 w-full min-w-0 shadow-2xs"
               onClick={(evento) => {
@@ -341,6 +347,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
               />
             </label>
 
+            {/* 2. Data Fim */}
             <label
               className="relative flex h-10 cursor-pointer items-center justify-between gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 w-full min-w-0 shadow-2xs"
               onClick={(evento) => {
@@ -368,30 +375,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
               />
             </label>
 
-            <div className="w-full min-w-0">
-              <SeletorFiltroUniversal
-                categoria="status"
-                valor={statusFiltro}
-                aoMudar={setStatusFiltro}
-                placeholder="Todos os status"
-                tamanho="sm"
-                fundoBranco
-                pesquisavel={false}
-              />
-            </div>
-
-            <div className="w-full min-w-0">
-              <SeletorFiltroUniversal
-                categoria="instituicoes"
-                valor={escola}
-                aoMudar={setEscola}
-                placeholder="Todas as instituições"
-                tamanho="sm"
-                fundoBranco
-                opcoes={escolas.map((item) => ({ id: item.nome, valor: item.nome, nome: item.nome, rotulo: item.nome }))}
-              />
-            </div>
-
+            {/* 3. Especialidade */}
             <div className="w-full min-w-0">
               <SeletorFiltroUniversal
                 categoria="especialidades"
@@ -404,6 +388,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
               />
             </div>
 
+            {/* 4. Profissionais */}
             <div className="w-full min-w-0">
               <SeletorFiltroUniversal
                 categoria="profissionais"
@@ -421,81 +406,282 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
                 }))}
               />
             </div>
+
+            {/* 5. Instituições */}
+            <div className="w-full min-w-0">
+              <SeletorFiltroUniversal
+                categoria="instituicoes"
+                valor={escola}
+                aoMudar={setEscola}
+                placeholder="Todas as instituições"
+                tamanho="sm"
+                fundoBranco
+                opcoes={escolas.map((item) => ({ id: item.nome, valor: item.nome, nome: item.nome, rotulo: item.nome }))}
+              />
+            </div>
+
+            {/* 6. Status */}
+            <div className="w-full min-w-0">
+              <SeletorFiltroUniversal
+                categoria="status"
+                valor={statusFiltro}
+                aoMudar={setStatusFiltro}
+                placeholder="Todos os status"
+                tamanho="sm"
+                fundoBranco
+                pesquisavel={false}
+              />
+            </div>
           </div>
-
-        </div>
-      </div>
-
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { rotulo: 'Consultas no período', valor: atendimentosFiltrados.length, detalhe: periodoLabel, icone: Activity, cor: 'text-blue-600', fundo: 'bg-blue-50' },
-          { rotulo: 'Especialidades ativas', valor: contagemEspecialidades.filter((item) => item.total > 0).length, detalhe: 'com registros', icone: BarChart3, cor: 'text-indigo-600', fundo: 'bg-indigo-50' },
-          { rotulo: 'Profissionais ativos', valor: rankingProfissionais.length, detalhe: 'com registro no período', icone: UsersRound, cor: 'text-amber-600', fundo: 'bg-amber-50' },
-          { rotulo: 'Unidades atendidas', valor: rankingUnidades.length, detalhe: 'com registro no período', icone: Building2, cor: 'text-emerald-600', fundo: 'bg-emerald-50' },
-        ].map((indicador) => {
-          const Icone = indicador.icone;
-          return <div key={indicador.rotulo} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs"><div className="flex items-start justify-between"><span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{indicador.rotulo}</span><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${indicador.fundo} ${indicador.cor}`}><Icone className="h-4 w-4" /></span></div><p className="mt-3 text-3xl font-extrabold leading-none text-[#0b2545]">{indicador.valor}</p><p className="mt-1 text-[11px] font-medium text-slate-400">{indicador.detalhe}</p></div>;
-        })}
-      </div>
-
-      <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-        <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><div className="flex items-center gap-2"><Activity className="h-4 w-4 text-blue-600" /><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Status do atendimento</h2></div><span className="text-[11px] font-semibold text-slate-400">{atendimentosFiltrados.length} no período</span></div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          {contagemStatus.map((item) => <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"><p className="truncate text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{item.nome}</p><p className="mt-2 text-2xl font-extrabold text-[#0b2545]">{item.total}</p><p className="mt-1 text-[10px] text-slate-400">registros</p></div>)}
-        </div>
-      </section>
-
-      <div className="grid grid-cols-1 gap-4">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-          <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-3"><div className="flex items-center gap-2"><BarChart3 className="h-4 w-4 text-blue-600" /><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Consultas por especialidade</h2></div><span className="text-[11px] text-slate-400">{periodoLabel}</span></div>
-          {atendimentosFiltrados.length ? <div className="space-y-4">{contagemEspecialidades.map((item) => <div key={item.id}><div className="mb-1.5 flex justify-between text-xs font-semibold text-slate-700"><span>{item.nome}</span><span>{item.total}</span></div><div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className={`${item.cor} h-full rounded-full transition-all duration-500`} style={{ width: `${(item.total / maiorEspecialidade) * 100}%` }} /></div></div>)}</div> : <div className="flex h-44 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 text-xs font-medium text-slate-400">Nenhuma consulta no período selecionado.</div>}
         </section>
 
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-          <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-blue-600" /><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Linha temporal</h2></div>
-            <span className="text-[11px] text-slate-400">{periodoLabel}</span>
+        {/* 2. Resultados da Pesquisa */}
+        <section aria-label="Resultados da pesquisa" className="pt-2 border-t border-slate-100">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-blue-600" />
+              <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">
+                Resultados da pesquisa
+              </h2>
+            </div>
+            <span className="text-[11px] font-semibold text-slate-400">
+              {atendimentosFiltrados.length} no período • {periodoLabel}
+            </span>
           </div>
-          {atendimentosFiltrados.length ? <div className="flex h-44 items-end gap-2 border-b border-slate-100 px-2 pb-2">
-            {consultasPorDia.map((item) => (
-              <div key={item.dia} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-                <span className="text-[10px] font-bold text-slate-500">{item.total || ''}</span>
-                <div className="w-full rounded-t-lg bg-blue-500 transition-all duration-500" style={{ height: `${Math.max((item.total / maiorDia) * 100, item.total ? 8 : 2)}%` }} />
-                <span className="text-[10px] font-semibold text-slate-400">{item.dia}</span>
+
+          {/* Indicadores resumidos do período filtrado */}
+          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              { rotulo: 'Consultas no período', valor: atendimentosFiltrados.length, detalhe: periodoLabel, icone: Activity, cor: 'text-blue-600', fundo: 'bg-blue-50' },
+              { rotulo: 'Especialidades ativas', valor: contagemEspecialidades.filter((item) => item.total > 0).length, detalhe: 'com registros', icone: BarChart3, cor: 'text-indigo-600', fundo: 'bg-indigo-50' },
+              { rotulo: 'Profissionais ativos', valor: rankingProfissionais.length, detalhe: 'com registro no período', icone: UsersRound, cor: 'text-amber-600', fundo: 'bg-amber-50' },
+              { rotulo: 'Unidades atendidas', valor: rankingUnidades.length, detalhe: 'com registro no período', icone: Building2, cor: 'text-emerald-600', fundo: 'bg-emerald-50' },
+            ].map((indicador) => {
+              const Icone = indicador.icone;
+              return (
+                <div key={indicador.rotulo} className="rounded-xl border border-slate-200/80 bg-slate-50/40 p-4 shadow-2xs transition-all hover:bg-white hover:shadow-xs">
+                  <div className="flex items-start justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{indicador.rotulo}</span>
+                    <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${indicador.fundo} ${indicador.cor}`}>
+                      <Icone className="h-4 w-4" />
+                    </span>
+                  </div>
+                  <p className="mt-3 text-3xl font-extrabold leading-none text-[#0b2545]">{indicador.valor}</p>
+                  <p className="mt-1 text-[11px] font-medium text-slate-400">{indicador.detalhe}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Distribuição por status */}
+          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-6">
+            {contagemStatus.map((item) => (
+              <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 transition-colors hover:bg-slate-50">
+                <p className="truncate text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">{item.nome}</p>
+                <p className="mt-2 text-2xl font-extrabold text-[#0b2545]">{item.total}</p>
+                <p className="mt-0.5 text-[10px] text-slate-400">registros</p>
               </div>
             ))}
-          </div> : <div className="flex h-44 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 text-xs font-medium text-slate-400">Sem dados para montar a linha temporal.</div>}
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-          <div className="mb-5 flex items-center gap-2 border-b border-slate-100 pb-3"><Activity className="h-4 w-4 text-blue-600" /><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Análise de demanda</h2></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-700">Dia de pico</p><p className="mt-2 text-lg font-extrabold text-[#0b2545]">{diaDePico?.dia || '-'}</p><p className="mt-1 text-[10px] text-blue-700">maior volume no período</p></div>
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">Média diária</p><p className="mt-2 text-lg font-extrabold text-[#0b2545]">{consultasPorDia.length ? (atendimentosFiltrados.length / consultasPorDia.length).toFixed(1) : '0'}</p><p className="mt-1 text-[10px] text-emerald-700">consultas por dia</p></div>
-            <div className="col-span-2 rounded-xl border border-amber-100 bg-amber-50/60 p-4"><div className="mb-2 flex justify-between text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700"><span>Demanda por horário</span><span>{horaDePico ? `Pico: ${horaDePico.hora}` : 'Sem dados'}</span></div>{atendimentosFiltrados.length ? <div className="flex h-10 items-end gap-1">{horas.map((item) => <div key={item.hora} className="flex-1 rounded-t bg-amber-400" style={{ height: `${Math.max((item.total / maiorHora) * 100, item.total ? 12 : 3)}%` }} title={`${item.hora}: ${item.total}`} />)}</div> : <div className="flex h-10 items-center justify-center text-[10px] text-amber-700">Nenhuma consulta no período</div>}<div className="mt-1 flex justify-between text-[9px] text-amber-700"><span>08h</span><span>12h</span><span>17h</span></div></div>
           </div>
         </section>
-      </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-          <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3"><UsersRound className="h-4 w-4 text-blue-600" /><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Ranking de profissionais</h2></div>
-          <div className="space-y-3">{rankingProfissionais.length ? rankingProfissionais.map(([nome, total], indice) => <div key={nome}><div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-700"><span><b className="mr-2 text-slate-400">{indice + 1}</b>{nome}</span><span>{total}</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${(total / rankingProfissionais[0][1]) * 100}%` }} /></div></div>) : <p className="py-5 text-center text-xs text-slate-400">Nenhum profissional com registro no período.</p>}</div>
+        {/* 3. Gráficos e Distribuições */}
+        <section aria-label="Gráficos e análises" className="pt-2 border-t border-slate-100 space-y-5">
+          {/* Consultas por Especialidade */}
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/30 p-4 sm:p-5">
+            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-blue-600" />
+                <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Consultas por especialidade</h3>
+              </div>
+              <span className="text-[11px] text-slate-400">{periodoLabel}</span>
+            </div>
+            {atendimentosFiltrados.length ? (
+              <div className="space-y-3.5">
+                {contagemEspecialidades.map((item) => (
+                  <div key={item.id}>
+                    <div className="mb-1 flex justify-between text-xs font-semibold text-slate-700">
+                      <span>{item.nome}</span>
+                      <span>{item.total}</span>
+                    </div>
+                    <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className={`${item.cor} h-full rounded-full transition-all duration-500`}
+                        style={{ width: `${(item.total / maiorEspecialidade) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex h-36 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-xs font-medium text-slate-400">
+                Nenhuma consulta no período selecionado.
+              </div>
+            )}
+          </div>
+
+          {/* Linha Temporal + Análise de Demanda */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {/* Linha temporal */}
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/30 p-4 sm:p-5">
+              <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-blue-600" />
+                  <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Linha temporal</h3>
+                </div>
+                <span className="text-[11px] text-slate-400">{periodoLabel}</span>
+              </div>
+              {atendimentosFiltrados.length ? (
+                <div className="flex h-44 items-end gap-2 border-b border-slate-100 px-2 pb-2">
+                  {consultasPorDia.map((item) => (
+                    <div key={item.dia} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
+                      <span className="text-[10px] font-bold text-slate-500">{item.total || ''}</span>
+                      <div
+                        className="w-full rounded-t-lg bg-blue-500 transition-all duration-500"
+                        style={{ height: `${Math.max((item.total / maiorDia) * 100, item.total ? 8 : 2)}%` }}
+                      />
+                      <span className="text-[10px] font-semibold text-slate-400">{item.dia}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex h-44 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-xs font-medium text-slate-400">
+                  Sem dados para montar a linha temporal.
+                </div>
+              )}
+            </div>
+
+            {/* Análise de demanda */}
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/30 p-4 sm:p-5">
+              <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+                <Activity className="h-4 w-4 text-blue-600" />
+                <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Análise de demanda</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-700">Dia de pico</p>
+                  <p className="mt-2 text-lg font-extrabold text-[#0b2545]">{diaDePico?.dia || '-'}</p>
+                  <p className="mt-1 text-[10px] text-blue-700">maior volume no período</p>
+                </div>
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">Média diária</p>
+                  <p className="mt-2 text-lg font-extrabold text-[#0b2545]">
+                    {consultasPorDia.length ? (atendimentosFiltrados.length / consultasPorDia.length).toFixed(1) : '0'}
+                  </p>
+                  <p className="mt-1 text-[10px] text-emerald-700">consultas por dia</p>
+                </div>
+                <div className="col-span-2 rounded-xl border border-amber-100 bg-amber-50/60 p-4">
+                  <div className="mb-2 flex justify-between text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700">
+                    <span>Demanda por horário</span>
+                    <span>{horaDePico ? `Pico: ${horaDePico.hora}` : 'Sem dados'}</span>
+                  </div>
+                  {atendimentosFiltrados.length ? (
+                    <div className="flex h-10 items-end gap-1">
+                      {horas.map((item) => (
+                        <div
+                          key={item.hora}
+                          className="flex-1 rounded-t bg-amber-400"
+                          style={{ height: `${Math.max((item.total / maiorHora) * 100, item.total ? 12 : 3)}%` }}
+                          title={`${item.hora}: ${item.total}`}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex h-10 items-center justify-center text-[10px] text-amber-700">
+                      Nenhuma consulta no período
+                    </div>
+                  )}
+                  <div className="mt-1 flex justify-between text-[9px] text-amber-700">
+                    <span>08h</span>
+                    <span>12h</span>
+                    <span>17h</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Ranking de Profissionais + Distribuição por Unidade */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {/* Ranking de profissionais */}
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/30 p-4 sm:p-5">
+              <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+                <UsersRound className="h-4 w-4 text-blue-600" />
+                <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Ranking de profissionais</h3>
+              </div>
+              <div className="space-y-3">
+                {rankingProfissionais.length ? (
+                  rankingProfissionais.map(([nome, total], indice) => (
+                    <div key={nome}>
+                      <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-700">
+                        <span><b className="mr-2 text-slate-400">{indice + 1}</b>{nome}</span>
+                        <span>{total}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-blue-600"
+                          style={{ width: `${(total / rankingProfissionais[0][1]) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="py-5 text-center text-xs text-slate-400">Nenhum profissional com registro no período.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Distribuição por unidade */}
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/30 p-4 sm:p-5">
+              <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+                <Building2 className="h-4 w-4 text-blue-600" />
+                <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Distribuição por unidade</h3>
+              </div>
+              <div className="space-y-3">
+                {rankingUnidades.length ? (
+                  rankingUnidades.map(([nome, total]) => (
+                    <div key={nome}>
+                      <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-700">
+                        <span className="flex min-w-0 items-center gap-1.5 truncate">
+                          <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
+                          {nome}
+                        </span>
+                        <span>{total}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-emerald-500"
+                          style={{ width: `${(total / rankingUnidades[0][1]) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="py-5 text-center text-xs text-slate-400">Nenhuma unidade com registro no período.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Alertas operacionais */}
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/30 p-4 sm:p-5">
+            <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-3">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Alertas operacionais</h3>
+            </div>
+            {pacientes.filter((paciente) => paciente.termoConsentimentoStatus === 'PENDENTE').length > 0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                <strong>Consentimentos pendentes:</strong> existem {pacientes.filter((paciente) => paciente.termoConsentimentoStatus === 'PENDENTE').length} pacientes aguardando regularização.
+              </div>
+            ) : (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+                Nenhum alerta operacional pendente no momento.
+              </div>
+            )}
+          </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-          <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3"><Building2 className="h-4 w-4 text-blue-600" /><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Distribuição por unidade</h2></div>
-          <div className="space-y-3">{rankingUnidades.length ? rankingUnidades.map(([nome, total]) => <div key={nome}><div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-700"><span className="flex min-w-0 items-center gap-1.5 truncate"><MapPin className="h-3 w-3 shrink-0 text-slate-400" />{nome}</span><span>{total}</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${(total / rankingUnidades[0][1]) * 100}%` }} /></div></div>) : <p className="py-5 text-center text-xs text-slate-400">Nenhuma unidade com registro no período.</p>}</div>
-        </section>
       </div>
-
-      <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-        <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-3"><AlertTriangle className="h-4 w-4 text-amber-500" /><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b2545]">Alertas operacionais</h2></div>
-        {pacientes.filter((paciente) => paciente.termoConsentimentoStatus === 'PENDENTE').length > 0 ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800"><strong>Consentimentos pendentes:</strong> existem {pacientes.filter((paciente) => paciente.termoConsentimentoStatus === 'PENDENTE').length} pacientes aguardando regularização.</div> : <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">Nenhum alerta operacional pendente no momento.</div>}
-      </section>
     </div>
   );
 };

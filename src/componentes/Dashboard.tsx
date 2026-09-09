@@ -248,13 +248,13 @@ export const Dashboard: FC<DashboardProps> = ({
                   <BarChart3 className="w-5 h-5" />
                 </div>
                 <h4 className="text-xs font-bold text-indigo-900 group-hover:text-indigo-700">
-                  Explorar painel analítico
+                  Explorar dashboard
                 </h4>
                 <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
                   Acompanhe indicadores, tendências e a distribuição dos atendimentos em uma visão completa.
                 </p>
                 <span className="inline-block mt-2.5 text-[10.5px] font-bold text-indigo-600">
-                  Abrir painel →
+                  Abrir dashboard →
                 </span>
               </button>
             </div>

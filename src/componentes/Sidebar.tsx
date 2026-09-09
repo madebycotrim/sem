@@ -167,7 +167,7 @@ export const Sidebar: FC<SidebarProps> = ({
           {/* Grupo 2: BI & Analytics */}
           {(!temAcesso || temAcesso('bi')) && (
             <ItemDock
-              rotulo="Painel Analítico"
+              rotulo="Dashboard"
               categoria="BI & Indicadores"
               descricao="Indicadores operacionais, análise de demanda e gráficos temporais"
               ativo={secaoAtiva === 'bi'}
