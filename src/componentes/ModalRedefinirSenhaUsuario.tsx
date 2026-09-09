@@ -1,6 +1,6 @@
 import { useState, type FC, useEffect } from 'react';
 import { Modal, BotaoModal, ModalSecao } from './Modal.tsx';
-import { Check, Copy, KeyRound, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Check, Copy, KeyRound, RefreshCw, ShieldAlert, CircleAlert } from 'lucide-react';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { PERFIL_ACESSO_LABELS } from '../../compartilhado/index.ts';
 import { requisicaoApi } from '../servicos/api.ts';
@@ -33,7 +33,7 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
     setCopiado(false);
     setSalvo(false);
     if (animar) {
-      setGiros(prev => prev + 1);
+      setGiros((prev) => prev + 1);
     }
   };
 
@@ -51,13 +51,15 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
     }
   };
 
+  const senhaValida = senhaGerada.trim().length >= 8;
+
   const handleSalvar = async () => {
-    if (!usuario || !senhaGerada) return;
+    if (!usuario || !senhaValida) return;
     try {
       setSalvando(true);
       await requisicaoApi(`/usuarios/${usuario.id}/redefinir-senha`, {
         metodo: 'POST',
-        corpo: { novaSenha: senhaGerada },
+        corpo: { novaSenha: senhaGerada.trim() },
       });
       setSalvo(true);
       setTimeout(() => {
@@ -80,18 +82,16 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
       aberto={aberto}
       aoFechar={aoFechar}
       titulo="Redefinição de Senha"
-      subtitulo="Gere uma nova credencial de acesso temporária para este usuário."
-      icone={
-        <KeyRound className="w-5 h-5" />
-      }
+      subtitulo="Gere ou digite uma nova credencial de acesso temporária para este usuário."
+      icone={<KeyRound className="w-5 h-5" />}
       tamanho="md"
       rodape={
         <BotaoModal
-          rotulo={salvo ? "Senha Redefinida com Sucesso!" : "Confirmar e Salvar Nova Senha"}
+          rotulo={salvo ? 'Senha Redefinida com Sucesso!' : 'Confirmar e Salvar Nova Senha'}
           variante="primario"
           aoClicar={handleSalvar}
           carregando={salvando}
-          desabilitado={salvo}
+          desabilitado={salvo || !senhaValida}
           className="w-full"
         />
       }
@@ -102,21 +102,21 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
           <div className="bg-gradient-to-br from-white to-slate-50/50 border border-slate-200/80 rounded-2xl p-4 flex items-center gap-4 shadow-sm relative overflow-hidden group">
             {/* Decoração de Fundo */}
             <div className="absolute right-0 top-0 w-32 h-32 bg-blue-50/50 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
-            
+
             <div
               style={estiloAvatar.style}
               className="w-11 h-11 rounded-full font-bold text-base flex items-center justify-center shrink-0 shadow-sm select-none ring-[3px] ring-white relative z-10"
             >
               {primeiraLetra}
             </div>
-            
+
             <div className="flex flex-col relative z-10 gap-0.5">
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-[#0b2545] uppercase tracking-tight text-[13.5px]">
                   {usuario.nome}
                 </span>
                 <span className="text-[9px] font-bold text-blue-700 bg-blue-50/80 px-1.5 py-0.5 rounded border border-blue-100 uppercase tracking-widest shadow-2xs">
-                  {PERFIL_ACESSO_LABELS[usuario.perfil]}
+                  {PERFIL_ACESSO_LABELS[usuario.perfil] || usuario.perfil}
                 </span>
               </div>
               <div className="text-[11.5px] text-slate-500 font-medium mt-0.5">
@@ -138,7 +138,10 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
                 onClick={() => gerarSenha(true)}
                 className="text-[11.5px] font-bold text-[#034b7f] flex items-center gap-1.5 hover:text-blue-700 transition-colors cursor-pointer group"
               >
-                <RefreshCw style={{ transform: `rotate(-${giros * 360}deg)` }} className="w-3.5 h-3.5 transition-transform duration-500 ease-in-out" />
+                <RefreshCw
+                  style={{ transform: `rotate(-${giros * 360}deg)` }}
+                  className="w-3.5 h-3.5 transition-transform duration-500 ease-in-out"
+                />
                 Gerar outra
               </button>
             </div>
@@ -147,8 +150,13 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
                 <input
                   type="text"
                   value={senhaGerada}
-                  readOnly
-                  className="w-full h-11 px-4 text-[14px] font-bold font-mono tracking-widest text-slate-800 bg-slate-50/80 border border-slate-200/90 rounded-xl outline-none transition-all duration-150 focus:bg-white focus:border-blue-500 focus:ring-3 focus:ring-blue-100"
+                  onChange={(e) => {
+                    setSenhaGerada(e.target.value);
+                    setCopiado(false);
+                    setSalvo(false);
+                  }}
+                  placeholder="Digite ou gere uma senha..."
+                  className="w-full h-11 px-4 text-[14px] font-bold font-mono tracking-wider text-slate-800 bg-white border border-slate-200/90 rounded-xl outline-none transition-all duration-150 focus:border-blue-500 focus:ring-3 focus:ring-blue-100"
                 />
               </div>
               <button
@@ -160,18 +168,21 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
                     : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200/90'
                 }`}
               >
-                {copiado ? (
-                  <Check className="w-4 h-4" />
-                ) : (
-                  <Copy className="w-4 h-4" />
-                )}
+                {copiado ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 {copiado ? 'Copiado' : 'Copiar'}
               </button>
             </div>
-            <p className="text-[11px] font-bold text-emerald-600 flex items-center gap-1 mt-1 px-1">
-              <Check className="w-3.5 h-3.5" />
-              Mínimo de 8 caracteres atingido (10)
-            </p>
+            {senhaValida ? (
+              <p className="text-[11px] font-bold text-emerald-600 flex items-center gap-1 mt-1 px-1">
+                <Check className="w-3.5 h-3.5" />
+                Mínimo de 8 caracteres atingido ({senhaGerada.length})
+              </p>
+            ) : (
+              <p className="text-[11px] font-bold text-amber-600 flex items-center gap-1 mt-1 px-1">
+                <CircleAlert className="w-3.5 h-3.5" />
+                A senha deve ter no mínimo 8 caracteres (atualmente {senhaGerada.length})
+              </p>
+            )}
           </div>
         </ModalSecao>
 
@@ -183,8 +194,10 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
           </div>
           <p className="text-[11.5px] text-slate-500 leading-relaxed font-medium">
             Esta é uma <span className="text-slate-700 font-bold">senha provisória</span>. No primeiro acesso, o usuário será{' '}
-            <span className="text-slate-700 font-bold">obrigatoriamente direcionado a cadastrar sua senha definitiva e confidencial</span>,
-            assegurando a privacidade do titular.
+            <span className="text-slate-700 font-bold">
+              obrigatoriamente direcionado a cadastrar sua senha definitiva e confidencial
+            </span>
+            , assegurando a privacidade do titular.
           </p>
         </div>
       </div>

@@ -215,8 +215,8 @@ rotasUsuarios.post(
       .update(usuarios)
       .set({
         senhaHash,
-        senhaTemporaria: false,
-        senhaTemporariaExpiraEm: null,
+        senhaTemporaria: true,
+        senhaTemporariaExpiraEm: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         atualizadoEm: new Date().toISOString(),
       })
       .where(eq(usuarios.id, id));
