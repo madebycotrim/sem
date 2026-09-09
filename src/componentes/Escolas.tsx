@@ -3,7 +3,7 @@ import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import { ModalNovaEscola } from './ModalNovaEscola.tsx';
 import { Modal, BotaoModal } from './Modal.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
-import { Building2, ChevronDown, MapPin, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Building2, ChevronDown, MapPin, Pencil, Trash2, X } from 'lucide-react';
 
 export interface EscolaPolo {
   id: string;
@@ -65,34 +65,25 @@ export const Escolas: FC<EscolasProps> = ({
 
       {/* Grid ou Estado Vazio de Instituições Escolares */}
       {filtradas.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center min-h-[380px] py-16 px-4 my-auto text-center animate-fade-in">
-          <div className="w-14 h-14 rounded-3xl bg-slate-100 border border-slate-200/80 text-slate-400 flex items-center justify-center mb-3.5 shadow-2xs">
-            <Building2 className="w-7 h-7" />
+        <div className="flex flex-1 min-h-[400px] flex-col items-center justify-center p-8 text-center my-auto animate-fade-in">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100/80 text-slate-400 mb-3">
+            <Building2 className="h-6 w-6" />
           </div>
-          <h3 className="text-sm font-extrabold text-slate-700 tracking-tight">
+          <h3 className="text-sm font-semibold text-slate-700">
             {busca ? 'Nenhuma instituição encontrada' : 'Nenhuma instituição cadastrada'}
           </h3>
-          <p className="mt-1 text-xs text-slate-400 font-medium max-w-xs leading-relaxed">
+          <p className="mt-1 max-w-sm text-xs text-slate-400">
             {busca
               ? `Não encontramos registros para "${busca}". Tente buscar por outro termo.`
               : 'Não há instituições registradas no sistema até o momento.'}
           </p>
-          {busca ? (
+          {busca && (
             <button
               type="button"
               onClick={() => setBusca('')}
               className="mt-4 px-4 py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl transition-all cursor-pointer shadow-2xs active:scale-95"
             >
               Limpar filtro de busca
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setModalAberto(true)}
-              className="mt-4 px-4.5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-2xl transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Cadastrar Nova Instituição</span>
             </button>
           )}
         </div>

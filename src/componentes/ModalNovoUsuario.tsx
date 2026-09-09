@@ -128,7 +128,11 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
         setValue('nomeCompleto', usuarioParaEditar.nome, { shouldValidate: true });
         setValue('email', usuarioParaEditar.email, { shouldValidate: true });
         setValue('senhaTemporaria', '', { shouldValidate: true });
-        setValue('perfil', usuarioParaEditar.perfil, { shouldValidate: true });
+        const perfilValido =
+          usuarioParaEditar.perfil === PerfilAcesso.BOOTSTRAP
+            ? PerfilAcesso.ADMIN
+            : usuarioParaEditar.perfil;
+        setValue('perfil', perfilValido, { shouldValidate: true });
         setValue('conselhoProfissional', usuarioParaEditar.conselhoProfissional || '', { shouldValidate: true });
         setValue('registroProfissional', usuarioParaEditar.registroProfissional || '', { shouldValidate: true });
         setValue('especialidade', usuarioParaEditar.especialidade || '', { shouldValidate: true });
@@ -172,7 +176,7 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
         ...dados,
         nomeCompleto: DOMPurify.sanitize(dados.nomeCompleto.trim().toUpperCase()),
         email: DOMPurify.sanitize(dados.email.trim().toLowerCase()),
-        senhaTemporaria: dados.senhaTemporaria ? dados.senhaTemporaria.trim() : undefined,
+        senhaTemporaria: !usuarioParaEditar && dados.senhaTemporaria ? dados.senhaTemporaria.trim() : undefined,
         conselhoProfissional: dados.conselhoProfissional ? DOMPurify.sanitize(dados.conselhoProfissional) : undefined,
         registroProfissional: dados.registroProfissional ? DOMPurify.sanitize(dados.registroProfissional.trim().toUpperCase()) : undefined,
         especialidade: dados.especialidade ? DOMPurify.sanitize(dados.especialidade) : undefined,
@@ -239,27 +243,30 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
               </ModalCampo>
             </div>
 
-            <div className="md:col-span-1">
+            <div className={usuarioParaEditar ? 'md:col-span-2' : 'md:col-span-1'}>
                <ModalCampo rotulo="E-mail de Acesso" obrigatorio erro={errors.email?.message}>
                  <input
                    type="email"
                    {...register('email')}
                    placeholder="profissional@catraki.com.br"
-                   className={`${ESTILO_INPUT_MODAL} lowercase`}
+                   className={`${ESTILO_INPUT_MODAL} lowercase ${usuarioParaEditar ? 'bg-slate-100/70 text-slate-500 cursor-not-allowed' : ''}`}
+                   disabled={Boolean(usuarioParaEditar)}
                  />
                </ModalCampo>
             </div>
 
-            <div className="md:col-span-1">
-               <ModalCampo rotulo="Senha Temporária" obrigatorio={!usuarioParaEditar} erro={errors.senhaTemporaria?.message} dica={!usuarioParaEditar ? 'Exigida no 1º acesso' : 'Deixe em branco para manter'}>
-                 <input
-                   type="text"
-                   {...register('senhaTemporaria')}
-                   placeholder="Ex: catraki123"
-                   className={ESTILO_INPUT_MODAL}
-                 />
-               </ModalCampo>
-            </div>
+            {!usuarioParaEditar && (
+              <div className="md:col-span-1">
+                 <ModalCampo rotulo="Senha Temporária" obrigatorio erro={errors.senhaTemporaria?.message} dica="Exigida no 1º acesso">
+                   <input
+                     type="text"
+                     {...register('senhaTemporaria')}
+                     placeholder="Ex: catraki123"
+                     className={ESTILO_INPUT_MODAL}
+                   />
+                 </ModalCampo>
+              </div>
+            )}
           </div>
         </ModalSecao>
 

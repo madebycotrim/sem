@@ -215,6 +215,7 @@ export const SeletorFiltroUniversal = forwardRef<
         presets.push({ id: '', valor: '', nome: 'Todos os perfis', rotulo: 'Todos os perfis', icone: ShieldCheck });
       }
       Object.entries(PERFIL_ACESSO_LABELS).forEach(([key, label]) => {
+        if (key === 'BOOTSTRAP') return;
         presets.push({ id: key, valor: key, nome: label, rotulo: label, icone: ShieldCheck });
       });
       return presets;
