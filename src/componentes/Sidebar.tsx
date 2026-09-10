@@ -38,6 +38,7 @@ export interface SidebarProps {
   perfilUsuario?: string;
   temAcesso?: (secao: SecaoMenu) => boolean;
   aoMudarSenha?: () => void;
+  aoAbrirConsoleBootstrap?: () => void;
 }
 
 export const Sidebar: FC<SidebarProps> = ({
@@ -49,8 +50,10 @@ export const Sidebar: FC<SidebarProps> = ({
   nomeUsuario = 'Usuário',
   emailUsuario = '',
   cargoUsuario = 'Membro',
+  perfilUsuario,
   temAcesso,
   aoMudarSenha,
+  aoAbrirConsoleBootstrap,
 }) => {
   const [confirmandoSaida, setConfirmandoSaida] = useState(false);
   const containerSairRef = useRef<HTMLDivElement>(null);
@@ -271,6 +274,24 @@ export const Sidebar: FC<SidebarProps> = ({
               <div className="w-2 h-2 bg-blue-50 border-l border-b border-blue-200 rotate-45 -ml-1 absolute left-0 top-1/2 -translate-y-1/2" />
             </div>
           </div>
+
+          {perfilUsuario === 'BOOTSTRAP' && aoAbrirConsoleBootstrap && (
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={aoAbrirConsoleBootstrap}
+                className="w-10 h-8 rounded-2xl flex items-center justify-center border border-rose-100 text-rose-500 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 transition-all duration-200 cursor-pointer active:scale-95"
+                aria-label="Abrir console Bootstrap"
+              >
+                <ShieldCheck className="w-4 h-4" />
+              </button>
+              <div className="absolute left-full ml-3.5 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center z-50 pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+                <div className="bg-rose-50 text-rose-700 text-[11px] font-bold px-3 py-1.5 rounded-2xl shadow-lg border border-rose-200 whitespace-nowrap">
+                  <span>Console Bootstrap</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Botão Deslogar / Sair */}
           <div className="relative group" ref={containerSairRef}>

@@ -17,6 +17,7 @@ import { DrawerHistoricoPaciente } from './componentes/DrawerHistoricoPaciente.t
 import { ModalAlterarSenha } from './componentes/ModalAlterarSenha.tsx';
 import { PainelAnalitico } from './paginas/PainelAnalitico.tsx';
 import { Relatorios } from './componentes/Relatorios.tsx';
+import { ConsoleBootstrap } from './componentes/ConsoleBootstrap.tsx';
 import { requisicaoApi } from './servicos/api.ts';
 import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCatraki.ts';
 import { type PermissoesPerfil, type PerfilAcesso, StatusAtendimento, type StatusAtendimento as TipoStatusAtendimento } from '../compartilhado/index.ts';
@@ -180,6 +181,7 @@ export function App() {
   // Modais
   const [modalNovoPacienteAberto, setModalNovoPacienteAberto] = useState(false);
   const [modalAlterarSenhaAberto, setModalAlterarSenhaAberto] = useState(false);
+  const [consoleBootstrapAberto, setConsoleBootstrapAberto] = useState(false);
   const [pacienteParaEditar, setPacienteParaEditar] = useState<ItemPaciente | null>(null);
 
   // Notificações Toast
@@ -721,6 +723,11 @@ export function App() {
         perfilUsuario={usuarioLogado?.perfil}
         temAcesso={temAcesso}
         aoMudarSenha={() => setModalAlterarSenhaAberto(true)}
+        aoAbrirConsoleBootstrap={
+          usuarioLogado?.perfil === 'BOOTSTRAP'
+            ? () => setConsoleBootstrapAberto(true)
+            : undefined
+        }
         aoMudarSecao={(secao) => {
           navegarParaSecao(secao);
         }}
@@ -1012,6 +1019,15 @@ export function App() {
       <ModalAlterarSenha
         aberto={modalAlterarSenhaAberto}
         aoFechar={() => setModalAlterarSenhaAberto(false)}
+      />
+
+      <ConsoleBootstrap
+        aberto={consoleBootstrapAberto && usuarioLogado?.perfil === 'BOOTSTRAP'}
+        aoFechar={() => setConsoleBootstrapAberto(false)}
+        aoConcluir={() => {
+          setConsoleBootstrapAberto(false);
+          setToastNotificacao({ texto: 'Exclusão definitiva concluída.', tipo: 'sucesso' });
+        }}
       />
 
       {/* ─── Modal de Timeout de Sessão por Inatividade (LGPD) ───────────── */}
