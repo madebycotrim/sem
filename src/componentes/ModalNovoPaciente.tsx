@@ -398,25 +398,37 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           {/* Sexo e Telefone */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <ModalCampo rotulo="Sexo" obrigatorio erro={errors.sexo?.message}>
-              <SelectModal
-                name={registroSexo.name}
-                ref={registroSexo.ref}
-                value={sexoAtual}
-                onBlur={registroSexo.onBlur}
-                onChange={(evento) => {
-                  const valor = typeof evento === 'string' ? evento : evento?.target?.value;
-                  setValue('sexo', normalizarSexo(valor), { shouldValidate: true, shouldDirty: true });
-                }}
-                placeholder="Selecione o sexo"
-                disabled={camposBloqueadosPorCpf}
-                opcoes={[
-                  { valor: 'Masculino', rotulo: 'Masculino' },
-                  { valor: 'Feminino', rotulo: 'Feminino' },
-                  { valor: 'Outro', rotulo: 'Outro' },
-                  { valor: 'Não informado', rotulo: 'Não informado' },
-                ]}
-                className={camposBloqueadosPorCpf ? 'pr-10' : ''}
-              />
+              <div className="relative">
+                <SelectModal
+                  name={registroSexo.name}
+                  ref={registroSexo.ref}
+                  value={sexoAtual}
+                  onBlur={registroSexo.onBlur}
+                  onChange={(evento) => {
+                    const valor = typeof evento === 'string' ? evento : evento?.target?.value;
+                    setValue('sexo', normalizarSexo(valor), { shouldValidate: true, shouldDirty: true });
+                  }}
+                  placeholder="Selecione o sexo"
+                  disabled={camposBloqueadosPorCpf}
+                  opcoes={[
+                    { valor: 'Masculino', rotulo: 'Masculino' },
+                    { valor: 'Feminino', rotulo: 'Feminino' },
+                    { valor: 'Outro', rotulo: 'Outro' },
+                    { valor: 'Não informado', rotulo: 'Não informado' },
+                  ]}
+                  className={camposBloqueadosPorCpf ? 'pr-10' : ''}
+                />
+                {camposBloqueadosPorCpf && (
+                  <button
+                    type="button"
+                    onClick={liberarCamposAutomaticos}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                    aria-label="Liberar edição do sexo preenchido automaticamente pelo CPF"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </ModalCampo>
 
             <ModalCampo rotulo="Telefone" obrigatorio erro={errors.telefone?.message}>

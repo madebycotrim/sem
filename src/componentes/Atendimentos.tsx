@@ -49,7 +49,8 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   aoAtualizarStatus,
 }) => {
   const [busca, setBusca] = useState('');
-  const [statusFiltro, setStatusFiltro] = useState('');
+  // O histórico clínico começa mostrando apenas consultas concluídas.
+  const [statusFiltro, setStatusFiltro] = useState(StatusAtendimento.CONCLUIDO);
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
   const [periodoSelecionado, setPeriodoSelecionado] = useState<number | 'mes' | 'tudo' | null>(null);
@@ -238,7 +239,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
               <button type="button" onClick={() => aplicarPeriodo('mes')} className={`hidden h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors lg:block ${periodoSelecionado === 'mes' ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Este mês</button>
               <button type="button" onClick={() => aplicarPeriodo('tudo')} className={`h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors ${periodoSelecionado === 'tudo' ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Tudo</button>
               <span className="mx-0.5 h-6 w-px bg-slate-200" aria-hidden="true" />
-              <button type="button" onClick={() => { setBusca(''); setStatusFiltro(''); setDataInicio(''); setDataFim(''); setPeriodoSelecionado(null); setDiaSelecionado(null); }} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-rose-600 transition-colors hover:bg-rose-50">
+              <button type="button" onClick={() => { setBusca(''); setStatusFiltro(StatusAtendimento.CONCLUIDO); setDataInicio(''); setDataFim(''); setPeriodoSelecionado(null); setDiaSelecionado(null); }} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-rose-600 transition-colors hover:bg-rose-50">
                 <RotateCcw className="h-3.5 w-3.5" /> Limpar
               </button>
             </div>

@@ -100,23 +100,26 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
 
         if (!ativo) return;
 
-        // Atendimentos do paciente vindos do banco/API
-        const mapeadosApi: ItemHistoricoAtendimento[] = dadosApi.map((item) => {
-          const { data, hora } = formatarDataHora(String(item.criadoEm || ''));
-          return {
-            id: String(item.id),
-            especialidade: String(item.especialidade),
-            status: (item.status || 'CONCLUIDO') as ItemHistoricoAtendimento['status'],
-            data,
-            hora,
-            profissionalNome: String(item.profissional || 'Profissional de Saúde'),
-            profissionalRegistro: 'Registro Ativo',
-            motivoConsulta: String(item.resumo || 'Consulta clínica realizada'),
-            condutaClinica: item.procedimentos || item.insumosUtilizados
-              ? String(item.procedimentos || item.insumosUtilizados)
-              : undefined,
-          };
-        });
+        // O histórico clínico só contém consultas concluídas. Consultas agendadas,
+        // em atendimento ou canceladas continuam restritas à fila operacional.
+        const mapeadosApi: ItemHistoricoAtendimento[] = dadosApi
+          .filter((item) => String(item.status || 'CONCLUIDO') === 'CONCLUIDO')
+          .map((item) => {
+            const { data, hora } = formatarDataHora(String(item.criadoEm || ''));
+            return {
+              id: String(item.id),
+              especialidade: String(item.especialidade),
+              status: 'CONCLUIDO' as ItemHistoricoAtendimento['status'],
+              data,
+              hora,
+              profissionalNome: String(item.profissional || 'Profissional de Saúde'),
+              profissionalRegistro: 'Registro Ativo',
+              motivoConsulta: String(item.resumo || 'Consulta clínica realizada'),
+              condutaClinica: item.procedimentos || item.insumosUtilizados
+                ? String(item.procedimentos || item.insumosUtilizados)
+                : undefined,
+            };
+          });
 
         const idsExistentes = new Set(mapeadosApi.map((h) => h.id));
 
@@ -126,6 +129,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
           .filter(
             (a) =>
               (a.pacienteId === paciente.id || a.pacienteNome === paciente.nome) &&
+              a.status === 'CONCLUIDO' &&
               !idsExistentes.has(a.id)
           )
           .map((a) => {
@@ -151,7 +155,9 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
             const mesmoCpf = cpfLimpoPaciente.length === 11 && cpfFila === cpfLimpoPaciente;
             const mesmoNome = f.pacienteNome.trim().toLowerCase() === paciente.nome.trim().toLowerCase();
             const mesmoId = f.pacienteId === paciente.id;
-            return (mesmoId || mesmoCpf || mesmoNome) && (!f.atendimentoId || !idsExistentes.has(f.atendimentoId));
+            return (mesmoId || mesmoCpf || mesmoNome) &&
+              f.status === 'CONCLUIDO' &&
+              (!f.atendimentoId || !idsExistentes.has(f.atendimentoId));
           })
           .map((f) => {
             const data = f.dataChegada || new Date().toLocaleDateString('pt-BR');
@@ -159,7 +165,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
             return {
               id: f.atendimentoId || f.id,
               especialidade: f.especialidade,
-              status: (f.status === 'CONCLUIDO' ? 'CONCLUIDO' : f.status === 'CANCELADO' ? 'CANCELADO' : 'AGENDADO') as ItemHistoricoAtendimento['status'],
+              status: 'CONCLUIDO' as ItemHistoricoAtendimento['status'],
               data,
               hora,
               profissionalNome: f.profissional || 'Profissional de Saúde',

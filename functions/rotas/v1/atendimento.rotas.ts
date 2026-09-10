@@ -315,6 +315,28 @@ rotasAtendimento.patch('/:id/status', zValidator('json', atualizarStatusSchema),
 });
 
 /**
+ * GET /atendimentos/profissionais
+ * Lista todos os profissionais de saúde ativos para filtros e relatórios.
+ */
+rotasAtendimento.get('/profissionais', async (c) => {
+  const db = getDb(c.env.DB);
+  const profissionais = await db.query.usuarios.findMany({
+    where: and(eq(usuarios.perfil, 'PROFISSIONAL_SAUDE'), eq(usuarios.ativo, true)),
+    columns: { id: true, nomeCompleto: true, especialidade: true, registroProfissional: true },
+    orderBy: [asc(usuarios.nomeCompleto)],
+  });
+
+  return c.json({
+    dados: profissionais.map((profissional) => ({
+      id: profissional.id,
+      nome: profissional.nomeCompleto,
+      especialidade: profissional.especialidade,
+      registro: profissional.registroProfissional,
+    })),
+  });
+});
+
+/**
  * GET /atendimentos/:id
  * Retorna dados detalhados de um atendimento específico.
  */
@@ -334,27 +356,6 @@ rotasAtendimento.get('/:id', async (c) => {
   }
 
   return c.json(atendimento);
-});
-
-/**
- * GET /atendimentos/profissionais
- * Lista todos os profissionais de saúde ativos para filtros e relatórios.
- */
-rotasAtendimento.get('/profissionais', async (c) => {
-  const db = getDb(c.env.DB);
-  const profissionais = await db.query.usuarios.findMany({
-    where: and(eq(usuarios.perfil, 'PROFISSIONAL_SAUDE'), eq(usuarios.ativo, true)),
-    columns: { id: true, nomeCompleto: true, especialidade: true },
-    orderBy: [asc(usuarios.nomeCompleto)],
-  });
-
-  return c.json({
-    dados: profissionais.map((profissional) => ({
-      id: profissional.id,
-      nome: profissional.nomeCompleto,
-      especialidade: profissional.especialidade,
-    })),
-  });
 });
 
 /**
