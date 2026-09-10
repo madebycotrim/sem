@@ -53,7 +53,7 @@ export async function requisicaoApi<T = unknown>(
           erro: `HTTP ${resposta.status}`,
         };
         try {
-          const textoErro = await resposta.text();
+          const textoErro = await obterTextoResposta(resposta);
           if (textoErro && textoErro.trim()) {
             erroBody = JSON.parse(textoErro);
           }
@@ -80,7 +80,7 @@ export async function requisicaoApi<T = unknown>(
         return {} as T;
       }
 
-      const texto = await resposta.text();
+      const texto = await obterTextoResposta(resposta);
       if (!texto || !texto.trim()) {
         return {} as T;
       }
@@ -107,6 +107,19 @@ export async function requisicaoApi<T = unknown>(
   }
 
   throw ultimoErro ?? new Error('Falha na requisição após todas as tentativas');
+}
+
+async function obterTextoResposta(resposta: Response): Promise<string> {
+  if (typeof resposta.text === 'function') {
+    return resposta.text();
+  }
+
+  if (typeof resposta.json === 'function') {
+    const dados = await resposta.json();
+    return typeof dados === 'string' ? dados : JSON.stringify(dados);
+  }
+
+  return '';
 }
 
 /**

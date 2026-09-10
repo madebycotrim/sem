@@ -697,7 +697,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           </div>
           <h3 className="text-sm font-semibold text-slate-700">Nenhum relatório gerado</h3>
           <p className="mt-1 max-w-sm text-xs text-slate-400">
-            Ajuste os filtros acima e clique em <span className="font-medium text-slate-600">"Gerar Relatório"</span> para carregar os dados.
+            Ajuste os filtros acima e clique em <span className="font-medium text-slate-600">&quot;Gerar Relatório&quot;</span> para carregar os dados.
           </p>
         </div>
       ) : (
