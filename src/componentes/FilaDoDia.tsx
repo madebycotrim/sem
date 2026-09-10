@@ -172,6 +172,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         idempotencyKey,
         pacienteId: dados.pacienteId,
         escolaLocalId: dados.escolaId,
+        usuarioId: dados.profissionalId,
         especialidade: dados.especialidade,
         turno,
         status: StatusAtendimento.AGENDADO,
@@ -321,7 +322,15 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
     const item = fila.find((f) => f.id === itemId);
     let idFinal = dadosAtendimento.atendimentoId || item?.atendimentoId;
 
-    // Se já temos o atendimento no banco, atualiza com PATCH
+    const profissionalIdCandidato =
+      dadosAtendimento.profissionalId || item?.profissionalId;
+    // Só envia usuarioId se for um profissional de saúde conhecido (evita reenviar IDs errados de dados antigos)
+    const profissionalIdFinal =
+      profissionalIdCandidato && profissionais.some((p) => p.id === profissionalIdCandidato)
+        ? profissionalIdCandidato
+        : undefined;
+
+    // Se já temos o atendimento no banco, atualiza com PATCH (também corrige o profissional se soubermos)
     if (idFinal) {
       try {
         const respostaPatch = await requisicaoApi<{ id: string; resumo?: string }>(`/atendimentos/${idFinal}`, {
@@ -329,6 +338,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
           corpo: {
             resumo: textoAnotacoes,
             status: StatusAtendimento.CONCLUIDO,
+            ...(profissionalIdFinal ? { usuarioId: profissionalIdFinal } : {}),
           },
         });
         idFinal = respostaPatch?.id || idFinal;
@@ -363,6 +373,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
               idempotencyKey: chaveIdempotencia,
               pacienteId: pacienteIdFinal,
               escolaLocalId: escolaIdFinal,
+              ...(profissionalIdFinal ? { usuarioId: profissionalIdFinal } : {}),
               especialidade: dadosAtendimento.especialidade,
               turno: item?.turno || Turno.MANHA,
               resumo: textoAnotacoes,
@@ -406,6 +417,8 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         especialidade: dadosAtendimento.especialidade,
         turno: item?.turno || Turno.MANHA,
         escolaNome: dadosAtendimento.escolaNome,
+        escolaId: dadosAtendimento.escolaId || item?.escolaId,
+        profissionalId: profissionalIdFinal || dadosAtendimento.profissionalId || item?.profissionalId,
         profissionalNome: dadosAtendimento.profissional || item?.profissional || 'Profissional de Saúde',
         resumo: textoAnotacoes,
         criadoEm: new Date().toISOString(),

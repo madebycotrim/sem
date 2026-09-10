@@ -25,6 +25,12 @@ export const fichaAtendimentoSchema = z.object({
   /** ID da escola/local onde o atendimento ocorreu */
   escolaLocalId: z.string().uuid('ID da escola/local deve ser um UUID válido'),
 
+  /**
+   * ID do profissional de saúde responsável pelo atendimento.
+   * Quando omitido, o backend usa o usuário autenticado.
+   */
+  usuarioId: z.string().uuid('ID do profissional deve ser um UUID válido').optional(),
+
   /** Especialidade do atendimento */
   especialidade: z.nativeEnum(Especialidade, {
     errorMap: () => ({

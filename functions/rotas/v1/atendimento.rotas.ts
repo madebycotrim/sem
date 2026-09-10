@@ -49,7 +49,10 @@ rotasAtendimento.post(
     const usuario = c.get('usuario');
     const db = getDb(c.env.DB);
 
-    const [paciente, escola] = await Promise.all([
+    // Prioriza o profissional selecionado na triagem; senão, só o próprio usuário se for profissional ativo
+    const profissionalIdCandidato = dados.usuarioId ?? usuario.userId;
+
+    const [paciente, escola, profissional] = await Promise.all([
       db.query.pacientes.findFirst({
         where: eq(pacientes.id, dados.pacienteId),
         columns: { id: true },
@@ -57,6 +60,10 @@ rotasAtendimento.post(
       db.query.escolasLocais.findFirst({
         where: eq(escolasLocais.id, dados.escolaLocalId),
         columns: { id: true },
+      }),
+      db.query.usuarios.findFirst({
+        where: eq(usuarios.id, profissionalIdCandidato),
+        columns: { id: true, perfil: true, ativo: true },
       }),
     ]);
 
@@ -66,6 +73,27 @@ rotasAtendimento.post(
     if (!escola) {
       return c.json({ erro: 'Escola/local de atendimento não encontrado.' }, 404);
     }
+    if (!profissional) {
+      return c.json({ erro: 'Profissional de saúde não encontrado.' }, 404);
+    }
+
+    const profissionalValido =
+      profissional.perfil === 'PROFISSIONAL_SAUDE' && profissional.ativo === true;
+
+    if (!profissionalValido) {
+      if (!dados.usuarioId) {
+        return c.json(
+          { erro: 'Informe o profissional de saúde responsável pelo atendimento (usuarioId).' },
+          400
+        );
+      }
+      return c.json(
+        { erro: 'O usuário informado não é um profissional de saúde ativo.' },
+        400
+      );
+    }
+
+    const profissionalId = profissional.id;
 
     const consultaExistente = await db.query.atendimentos.findFirst({
       where: and(
@@ -83,6 +111,7 @@ rotasAtendimento.post(
       const [atendimentoAtualizado] = await db
         .update(atendimentos)
         .set({
+          usuarioId: profissionalId,
           resumo: dados.resumo,
           procedimentos: dados.procedimentos ?? null,
           insumosUtilizados: dados.insumosUtilizados ?? null,
@@ -101,7 +130,11 @@ rotasAtendimento.post(
         entidade: 'Atendimento',
         entidadeId: consultaExistente.id,
         diffAnterior: { resumo: consultaExistente.resumo },
-        diffPosterior: { resumo: dados.resumo, especialidade: dados.especialidade },
+        diffPosterior: {
+          resumo: dados.resumo,
+          especialidade: dados.especialidade,
+          usuarioId: profissionalId,
+        },
         ip,
       });
 
@@ -141,7 +174,7 @@ rotasAtendimento.post(
       const [novoAtendimento] = await db.insert(atendimentos).values({
         pacienteId: dados.pacienteId,
         escolaLocalId: dados.escolaLocalId,
-        usuarioId: usuario.userId,
+        usuarioId: profissionalId,
         especialidade: dados.especialidade,
         turno: dados.turno,
         status: dados.status,
@@ -158,6 +191,7 @@ rotasAtendimento.post(
         const [atendimentoRecuperado] = await db
           .update(atendimentos)
           .set({
+            usuarioId: profissionalId,
             resumo: dados.resumo,
             procedimentos: dados.procedimentos ?? null,
             insumosUtilizados: dados.insumosUtilizados ?? null,
@@ -189,6 +223,7 @@ rotasAtendimento.post(
         especialidade: dados.especialidade,
         turno: dados.turno,
         pacienteId: dados.pacienteId,
+        usuarioId: profissionalId,
       },
       ip,
     });
@@ -215,11 +250,13 @@ const atualizarAtendimentoSchema = z.object({
   encaminhamentoExterno: z.string().max(2000).trim().optional().nullable(),
   status: z.enum(Object.values(StatusAtendimento) as [string, ...string[]]).optional(),
   turno: z.nativeEnum(Turno).optional(),
+  /** Permite corrigir o profissional responsável (ex.: registros criados pela triagem) */
+  usuarioId: z.string().uuid('ID do profissional deve ser um UUID válido').optional(),
 });
 
 /**
  * PATCH /atendimentos/:id
- * Atualiza campos do atendimento (resumo/prontuário, procedimentos, status).
+ * Atualiza campos do atendimento (resumo/prontuário, procedimentos, status, profissional).
  */
 rotasAtendimento.patch('/:id', zValidator('json', atualizarAtendimentoSchema), async (c) => {
   const db = getDb(c.env.DB);
@@ -248,6 +285,25 @@ rotasAtendimento.patch('/:id', zValidator('json', atualizarAtendimentoSchema), a
     camposParaAtualizar.entradaFilaEm = new Date().toISOString();
   }
   if (dados.turno !== undefined) camposParaAtualizar.turno = dados.turno;
+
+  if (dados.usuarioId !== undefined) {
+    const profissional = await db.query.usuarios.findFirst({
+      where: eq(usuarios.id, dados.usuarioId),
+      columns: { id: true, perfil: true, ativo: true },
+    });
+
+    if (!profissional) {
+      return c.json({ erro: 'Profissional de saúde não encontrado.' }, 404);
+    }
+    if (profissional.perfil !== 'PROFISSIONAL_SAUDE' || profissional.ativo !== true) {
+      return c.json(
+        { erro: 'O usuário informado não é um profissional de saúde ativo.' },
+        400
+      );
+    }
+
+    camposParaAtualizar.usuarioId = profissional.id;
+  }
 
   const [atendimentoAtualizado] = await db
     .update(atendimentos)

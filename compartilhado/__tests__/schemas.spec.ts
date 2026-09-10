@@ -174,7 +174,27 @@ describe('Schema: Ficha de Atendimento', () => {
       expect(resultado.data.procedimentos).toBeUndefined();
       expect(resultado.data.insumosUtilizados).toBeUndefined();
       expect(resultado.data.encaminhamentoExterno).toBeUndefined();
+      expect(resultado.data.usuarioId).toBeUndefined();
     }
+  });
+
+  it('deve aceitar ficha com usuarioId do profissional selecionado', () => {
+    const resultado = fichaAtendimentoSchema.safeParse({
+      ...fichaValida,
+      usuarioId: '423e4567-e89b-12d3-a456-426614174000',
+    });
+    expect(resultado.success).toBe(true);
+    if (resultado.success) {
+      expect(resultado.data.usuarioId).toBe('423e4567-e89b-12d3-a456-426614174000');
+    }
+  });
+
+  it('deve rejeitar usuarioId que não seja UUID', () => {
+    const resultado = fichaAtendimentoSchema.safeParse({
+      ...fichaValida,
+      usuarioId: 'profissional-invalido',
+    });
+    expect(resultado.success).toBe(false);
   });
 });
 
