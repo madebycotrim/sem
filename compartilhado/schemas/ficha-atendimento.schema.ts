@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Especialidade } from '../enums/especialidade.js';
 import { Turno } from '../enums/turno.js';
+import { StatusAtendimento } from '../enums/status-atendimento.js';
 
 /**
  * Schema de validação da Ficha de Atendimento Itinerante.
@@ -43,7 +44,11 @@ export const fichaAtendimentoSchema = z.object({
     .string()
     .min(10, 'Resumo deve ter no mínimo 10 caracteres')
     .max(5000, 'Resumo deve ter no máximo 5000 caracteres')
-    .trim(),
+    .trim()
+    .default('Check-in realizado. Prontuário aguardando atendimento.'),
+
+  /** Status operacional do atendimento na fila */
+  status: z.nativeEnum(StatusAtendimento).default(StatusAtendimento.CONCLUIDO),
 
   /** Procedimentos realizados durante o atendimento */
   procedimentos: z

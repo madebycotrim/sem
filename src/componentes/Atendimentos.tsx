@@ -18,6 +18,8 @@ import { STATUS_ATENDIMENTO_LABELS, StatusAtendimento } from '../../compartilhad
 export interface ItemAtendimentoLista {
   id: string;
   pacienteId: string;
+  escolaId?: string;
+  profissionalId?: string;
   pacienteNome: string;
   especialidade: Especialidade;
   turno: Turno;
@@ -25,6 +27,7 @@ export interface ItemAtendimentoLista {
   profissionalNome: string;
   resumo?: string;
   criadoEm: string;
+  entradaFilaEm?: string;
   status?: StatusAtendimento;
 }
 

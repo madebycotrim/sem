@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS atendimentos (
   insumos_utilizados TEXT,
   encaminhamento_externo TEXT,
   chave_idempotencia TEXT UNIQUE NOT NULL,
+  entrada_fila_em DATETIME,
   criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
   atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (paciente_id) REFERENCES pacientes(id),

@@ -76,6 +76,7 @@ rotasAtendimento.post(
     });
 
     const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1';
+    const entradaFilaEm = new Date().toISOString();
 
     // Se a consulta já existir para esta especialidade e paciente, atualiza os dados (ex: edição/continuação)
     if (consultaExistente) {
@@ -86,8 +87,9 @@ rotasAtendimento.post(
           procedimentos: dados.procedimentos ?? null,
           insumosUtilizados: dados.insumosUtilizados ?? null,
           encaminhamentoExterno: dados.encaminhamentoExterno ?? null,
-          status: StatusAtendimento.CONCLUIDO,
+          status: dados.status,
           turno: dados.turno,
+          entradaFilaEm,
           atualizadoEm: new Date().toISOString(),
         })
         .where(eq(atendimentos.id, consultaExistente.id))
@@ -142,12 +144,13 @@ rotasAtendimento.post(
         usuarioId: usuario.userId,
         especialidade: dados.especialidade,
         turno: dados.turno,
-        status: StatusAtendimento.CONCLUIDO,
+        status: dados.status,
         resumo: dados.resumo,
         procedimentos: dados.procedimentos ?? null,
         insumosUtilizados: dados.insumosUtilizados ?? null,
         encaminhamentoExterno: dados.encaminhamentoExterno ?? null,
         chaveIdempotencia: dados.idempotencyKey,
+        entradaFilaEm,
       }).returning();
       atendimento = novoAtendimento;
     } catch (erro) {
@@ -241,6 +244,9 @@ rotasAtendimento.patch('/:id', zValidator('json', atualizarAtendimentoSchema), a
   if (dados.insumosUtilizados !== undefined) camposParaAtualizar.insumosUtilizados = dados.insumosUtilizados;
   if (dados.encaminhamentoExterno !== undefined) camposParaAtualizar.encaminhamentoExterno = dados.encaminhamentoExterno;
   if (dados.status !== undefined) camposParaAtualizar.status = dados.status;
+  if (dados.status === StatusAtendimento.AGENDADO || dados.status === StatusAtendimento.CONFIRMADO) {
+    camposParaAtualizar.entradaFilaEm = new Date().toISOString();
+  }
   if (dados.turno !== undefined) camposParaAtualizar.turno = dados.turno;
 
   const [atendimentoAtualizado] = await db
@@ -272,16 +278,38 @@ const atualizarStatusSchema = z.object({
 
 rotasAtendimento.patch('/:id/status', zValidator('json', atualizarStatusSchema), async (c) => {
   const db = getDb(c.env.DB);
+  const usuario = c.get('usuario');
+  const id = c.req.param('id');
   const { status } = c.req.valid('json');
-  const [atendimento] = await db
-    .update(atendimentos)
-    .set({ status, atualizadoEm: new Date().toISOString() })
-    .where(eq(atendimentos.id, c.req.param('id')))
-    .returning({ id: atendimentos.id, status: atendimentos.status, atualizadoEm: atendimentos.atualizadoEm });
-
-  if (!atendimento) {
+  const existente = await db.query.atendimentos.findFirst({
+    where: eq(atendimentos.id, id),
+    columns: { status: true },
+  });
+  if (!existente) {
     return c.json({ erro: 'Atendimento não encontrado.' }, 404);
   }
+  const agora = new Date().toISOString();
+  const [atendimento] = await db
+    .update(atendimentos)
+    .set({
+      status,
+      atualizadoEm: agora,
+      ...(status === StatusAtendimento.AGENDADO || status === StatusAtendimento.CONFIRMADO
+        ? { entradaFilaEm: agora }
+        : {}),
+    })
+    .where(eq(atendimentos.id, id))
+    .returning({ id: atendimentos.id, status: atendimentos.status, atualizadoEm: atendimentos.atualizadoEm });
+
+  await registrarAuditoria(db, {
+    userId: usuario.userId,
+    acao: 'UPDATE',
+    entidade: 'Atendimento',
+    entidadeId: id,
+    diffAnterior: { status: existente.status },
+    diffPosterior: { status },
+    ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1',
+  });
 
   return c.json(atendimento);
 });
@@ -476,10 +504,13 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
       return {
         id: a.id,
         pacienteId: a.pacienteId,
+        escolaLocalId: a.escolaLocalId,
+        usuarioId: a.usuarioId,
         pacienteNome,
         especialidade: a.especialidade,
         turno: a.turno,
         status: a.status,
+        entradaFilaEm: a.entradaFilaEm ?? a.criadoEm,
         resumo: a.resumo,
         procedimentos: a.procedimentos,
         insumosUtilizados: a.insumosUtilizados,

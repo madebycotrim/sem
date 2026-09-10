@@ -16,6 +16,20 @@ export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar
   const [salvo, setSalvo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
+  const limparFormulario = () => {
+    setSenhaAtual('');
+    setNovaSenha('');
+    setConfirmarSenha('');
+    setSalvando(false);
+    setSalvo(false);
+    setErro(null);
+  };
+
+  const handleFechar = () => {
+    limparFormulario();
+    aoFechar();
+  };
+
   const handleSalvar = async () => {
     if (!senhaAtual || !novaSenha || !confirmarSenha) return;
     if (novaSenha !== confirmarSenha) return;
@@ -28,18 +42,12 @@ export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar
         corpo: { senhaAtual, novaSenha },
       });
       setSalvo(true);
+      setTimeout(handleFechar, 1500);
     } catch (erroApi) {
       setErro(erroApi instanceof Error ? erroApi.message : 'Não foi possível alterar a senha.');
     } finally {
       setSalvando(false);
     }
-    setTimeout(() => {
-      aoFechar();
-      setSalvo(false);
-      setSenhaAtual('');
-      setNovaSenha('');
-      setConfirmarSenha('');
-    }, 1500);
   };
 
   const novaSenhaValida = novaSenha.length >= 8;
@@ -48,7 +56,7 @@ export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar
   return (
     <Modal
       aberto={aberto}
-      aoFechar={aoFechar}
+      aoFechar={handleFechar}
       titulo="Alterar Minha Senha"
       subtitulo="Atualize sua senha de acesso para manter sua conta segura."
       icone={

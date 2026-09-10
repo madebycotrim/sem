@@ -147,6 +147,7 @@ model Atendimento {
   encaminhamentoExterno String?  @map("encaminhamento_externo")
 
   chaveIdempotencia     String   @unique @map("chave_idempotencia")
+  entradaFilaEm         DateTime? @map("entrada_fila_em")
 
   criadoEm              DateTime @default(now()) @map("criado_em")
   atualizadoEm          DateTime @updatedAt @map("atualizado_em")

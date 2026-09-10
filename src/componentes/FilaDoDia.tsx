@@ -52,7 +52,7 @@ export interface FilaDoDiaProps {
     horario?: string;
   }) => void;
   aoNovoPaciente?: () => void;
-  aoAtualizarStatus?: (id: string, status: StatusAtendimento) => void;
+  aoAtualizarStatus?: (id: string, status: StatusAtendimento) => void | Promise<void>;
   aoSalvarAtendimento?: (atendimento: ItemAtendimentoLista) => void;
   aoAtualizarFila?: (novaFila: ItemFila[]) => void;
   aoVerHistoricoPaciente?: (paciente: any) => void;
@@ -84,6 +84,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   const [dadosAtendimentoAtivo, setDadosAtendimentoAtivo] = useState<DadosAtendimento | null>(null);
   const [confirmandoAlteracaoId, setConfirmandoAlteracaoId] = useState<string | null>(null);
   const [confirmandoCancelamentoId, setConfirmandoCancelamentoId] = useState<string | null>(null);
+  const [erroOperacao, setErroOperacao] = useState<string | null>(null);
 
   const [filaLocal, setFilaLocal] = useState<ItemFila[]>(() => {
     try {
@@ -95,7 +96,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
     return [];
   });
 
-  const fila = filaProp && filaProp.length > 0 ? filaProp : filaLocal;
+  const fila = filaProp ?? filaLocal;
 
   useEffect(() => {
     if (!confirmandoAlteracaoId && !confirmandoCancelamentoId) return undefined;
@@ -162,9 +163,25 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       (a) => a.pacienteId === dados.pacienteId && a.especialidade === dados.especialidade
     );
 
+    const idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `idemp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const resposta = await requisicaoApi<{ id: string; status?: StatusAtendimento }>('/atendimentos', {
+      metodo: 'POST',
+      corpo: {
+        idempotencyKey,
+        pacienteId: dados.pacienteId,
+        escolaLocalId: dados.escolaId,
+        especialidade: dados.especialidade,
+        turno,
+        status: StatusAtendimento.AGENDADO,
+        resumo: 'Check-in realizado. Prontuário aguardando atendimento.',
+      },
+    });
+
     const novoItemFila: ItemFila = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `fila-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      atendimentoId: atendimentoExistente?.id,
+      id: resposta.id || atendimentoExistente?.id || idempotencyKey,
+      atendimentoId: resposta.id || atendimentoExistente?.id,
       pacienteId: dados.pacienteId,
       escolaId: dados.escolaId,
       profissionalId: dados.profissionalId,
@@ -182,6 +199,21 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       anotacoes: atendimentoExistente?.resumo || '',
     };
 
+    aoSalvarAtendimento?.({
+      id: novoItemFila.atendimentoId || novoItemFila.id,
+      pacienteId: dados.pacienteId,
+      pacienteNome: dados.pacienteNome,
+      escolaId: dados.escolaId,
+      especialidade: dados.especialidade,
+      turno,
+      escolaNome: dados.escolaNome,
+      profissionalId: dados.profissionalId,
+      profissionalNome: dados.profissionalNome,
+      resumo: novoItemFila.anotacoes,
+      criadoEm: agora.toISOString(),
+      status: StatusAtendimento.AGENDADO,
+    });
+
     setFilaLocal((prev) => {
       const novaLista = [novoItemFila, ...prev.filter((i) => i.id !== novoItemFila.id)];
       try {
@@ -195,24 +227,54 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   };
 
   const alternarStatus = async (id: string, novoStatus: StatusPresenca) => {
-    setFilaLocal((prev) => {
-      const novaLista = prev.map((item) =>
-        item.id === id ? { ...item, status: novoStatus } : item
-      );
-      try {
-        localStorage.setItem('catraki_fila_do_dia', JSON.stringify(novaLista));
-      } catch {}
-      aoAtualizarFila?.(novaLista);
-      return novaLista;
-    });
+    const item = fila.find((filaItem) => filaItem.id === id);
+    if (!item) return;
+
+    const statusApi: StatusAtendimento = novoStatus === 'AGUARDANDO'
+      ? StatusAtendimento.AGENDADO
+      : novoStatus as StatusAtendimento;
+    const statusAnterior = item.status;
+    const atualizarLocal = (status: StatusPresenca) => {
+      setFilaLocal((prev) => {
+        const base = filaProp ?? prev;
+        const novaLista = base.map((filaItem) =>
+          filaItem.id === id ? { ...filaItem, status } : filaItem
+        );
+        try {
+          localStorage.setItem('catraki_fila_do_dia', JSON.stringify(novaLista));
+        } catch {}
+        aoAtualizarFila?.(novaLista);
+        return novaLista;
+      });
+    };
+
+    atualizarLocal(novoStatus);
+    try {
+      if (aoAtualizarStatus) {
+        await aoAtualizarStatus(item.atendimentoId || item.id, statusApi);
+      } else {
+        await requisicaoApi(`/atendimentos/${item.atendimentoId || item.id}/status`, {
+          metodo: 'PATCH',
+          corpo: { status: statusApi },
+        });
+      }
+    } catch (erro) {
+      atualizarLocal(statusAnterior);
+      throw erro;
+    }
   };
 
   /**
    * Abre o prontuário com o texto preservado da consulta anterior
    */
-  const abrirModalProntuario = (item: ItemFila, alterarParaEmAtendimento = false) => {
+  const abrirModalProntuario = async (item: ItemFila, alterarParaEmAtendimento = false) => {
     if (alterarParaEmAtendimento && item.status !== 'EM_ATENDIMENTO') {
-      alternarStatus(item.id, 'EM_ATENDIMENTO');
+      try {
+        await alternarStatus(item.id, 'EM_ATENDIMENTO');
+      } catch (erro) {
+        setErroOperacao(erro instanceof Error ? erro.message : 'Não foi possível iniciar o atendimento.');
+        return;
+      }
     }
 
     // Busca atendimento pré-existente no array global de atendimentos
@@ -370,16 +432,18 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   const handleCancelarAtendimento = async (id: string) => {
     setConfirmandoCancelamentoId(null);
     setConfirmandoAlteracaoId(null);
-    await alternarStatus(id, 'CANCELADO');
-    if (atendimentos.some((a) => (a as { id?: string }).id === id)) {
-      aoAtualizarStatus?.(id, StatusAtendimento.CANCELADO);
+    try {
+      await alternarStatus(id, 'CANCELADO');
+    } catch (erro) {
+      setErroOperacao(erro instanceof Error ? erro.message : 'Não foi possível cancelar o atendimento.');
     }
   };
 
   const handleReativarAtendimento = async (id: string) => {
-    await alternarStatus(id, 'AGUARDANDO');
-    if (atendimentos.some((a) => (a as { id?: string }).id === id)) {
-      aoAtualizarStatus?.(id, StatusAtendimento.AGENDADO);
+    try {
+      await alternarStatus(id, 'AGUARDANDO');
+    } catch (erro) {
+      setErroOperacao(erro instanceof Error ? erro.message : 'Não foi possível reativar o atendimento.');
     }
   };
 
@@ -498,54 +562,60 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       />
 
       {/* ─── Cards de Contabilização Operacional da Fila do Dia ─────────── */}
-      <div className="grid grid-cols-2 gap-3 mb-5 sm:grid-cols-3 lg:grid-cols-5">
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
-            <ClipboardCheck className="w-5 h-5" />
+      {erroOperacao && (
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700" role="alert">
+          <span>{erroOperacao}</span>
+          <button type="button" onClick={() => setErroOperacao(null)} className="font-bold hover:text-rose-900">Fechar</button>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2 mb-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="bg-white border border-slate-200/90 rounded-xl p-2.5 shadow-xs flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+            <ClipboardCheck className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total na Fila</p>
-            <p className="text-xl font-black text-slate-800 leading-tight">{contadoresFila.total}</p>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Total na Fila</p>
+            <p className="text-lg font-black text-slate-800 leading-tight">{contadoresFila.total}</p>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
-            <Clock3 className="w-5 h-5" />
+        <div className="bg-white border border-slate-200/90 rounded-xl p-2.5 shadow-xs flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+            <Clock3 className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Aguardando</p>
-            <p className="text-xl font-black text-amber-600 leading-tight">{contadoresFila.aguardando}</p>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Aguardando</p>
+            <p className="text-lg font-black text-amber-600 leading-tight">{contadoresFila.aguardando}</p>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0 border border-violet-100">
-            <Play className="w-5 h-5 text-violet-600" />
+        <div className="bg-white border border-slate-200/90 rounded-xl p-2.5 shadow-xs flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center shrink-0 border border-violet-100">
+            <Play className="w-4 h-4 text-violet-600" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Em Atendimento</p>
-            <p className="text-xl font-black text-violet-700 leading-tight">{contadoresFila.emAtendimento}</p>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Em Atendimento</p>
+            <p className="text-lg font-black text-violet-700 leading-tight">{contadoresFila.emAtendimento}</p>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
-            <Check className="w-5 h-5 text-emerald-600" />
+        <div className="bg-white border border-slate-200/90 rounded-xl p-2.5 shadow-xs flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+            <Check className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Concluídos</p>
-            <p className="text-xl font-black text-emerald-600 leading-tight">{contadoresFila.concluidos}</p>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Concluídos</p>
+            <p className="text-lg font-black text-emerald-600 leading-tight">{contadoresFila.concluidos}</p>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
-            <Ban className="w-5 h-5 text-rose-600" />
+        <div className="bg-white border border-slate-200/90 rounded-xl p-2.5 shadow-xs flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
+            <Ban className="w-4 h-4 text-rose-600" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cancelados</p>
-            <p className="text-xl font-black text-rose-600 leading-tight">{contadoresFila.cancelados}</p>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Cancelados</p>
+            <p className="text-lg font-black text-rose-600 leading-tight">{contadoresFila.cancelados}</p>
           </div>
         </div>
       </div>

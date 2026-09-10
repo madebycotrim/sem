@@ -1,6 +1,7 @@
 import { useEffect, useCallback, forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import DOMPurify from 'dompurify';
 import {
   fichaAtendimentoSchema,
@@ -14,6 +15,8 @@ import { requisicaoApi, ErroApi } from '../servicos/api.ts';
 import { CabecalhoPagina } from '../componentes/CabecalhoPagina.tsx';
 import { SelectModal } from '../componentes/Modal.tsx';
 import { CheckCircle2, FileText, HeartPulse, LoaderCircle, UserRound } from 'lucide-react';
+
+type DadosFichaAtendimento = z.input<typeof fichaAtendimentoSchema>;
 
 interface FichaAtendimentoProps {
   pacientePreSelecionado?: { id: string; nome: string } | null;
@@ -33,7 +36,7 @@ export function FichaAtendimento({
     setFocus,
     setValue,
     formState: { errors, isSubmitting, isSubmitSuccessful },
-  } = useForm<TipoFichaAtendimento>({
+  } = useForm<DadosFichaAtendimento, unknown, TipoFichaAtendimento>({
     resolver: zodResolver(fichaAtendimentoSchema),
     defaultValues: {
       idempotencyKey: crypto.randomUUID(),
@@ -79,10 +82,10 @@ export function FichaAtendimento({
     return DOMPurify.sanitize(valor.trim());
   }, []);
 
-  const aoSubmeter = async (dados: TipoFichaAtendimento) => {
-    const dadosSanitizados: TipoFichaAtendimento = {
+  const aoSubmeter = async (dados: DadosFichaAtendimento) => {
+    const dadosSanitizados: DadosFichaAtendimento = {
       ...dados,
-      resumo: sanitizar(dados.resumo),
+      resumo: sanitizar(dados.resumo ?? 'Check-in realizado. Prontuário aguardando atendimento.'),
       procedimentos: dados.procedimentos ? sanitizar(dados.procedimentos) : undefined,
       insumosUtilizados: dados.insumosUtilizados ? sanitizar(dados.insumosUtilizados) : undefined,
       encaminhamentoExterno: dados.encaminhamentoExterno ? sanitizar(dados.encaminhamentoExterno) : undefined,

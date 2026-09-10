@@ -108,6 +108,7 @@ export const atendimentos = sqliteTable('atendimentos', {
   insumosUtilizados: text('insumos_utilizados'),
   encaminhamentoExterno: text('encaminhamento_externo'),
   chaveIdempotencia: text('chave_idempotencia').notNull().unique(),
+  entradaFilaEm: text('entrada_fila_em'),
   criadoEm: text('criado_em').default(sql`CURRENT_TIMESTAMP`),
   atualizadoEm: text('atualizado_em').default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [

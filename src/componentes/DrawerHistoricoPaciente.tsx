@@ -77,10 +77,23 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
     const buscarHistorico = async () => {
       setCarregando(true);
       try {
-        let dadosApi: any[] = [];
+        let dadosApi: Array<Record<string, unknown>> = [];
         try {
-          const resposta = await requisicaoApi<{ dados: any[] }>(`/atendimentos?pacienteId=${paciente.id}&porPagina=100`);
-          dadosApi = resposta.dados || [];
+          const primeiraPagina = await requisicaoApi<{
+            dados: Array<Record<string, unknown>>;
+            totalPaginas: number;
+          }>(`/atendimentos?pacienteId=${encodeURIComponent(paciente.id)}&pagina=1&porPagina=100`);
+          const paginasRestantes = Array.from(
+            { length: Math.max(0, primeiraPagina.totalPaginas - 1) },
+            (_, indice) => indice + 2
+          );
+          const respostasRestantes = await Promise.all(
+            paginasRestantes.map((pagina) => requisicaoApi<{
+              dados: Array<Record<string, unknown>>;
+              totalPaginas: number;
+            }>(`/atendimentos?pacienteId=${encodeURIComponent(paciente.id)}&pagina=${pagina}&porPagina=100`))
+          );
+          dadosApi = [primeiraPagina, ...respostasRestantes].flatMap((resposta) => resposta.dados || []);
         } catch {
           dadosApi = [];
         }
@@ -89,17 +102,19 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
 
         // Atendimentos do paciente vindos do banco/API
         const mapeadosApi: ItemHistoricoAtendimento[] = dadosApi.map((item) => {
-          const { data, hora } = formatarDataHora(item.criadoEm);
+          const { data, hora } = formatarDataHora(String(item.criadoEm || ''));
           return {
-            id: item.id,
-            especialidade: item.especialidade,
+            id: String(item.id),
+            especialidade: String(item.especialidade),
             status: (item.status || 'CONCLUIDO') as ItemHistoricoAtendimento['status'],
             data,
             hora,
-            profissionalNome: item.profissional || 'Profissional de Saúde',
+            profissionalNome: String(item.profissional || 'Profissional de Saúde'),
             profissionalRegistro: 'Registro Ativo',
-            motivoConsulta: item.resumo || 'Consulta clínica realizada',
-            condutaClinica: item.procedimentos || item.insumosUtilizados || undefined,
+            motivoConsulta: String(item.resumo || 'Consulta clínica realizada'),
+            condutaClinica: item.procedimentos || item.insumosUtilizados
+              ? String(item.procedimentos || item.insumosUtilizados)
+              : undefined,
           };
         });
 

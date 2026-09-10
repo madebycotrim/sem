@@ -19,7 +19,7 @@ import { PainelAnalitico } from './paginas/PainelAnalitico.tsx';
 import { Relatorios } from './componentes/Relatorios.tsx';
 import { requisicaoApi } from './servicos/api.ts';
 import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCatraki.ts';
-import { type PermissoesPerfil, type PerfilAcesso, type StatusAtendimento } from '../compartilhado/index.ts';
+import { type PermissoesPerfil, type PerfilAcesso, StatusAtendimento, type StatusAtendimento as TipoStatusAtendimento } from '../compartilhado/index.ts';
 
 interface RespostaListaPacientes {
   dados: Array<{
@@ -35,6 +35,11 @@ interface RespostaListaPacientes {
     atendimentosCount?: number;
     termoConsentimentoStatus?: ItemPaciente['termoConsentimentoStatus'];
   }>;
+  totalPaginas: number;
+}
+
+interface RespostaListaAtendimentos {
+  dados: Array<Record<string, unknown>>;
   totalPaginas: number;
 }
 
@@ -339,19 +344,30 @@ export function App() {
     let ativo = true;
     const carregarAtendimentos = async () => {
       try {
-        const resposta = await requisicaoApi<{ dados: any[] }>('/atendimentos?porPagina=100');
-        if (ativo && resposta?.dados) {
-          const listaMapeada: ItemAtendimentoLista[] = resposta.dados.map((d: any) => ({
-            id: d.id,
-            pacienteId: d.pacienteId,
-            pacienteNome: d.pacienteNome || 'Paciente',
-            especialidade: d.especialidade,
-            turno: d.turno,
-            escolaNome: d.escolaNome || d.escolaLocal || 'Não informada',
-            profissionalNome: d.profissionalNome || d.profissional || 'Profissional de Saúde',
-            resumo: d.resumo || '',
-            criadoEm: d.criadoEm || new Date().toISOString(),
-            status: d.status,
+        const primeiraPagina = await requisicaoApi<RespostaListaAtendimentos>('/atendimentos?pagina=1&porPagina=100');
+        const paginasRestantes = Array.from(
+          { length: Math.max(0, primeiraPagina.totalPaginas - 1) },
+          (_, indice) => indice + 2
+        );
+        const respostasRestantes = await Promise.all(
+          paginasRestantes.map((pagina) => requisicaoApi<RespostaListaAtendimentos>(`/atendimentos?pagina=${pagina}&porPagina=100`))
+        );
+        if (ativo && primeiraPagina?.dados) {
+          const dados = [primeiraPagina, ...respostasRestantes].flatMap((resposta) => resposta.dados);
+          const listaMapeada: ItemAtendimentoLista[] = dados.map((d) => ({
+            id: String(d.id),
+            pacienteId: String(d.pacienteId),
+            pacienteNome: String(d.pacienteNome || 'Paciente'),
+            especialidade: d.especialidade as ItemAtendimentoLista['especialidade'],
+            turno: d.turno as ItemAtendimentoLista['turno'],
+            escolaNome: String(d.escolaNome || d.escolaLocal || 'Não informada'),
+            profissionalNome: String(d.profissionalNome || d.profissional || 'Profissional de Saúde'),
+            resumo: String(d.resumo || ''),
+            criadoEm: String(d.criadoEm || new Date().toISOString()),
+            entradaFilaEm: d.entradaFilaEm ? String(d.entradaFilaEm) : undefined,
+            escolaId: d.escolaLocalId ? String(d.escolaLocalId) : undefined,
+            profissionalId: d.usuarioId ? String(d.usuarioId) : undefined,
+            status: d.status as ItemAtendimentoLista['status'],
           }));
           setAtendimentos(listaMapeada);
         }
@@ -370,6 +386,62 @@ export function App() {
       window.clearInterval(intervalo);
     };
   }, [autenticado]);
+
+  useEffect(() => {
+    if (!autenticado || carregandoAtendimentos) return;
+
+    const calcularIdade = (dataNascimento?: string) => {
+      if (!dataNascimento) return 0;
+      const nascimento = new Date(dataNascimento);
+      const hoje = new Date();
+      let idade = hoje.getFullYear() - nascimento.getFullYear();
+      const aniversarioAindaNaoOcorreu =
+        hoje.getMonth() < nascimento.getMonth() ||
+        (hoje.getMonth() === nascimento.getMonth() && hoje.getDate() < nascimento.getDate());
+      if (aniversarioAindaNaoOcorreu) idade -= 1;
+      return Math.max(0, idade);
+    };
+
+    const statusFila: Record<TipoStatusAtendimento, ItemFila['status']> = {
+      [StatusAtendimento.AGENDADO]: 'AGUARDANDO',
+      [StatusAtendimento.CONFIRMADO]: 'CONFIRMADO',
+      [StatusAtendimento.EM_ATENDIMENTO]: 'EM_ATENDIMENTO',
+      [StatusAtendimento.CONCLUIDO]: 'CONCLUIDO',
+      [StatusAtendimento.CANCELADO]: 'CANCELADO',
+      [StatusAtendimento.FALTOU]: 'CANCELADO',
+    };
+
+    const filaPersistida: ItemFila[] = atendimentos.map((atendimento) => {
+      const entradaFilaEm = new Date(atendimento.entradaFilaEm || atendimento.criadoEm);
+      const paciente = pacientes.find((item) => item.id === atendimento.pacienteId);
+      const escola = escolasGlobais.find((item) => item.id === atendimento.escolaId);
+      const profissional = profissionais.find((item) => item.id === atendimento.profissionalId);
+      return {
+        id: atendimento.id,
+        atendimentoId: atendimento.id,
+        pacienteId: atendimento.pacienteId,
+        escolaId: atendimento.escolaId || escola?.id,
+        profissionalId: atendimento.profissionalId || profissional?.id,
+        pacienteNome: atendimento.pacienteNome,
+        cpf: paciente?.cpf,
+        idade: calcularIdade(paciente?.dataNascimento),
+        escolaNome: atendimento.escolaNome || escola?.nome || 'Não informada',
+        turno: atendimento.turno,
+        especialidade: atendimento.especialidade,
+        status: statusFila[atendimento.status || StatusAtendimento.CONCLUIDO],
+        horarioChegada: entradaFilaEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        dataChegada: entradaFilaEm.toLocaleDateString('pt-BR'),
+        profissional: atendimento.profissionalNome || profissional?.nome,
+        profissionalRegistro: profissional?.registro,
+        anotacoes: atendimento.resumo,
+      };
+    });
+
+    setFila(filaPersistida);
+    try {
+      localStorage.setItem('catraki_fila_do_dia', JSON.stringify(filaPersistida));
+    } catch {}
+  }, [autenticado, carregandoAtendimentos, atendimentos, pacientes, escolasGlobais, profissionais]);
 
   const handleSalvarAtendimento = (novoAtendimento: ItemAtendimentoLista) => {
     setAtendimentos((lista) => {
