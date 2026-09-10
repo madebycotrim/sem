@@ -955,7 +955,7 @@ export function App() {
           }
           
           if (secaoAtiva === 'usuarios') {
-            return <Usuarios />;
+            return <Usuarios ehBootstrap={usuarioLogado?.perfil === 'BOOTSTRAP'} />;
           }
           
           return <Dashboard

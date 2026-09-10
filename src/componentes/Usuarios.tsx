@@ -16,6 +16,8 @@ import { ModalNovoUsuario, type FormNovoUsuario } from './ModalNovoUsuario.tsx';
 import { ModalRedefinirSenhaUsuario } from './ModalRedefinirSenhaUsuario.tsx';
 import { ModalPermissoes } from './ModalPermissoes.tsx';
 import { Botao } from './Botao.tsx';
+import { ConsoleBootstrap } from './ConsoleBootstrap.tsx';
+import { ShieldAlert } from 'lucide-react';
 
 export interface UsuarioItem {
   id: string;
@@ -42,7 +44,11 @@ const formatarConselhoRegistro = (usuario: UsuarioItem) => {
   return [conselho, usuario.registroProfissional].filter(Boolean).join(' ');
 };
 
-export const Usuarios: FC = () => {
+interface UsuariosProps {
+  ehBootstrap?: boolean;
+}
+
+export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
   const [busca, setBusca] = useState('');
   const [paginaAtual, setPaginaAtual] = useState(1);
   const itensPorPagina = 10;
@@ -58,6 +64,7 @@ export const Usuarios: FC = () => {
   const [usuarioEditando, setUsuarioEditando] = useState<UsuarioItem | null>(null);
   const [usuarioArquivando, setUsuarioArquivando] = useState<UsuarioItem | null>(null);
   const [arquivando, setArquivando] = useState(false);
+  const [consoleBootstrapAberto, setConsoleBootstrapAberto] = useState(false);
 
   const carregarUsuarios = useCallback(async () => {
     try {
@@ -191,19 +198,32 @@ export const Usuarios: FC = () => {
           aoClicar: () => setModalAberto(true),
         }}
         acoesExtras={
-          <button
-            type="button"
-            onClick={() => setModalPermissoesAberto(true)}
-            className="h-10 w-10 flex items-center justify-center text-slate-700 bg-white border border-slate-200/90 rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-all shadow-sm cursor-pointer active:scale-[0.98]"
-            title="Matriz de Permissões"
-          >
-            <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-              <path d="M20 7h-9"/>
-              <path d="M14 17H5"/>
-              <circle cx="17" cy="17" r="3"/>
-              <circle cx="7" cy="7" r="3"/>
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            {ehBootstrap && (
+              <button
+                type="button"
+                onClick={() => setConsoleBootstrapAberto(true)}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-extrabold text-rose-700 shadow-sm transition-all hover:bg-rose-100 active:scale-[0.98]"
+                title="Console exclusivo para exclusões definitivas"
+              >
+                <ShieldAlert className="h-4 w-4" />
+                Bootstrap
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setModalPermissoesAberto(true)}
+              className="h-10 w-10 flex items-center justify-center text-slate-700 bg-white border border-slate-200/90 rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-all shadow-sm cursor-pointer active:scale-[0.98]"
+              title="Matriz de Permissões"
+            >
+              <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <path d="M20 7h-9"/>
+                <path d="M14 17H5"/>
+                <circle cx="17" cy="17" r="3"/>
+                <circle cx="7" cy="7" r="3"/>
+              </svg>
+            </button>
+          </div>
         }
         fixo={true}
       />
@@ -523,6 +543,12 @@ export const Usuarios: FC = () => {
       <ModalPermissoes
         aberto={modalPermissoesAberto}
         aoFechar={() => setModalPermissoesAberto(false)}
+      />
+
+      <ConsoleBootstrap
+        aberto={consoleBootstrapAberto}
+        aoFechar={() => setConsoleBootstrapAberto(false)}
+        aoConcluir={carregarUsuarios}
       />
 
       {usuarioArquivando &&
