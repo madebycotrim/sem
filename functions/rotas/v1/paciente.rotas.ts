@@ -12,10 +12,21 @@ import { middlewareAutenticacao, type AppVariables } from '../../middlewares/aut
 import { autorizarPerfis, autorizarAcao } from '../../middlewares/autorizacao.js';
 import { registrarAuditoria } from '../../middlewares/auditoria.js';
 import type { Bindings } from '../../config/env.js';
+import { sanitizarTexto } from '../../infraestrutura/sanitizacao.js';
 
 export const rotasPaciente = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
 const normalizarCpf = (valor?: string | null) => (valor ?? '').replace(/\D/g, '').slice(0, 11);
+
+/**
+ * Mascara o CPF para conformidade LGPD (ex: 042.***.***-91).
+ */
+function mascararCpf(cpf?: string | null): string {
+  if (!cpf) return 'Não informado';
+  const limpo = cpf.replace(/\D/g, '');
+  if (limpo.length !== 11) return cpf;
+  return `${limpo.slice(0, 3)}.***.***-${limpo.slice(9, 11)}`;
+}
 
 const verificarCpfDuplicado = async (
   db: AppDatabase,
@@ -88,7 +99,7 @@ rotasPaciente.post('/', autorizarAcao('criarPaciente'), zValidator('json', criar
   }
 
   const piiTextoPlano = JSON.stringify({
-    nome: dados.nome,
+    nome: sanitizarTexto(dados.nome),
     cpf: dados.cpf,
     dataNascimento: dados.dataNascimento,
     telefone: dados.telefone ?? null,
@@ -190,7 +201,7 @@ rotasPaciente.get('/', async (c) => {
         return {
           id: p.id,
           nome: pii.nome,
-          cpf: pii.cpf,
+          cpf: mascararCpf(pii.cpf),
           dataNascimento: pii.dataNascimento,
           telefone: null,
           sexo: pii.sexo ?? undefined,

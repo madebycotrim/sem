@@ -15,7 +15,11 @@ export const usuarioSchema = z.object({
   senha: z
     .string()
     .min(8, 'Senha deve ter no mínimo 8 caracteres')
-    .max(128, 'Senha deve ter no máximo 128 caracteres'),
+    .max(128, 'Senha deve ter no máximo 128 caracteres')
+    .regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d\s]).{8,}$/,
+      'Senha deve conter pelo menos 1 maiúscula, 1 minúscula, 1 número e 1 caractere especial'
+    ),
 
   nomeCompleto: z
     .string()

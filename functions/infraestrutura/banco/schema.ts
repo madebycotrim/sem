@@ -130,7 +130,6 @@ export const atendimentosRelations = relations(atendimentos, ({ one }) => ({
   }),
 }));
 
-// ─── Tabela: configuracoes_rbac ──────────────────────────────────────────────
 export const configuracoesRbac = sqliteTable('configuracoes_rbac', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   perfil: text('perfil').notNull().unique(),
@@ -140,9 +139,35 @@ export const configuracoesRbac = sqliteTable('configuracoes_rbac', {
   atualizadoEm: text('atualizado_em').default(sql`CURRENT_TIMESTAMP`),
 });
 
+// ─── Tabela: tentativas_login (Brute Force Protection) ───────────────────────
+export const tentativasLogin = sqliteTable('tentativas_login', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  email: text('email').notNull(),
+  ip: text('ip').notNull(),
+  sucesso: integer('sucesso', { mode: 'boolean' }).notNull().default(false),
+  criadoEm: text('criado_em').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// ─── Tabela: tokens_revogados (JWT Blacklist) ────────────────────────────────
+export const tokensRevogados = sqliteTable('tokens_revogados', {
+  jti: text('jti').primaryKey(),
+  expiraEm: text('expira_em').notNull(),
+  revogadoEm: text('revogado_em').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// ─── Tabela: rate_limit (Rate Limiting Persistente) ──────────────────────────
+export const rateLimitTable = sqliteTable('rate_limit', {
+  ip: text('ip').notNull(),
+  janelaInicio: integer('janela_inicio').notNull(),
+  requisicoes: integer('requisicoes').notNull().default(1),
+}, (table) => [
+  uniqueIndex('rate_limit_pk').on(table.ip, table.janelaInicio),
+]);
+
 export type UsuarioModel = typeof usuarios.$inferSelect;
 export type NovoUsuarioModel = typeof usuarios.$inferInsert;
 export type EscolaLocalModel = typeof escolasLocais.$inferSelect;
 export type PacienteModel = typeof pacientes.$inferSelect;
 export type AtendimentoModel = typeof atendimentos.$inferSelect;
 export type ConfiguracaoRbacModel = typeof configuracoesRbac.$inferSelect;
+

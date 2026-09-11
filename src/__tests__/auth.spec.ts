@@ -29,6 +29,14 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
           }),
         },
       },
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ total: 0 }]),
+        }),
+      }),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockResolvedValue({ changes: 1 }),
+      }),
       update: vi.fn().mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue({}),
@@ -76,6 +84,14 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
           }),
         },
       },
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ total: 1 }]),
+        }),
+      }),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockResolvedValue({ changes: 1 }),
+      }),
       update: vi.fn().mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue({}),
@@ -102,6 +118,36 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
     expect(body.erro).toBe('Credenciais inválidas.');
   });
 
+  it('deve bloquear login por brute force após exceder limite de tentativas falhas', async () => {
+    const mockDb = {
+      query: {},
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ total: 5 }]),
+        }),
+      }),
+    };
+
+    const res = await app.request('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'bloqueado@saude.dev',
+        senha: 'QualquerSenha@123',
+      }),
+    }, {
+      JWT_SECRET: mockJwtSecret,
+      KEK_HEX: mockKekHex,
+      CORS_ORIGINS: 'http://localhost:5173',
+      DB: mockDb,
+    });
+
+    expect(res.status).toBe(429);
+    const body = (await res.json()) as any;
+    expect(body.erro).toContain('bloqueada por excesso de tentativas');
+    expect(res.headers.get('Retry-After')).toBe('900');
+  });
+
   it('deve realizar logout com sucesso e limpar cookie', async () => {
     const res = await app.request('/api/v1/auth/logout', {
       method: 'POST',
@@ -123,7 +169,6 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
         userId: 'user-001',
         email: 'medico@saude.dev',
         perfil: 'PROFISSIONAL_SAUDE',
-        mfaVerificado: true,
         exp: Math.floor(Date.now() / 1000) + 3600,
       },
       mockJwtSecret,

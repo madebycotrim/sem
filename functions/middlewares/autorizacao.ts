@@ -57,8 +57,8 @@ export function autorizarAcao(
 
     const perfilUsuario = usuario.perfil as PerfilAcesso;
 
-    // Bootstrap e Admin Bypass: Tem acesso incondicional a todas as ações
-    if (perfilUsuario === 'ADMIN' || perfilUsuario === 'BOOTSTRAP') {
+    // BOOTSTRAP tem acesso incondicional a todas as ações
+    if (perfilUsuario === 'BOOTSTRAP') {
       return await next();
     }
 

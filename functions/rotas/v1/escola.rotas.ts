@@ -9,6 +9,7 @@ import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import { middlewareIdempotencia } from '../../middlewares/idempotencia.js';
 import { registrarAuditoria } from '../../middlewares/auditoria.js';
 import type { Bindings } from '../../config/env.js';
+import { sanitizarTexto, sanitizarTextoOpcional } from '../../infraestrutura/sanitizacao.js';
 
 export const rotasEscola = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 rotasEscola.use('*', middlewareAutenticacao);
@@ -79,14 +80,14 @@ rotasEscola.post(
     const usuario = c.get('usuario');
 
     const [escola] = await db.insert(escolasLocais).values({
-      nome: dados.nome,
-      endereco: dados.endereco,
-      cidade: dados.cidade,
+      nome: sanitizarTexto(dados.nome),
+      endereco: sanitizarTexto(dados.endereco),
+      cidade: sanitizarTexto(dados.cidade),
       uf: dados.uf,
       cnpj: dados.cnpj,
       telefone: dados.telefone,
       email: dados.email,
-      diretoriaRegional: dados.diretoriaRegional,
+      diretoriaRegional: sanitizarTextoOpcional(dados.diretoriaRegional),
       alunosMatriculados: dados.alunosMatriculados,
       unidadesMoveis: 0,
       statusOperacao: 'PROGRAMADA',

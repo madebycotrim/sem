@@ -1,13 +1,17 @@
 import type { MiddlewareHandler } from 'hono';
 import { getCookie } from 'hono/cookie';
 import { verify } from 'hono/jwt';
+import { getDb } from '../infraestrutura/banco/drizzle.js';
+import { tokensRevogados } from '../infraestrutura/banco/schema.js';
+import { eq } from 'drizzle-orm';
 import type { Bindings } from '../config/env.js';
 
 export interface PayloadJwt {
   userId: string;
   email: string;
   perfil: string;
-  mfaVerificado: boolean;
+  mfaVerificado?: boolean;
+  jti?: string;
   exp?: number;
 }
 
@@ -19,6 +23,7 @@ export type AppVariables = {
  * Middleware de Autenticação para Hono (Edge / Cloudflare Workers).
  * 
  * Extrai e valida o token JWT do cookie `token` ou do header `Authorization: Bearer <token>`.
+ * Verifica se o token foi revogado via blacklist no D1.
  */
 export const middlewareAutenticacao: MiddlewareHandler<{
   Bindings: Bindings;
@@ -45,6 +50,20 @@ export const middlewareAutenticacao: MiddlewareHandler<{
 
     if (!payload.userId || !payload.perfil) {
       return c.json({ erro: 'Token de autenticação com formato inválido.' }, 401);
+    }
+
+    // Verificar se o token foi revogado (blacklist)
+    if (payload.jti) {
+      const db = getDb(c.env.DB);
+      const revogado = await db.query.tokensRevogados.findFirst({
+        where: eq(tokensRevogados.jti, payload.jti),
+      });
+      if (revogado) {
+        return c.json(
+          { erro: 'Sessão encerrada. Faça login novamente.' },
+          401
+        );
+      }
     }
 
     c.set('usuario', payload);

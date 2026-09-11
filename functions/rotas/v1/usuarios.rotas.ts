@@ -9,6 +9,7 @@ import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import { registrarAuditoria } from '../../middlewares/auditoria.js';
 import { gerarHashSenha } from '../../infraestrutura/criptografia/senha.js';
 import type { Bindings } from '../../config/env.js';
+import { sanitizarTexto, sanitizarTextoOpcional } from '../../infraestrutura/sanitizacao.js';
 
 export const rotasUsuarios = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
@@ -58,7 +59,13 @@ const criarUsuarioSchema = z.object({
   nomeCompleto: z.string().min(3, 'Nome completo deve ter pelo menos 3 caracteres'),
   email: z.string().email('E-mail inválido'),
   perfil: z.enum(['ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE', 'DPO']),
-  senha: z.string().min(8, 'A senha deve ter pelo menos 8 caracteres'),
+  senha: z
+    .string()
+    .min(8, 'A senha deve ter pelo menos 8 caracteres')
+    .regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d\s]).{8,}$/,
+      'A senha deve conter pelo menos 1 maiúscula, 1 minúscula, 1 número e 1 caractere especial'
+    ),
   conselhoProfissional: z.string().optional(),
   registroProfissional: z.string().optional(),
   especialidade: z.string().optional(),
@@ -90,11 +97,11 @@ rotasUsuarios.post(
 
     const [novoUsuario] = await db.insert(usuarios).values({
       email: dados.email.toLowerCase(),
-      nomeCompleto: dados.nomeCompleto.toUpperCase(),
+      nomeCompleto: sanitizarTexto(dados.nomeCompleto.toUpperCase()),
       perfil: dados.perfil,
-      conselhoProfissional: dados.conselhoProfissional,
-      registroProfissional: dados.registroProfissional,
-      especialidade: dados.especialidade,
+      conselhoProfissional: sanitizarTextoOpcional(dados.conselhoProfissional),
+      registroProfissional: sanitizarTextoOpcional(dados.registroProfissional),
+      especialidade: sanitizarTextoOpcional(dados.especialidade),
       senhaHash,
       senhaTemporaria: true,
       senhaTemporariaExpiraEm: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -199,7 +206,13 @@ rotasUsuarios.put(
 
 // ─── Redefinir Senha do Usuário ──────────────────────────────────────────────
 const redefinirSenhaSchema = z.object({
-  novaSenha: z.string().min(8, 'A nova senha deve ter pelo menos 8 caracteres'),
+  novaSenha: z
+    .string()
+    .min(8, 'A nova senha deve ter pelo menos 8 caracteres')
+    .regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d\s]).{8,}$/,
+      'A nova senha deve conter pelo menos 1 maiúscula, 1 minúscula, 1 número e 1 caractere especial'
+    ),
 });
 
 rotasUsuarios.post(

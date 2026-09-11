@@ -17,6 +17,7 @@ import { middlewareIdempotencia } from '../../middlewares/idempotencia.js';
 import { registrarAuditoria } from '../../middlewares/auditoria.js';
 import { descriptografarPii } from '../../infraestrutura/criptografia/crypto.js';
 import type { Bindings } from '../../config/env.js';
+import { sanitizarTexto, sanitizarTextoOpcional } from '../../infraestrutura/sanitizacao.js';
 
 export const rotasAtendimento = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
@@ -112,10 +113,10 @@ rotasAtendimento.post(
         .update(atendimentos)
         .set({
           usuarioId: profissionalId,
-          resumo: dados.resumo,
-          procedimentos: dados.procedimentos ?? null,
-          insumosUtilizados: dados.insumosUtilizados ?? null,
-          encaminhamentoExterno: dados.encaminhamentoExterno ?? null,
+          resumo: sanitizarTexto(dados.resumo),
+          procedimentos: sanitizarTextoOpcional(dados.procedimentos),
+          insumosUtilizados: sanitizarTextoOpcional(dados.insumosUtilizados),
+          encaminhamentoExterno: sanitizarTextoOpcional(dados.encaminhamentoExterno),
           status: dados.status,
           turno: dados.turno,
           entradaFilaEm,
@@ -162,10 +163,10 @@ rotasAtendimento.post(
         especialidade: dados.especialidade,
         turno: dados.turno,
         status: dados.status,
-        resumo: dados.resumo,
-        procedimentos: dados.procedimentos ?? null,
-        insumosUtilizados: dados.insumosUtilizados ?? null,
-        encaminhamentoExterno: dados.encaminhamentoExterno ?? null,
+        resumo: sanitizarTexto(dados.resumo),
+        procedimentos: sanitizarTextoOpcional(dados.procedimentos),
+        insumosUtilizados: sanitizarTextoOpcional(dados.insumosUtilizados),
+        encaminhamentoExterno: sanitizarTextoOpcional(dados.encaminhamentoExterno),
         chaveIdempotencia: dados.idempotencyKey,
         entradaFilaEm,
       }).returning();
@@ -260,10 +261,10 @@ rotasAtendimento.patch('/:id', zValidator('json', atualizarAtendimentoSchema), a
     atualizadoEm: new Date().toISOString(),
   };
 
-  if (dados.resumo !== undefined) camposParaAtualizar.resumo = dados.resumo;
-  if (dados.procedimentos !== undefined) camposParaAtualizar.procedimentos = dados.procedimentos;
-  if (dados.insumosUtilizados !== undefined) camposParaAtualizar.insumosUtilizados = dados.insumosUtilizados;
-  if (dados.encaminhamentoExterno !== undefined) camposParaAtualizar.encaminhamentoExterno = dados.encaminhamentoExterno;
+  if (dados.resumo !== undefined) camposParaAtualizar.resumo = sanitizarTexto(dados.resumo);
+  if (dados.procedimentos !== undefined) camposParaAtualizar.procedimentos = sanitizarTextoOpcional(dados.procedimentos);
+  if (dados.insumosUtilizados !== undefined) camposParaAtualizar.insumosUtilizados = sanitizarTextoOpcional(dados.insumosUtilizados);
+  if (dados.encaminhamentoExterno !== undefined) camposParaAtualizar.encaminhamentoExterno = sanitizarTextoOpcional(dados.encaminhamentoExterno);
   if (dados.status !== undefined) camposParaAtualizar.status = dados.status;
   if (dados.status === StatusAtendimento.AGENDADO || dados.status === StatusAtendimento.CONFIRMADO) {
     camposParaAtualizar.entradaFilaEm = new Date().toISOString();
