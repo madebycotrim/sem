@@ -4,6 +4,7 @@ import type { ItemPaciente } from './TabelaPacientes.tsx';
 import { formatarSubtituloPaciente } from './TabelaPacientes.tsx';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { formatarCpf } from '../servicos/apiCpf.ts';
+import { formatarTelefone } from '../utilitarios/mascaras.ts';
 import { BookOpen, Building2, Phone } from 'lucide-react';
 
 interface CardHoverPacienteProps {
@@ -28,7 +29,7 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
   const timerFecharRef = useRef<number | null>(null);
 
   const turma = paciente.turma || 'Não informada';
-  const telefone = paciente.telefone || 'Não informado';
+  const telefone = paciente.telefone ? formatarTelefone(paciente.telefone) : 'Não informado';
 
   const atualizarPosicao = () => {
     const card = cardRef.current;

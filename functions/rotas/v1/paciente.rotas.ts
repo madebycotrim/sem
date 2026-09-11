@@ -197,9 +197,9 @@ rotasPaciente.get('/', async (c) => {
           turma: p.turma,
           escolaLocal: p.escolaLocal?.nome ?? 'Desconhecida',
           atendimentosCount: p.atendimentos?.length ?? 0,
-          termoConsentimentoStatus: p.consentimentos[0]?.consentimentoDispensado
-            ? 'DISPENSADO'
-            : p.consentimentos[0]?.dataConsentimento ? 'ACEITO' : 'PENDENTE',
+          termoConsentimentoStatus: (p.consentimentos[0]?.dataConsentimento && !p.consentimentos[0]?.consentimentoDispensado)
+            ? 'ACEITO'
+            : 'PENDENTE',
           criadoEm: p.criadoEm,
         };
       } catch {

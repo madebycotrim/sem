@@ -20,6 +20,7 @@ import { Relatorios } from './componentes/Relatorios.tsx';
 import { ConsoleBootstrap } from './componentes/ConsoleBootstrap.tsx';
 import { requisicaoApi } from './servicos/api.ts';
 import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCatraki.ts';
+import { formatarCpf, formatarTelefone } from './utilitarios/mascaras.ts';
 import { type PermissoesPerfil, type PerfilAcesso, StatusAtendimento, type StatusAtendimento as TipoStatusAtendimento } from '../compartilhado/index.ts';
 
 interface RespostaListaPacientes {
@@ -63,13 +64,13 @@ const SECOES_VALIDAS: SecaoMenu[] = [
 const converterPacienteApi = (paciente: RespostaListaPacientes['dados'][number]): ItemPaciente => ({
   id: paciente.id,
   nome: paciente.nome,
-  cpf: paciente.cpf,
+  cpf: paciente.cpf ? formatarCpf(paciente.cpf) : '',
   dataNascimento: paciente.dataNascimento,
   sexo: paciente.sexo,
-  telefone: paciente.telefone || undefined,
+  telefone: paciente.telefone ? formatarTelefone(paciente.telefone) : undefined,
   turma: paciente.turma,
   escolaNome: paciente.escolaLocal || 'Não informada',
-  termoConsentimentoStatus: paciente.termoConsentimentoStatus || 'PENDENTE',
+  termoConsentimentoStatus: paciente.termoConsentimentoStatus === 'ACEITO' ? 'ACEITO' : 'PENDENTE',
   atendimentosCount: paciente.atendimentosCount || 0,
   criadoEm: paciente.criadoEm,
 });
@@ -526,11 +527,11 @@ export function App() {
             ? {
                 ...p,
                 nome: dados.nomeCompleto,
-                cpf: dados.cpf,
+                cpf: formatarCpf(dados.cpf),
                 dataNascimento: dados.dataNascimento,
                 sexo: dados.sexo,
                 escolaNome: dados.instituicao,
-                telefone: dados.telefone,
+                telefone: formatarTelefone(dados.telefone),
                 turma,
               }
             : p
@@ -549,10 +550,10 @@ export function App() {
     const novoPaciente: ItemPaciente = {
       id: resposta.id,
       nome: dados.nomeCompleto,
-      cpf: dados.cpf,
+      cpf: formatarCpf(dados.cpf),
       dataNascimento: dados.dataNascimento,
       sexo: dados.sexo,
-      telefone: dados.telefone,
+      telefone: formatarTelefone(dados.telefone),
       turma,
       escolaNome: dados.instituicao,
       termoConsentimentoStatus: 'PENDENTE',
@@ -669,8 +670,43 @@ export function App() {
     }
   };
 
+  // Sincroniza a contagem real de atendimentos dos pacientes com a lista de atendimentos e fila
+  const pacientesComAtendimentos = useMemo(() => {
+    return pacientes.map((paciente) => {
+      const nomeNorm = paciente.nome.trim().toLowerCase();
+      const cpfLimpo = (paciente.cpf || '').replace(/\D/g, '');
+
+      const idsAtendimentosPaciente = new Set<string>();
+
+      // 1. Atendimentos locais
+      for (const a of atendimentos) {
+        const mesmoId = a.pacienteId === paciente.id;
+        const mesmoNome = Boolean(a.pacienteNome && a.pacienteNome.trim().toLowerCase() === nomeNorm);
+        if (mesmoId || mesmoNome) {
+          idsAtendimentosPaciente.add(a.id);
+        }
+      }
+
+      // 2. Itens na fila do dia
+      for (const f of fila) {
+        const mesmoId = f.pacienteId === paciente.id;
+        const mesmoCpf = cpfLimpo.length === 11 && (f.cpf || '').replace(/\D/g, '') === cpfLimpo;
+        const mesmoNome = Boolean(f.pacienteNome && f.pacienteNome.trim().toLowerCase() === nomeNorm);
+        if (mesmoId || mesmoCpf || mesmoNome) {
+          idsAtendimentosPaciente.add(f.atendimentoId || f.id);
+        }
+      }
+
+      const totalCalculado = Math.max(paciente.atendimentosCount || 0, idsAtendimentosPaciente.size);
+
+      return totalCalculado !== paciente.atendimentosCount
+        ? { ...paciente, atendimentosCount: totalCalculado }
+        : paciente;
+    });
+  }, [pacientes, atendimentos, fila]);
+
   // Filtragem da Lista de Pacientes
-  const pacientesFiltrados = useMemo(() => pacientes.filter((paciente) => {
+  const pacientesFiltrados = useMemo(() => pacientesComAtendimentos.filter((paciente) => {
     if (mostrarPacientesPendentes && paciente.termoConsentimentoStatus !== 'PENDENTE') return false;
     const termoTexto = normalizarTexto(buscaPaciente.trim());
     const termoNumerico = somenteDigitos(buscaPaciente);
@@ -683,7 +719,7 @@ export function App() {
     ].some((valor) => normalizarTexto(valor).includes(termoTexto)) ||
       (termoNumerico.length > 0 && [paciente.cpf, paciente.telefone].some((valor) => somenteDigitos(valor).includes(termoNumerico)));
     return correspondeBusca;
-  }), [pacientes, buscaPaciente, mostrarPacientesPendentes]);
+  }), [pacientesComAtendimentos, buscaPaciente, mostrarPacientesPendentes]);
 
   if (carregandoSessao) {
     return (
@@ -993,9 +1029,13 @@ export function App() {
           setPacienteHistoricoDrawer(null);
           navegarParaSecao('filaDia');
         }}
-        aoVerProntuario={() => {
+        aoVerProntuario={(item) => {
           setPacienteHistoricoDrawer(null);
-          navegarParaSecao('filaDia');
+          if (item?.status === 'CONCLUIDO') {
+            navegarParaSecao('consultas');
+          } else {
+            navegarParaSecao('filaDia');
+          }
         }}
       />
 

@@ -3,7 +3,7 @@ import { type FC, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ItemPaciente } from './TabelaPacientes.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
-import { CalendarDays, Check, ChevronRight, CircleAlert, Clock3, FileText, UserRound, X } from 'lucide-react';
+import { CalendarDays, Check, ChevronRight, CircleAlert, Clock3, FileText, LoaderCircle, UserRound, X } from 'lucide-react';
 
 export interface ItemHistoricoAtendimento {
   id: string;
@@ -15,6 +15,7 @@ export interface ItemHistoricoAtendimento {
   profissionalRegistro: string;
   motivoConsulta: string;
   condutaClinica?: string;
+  rawTimestamp?: number;
 }
 
 import type { ItemAtendimentoLista } from './Atendimentos.tsx';
@@ -30,17 +31,58 @@ export interface DrawerHistoricoPacienteProps {
   atendimentosLocais?: ItemAtendimentoLista[];
 }
 
-// Função de parse seguro das datas da API
-function formatarDataHora(dataString: string) {
+function normalizarStatus(status?: string): ItemHistoricoAtendimento['status'] {
+  const s = String(status || '').toUpperCase();
+  if (s === 'CONCLUIDO') return 'CONCLUIDO';
+  if (s === 'EM_ATENDIMENTO' || s === 'EM_ANDAMENTO') return 'EM_ANDAMENTO';
+  if (s === 'CANCELADO' || s === 'FALTOU') return 'CANCELADO';
+  return 'AGENDADO';
+}
+
+// Função de parse seguro das datas
+function formatarDataHora(dataString?: string) {
+  if (!dataString) {
+    const agora = new Date();
+    return {
+      data: agora.toLocaleDateString('pt-BR'),
+      hora: agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      timestamp: agora.getTime(),
+    };
+  }
+
+  // Se já estiver no formato brasileiro DD/MM/AAAA
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(dataString)) {
+    const partes = dataString.slice(0, 10).split('/');
+    const d = parseInt(partes[0], 10);
+    const m = parseInt(partes[1], 10) - 1;
+    const a = parseInt(partes[2], 10);
+    const horaTexto = dataString.length > 10 ? dataString.slice(11).trim() : '--:--';
+    const ts = new Date(a, m, d).getTime();
+    return {
+      data: dataString.slice(0, 10),
+      hora: horaTexto,
+      timestamp: isNaN(ts) ? Date.now() : ts,
+    };
+  }
+
   try {
-    const data = new Date(dataString);
+    const limpa = dataString.includes(' ') && !dataString.includes('T')
+      ? dataString.replace(' ', 'T')
+      : dataString;
+    const data = new Date(limpa);
     if (isNaN(data.getTime())) throw new Error('Data inválida');
     return {
       data: data.toLocaleDateString('pt-BR'),
       hora: data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      timestamp: data.getTime(),
     };
   } catch {
-    return { data: new Date().toLocaleDateString('pt-BR'), hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) };
+    const agora = new Date();
+    return {
+      data: agora.toLocaleDateString('pt-BR'),
+      hora: agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      timestamp: agora.getTime(),
+    };
   }
 }
 
@@ -100,82 +142,103 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
 
         if (!ativo) return;
 
-        // O histórico clínico só contém consultas concluídas. Consultas agendadas,
-        // em atendimento ou canceladas continuam restritas à fila operacional.
-        const mapeadosApi: ItemHistoricoAtendimento[] = dadosApi
-          .filter((item) => String(item.status || 'CONCLUIDO') === 'CONCLUIDO')
-          .map((item) => {
-            const { data, hora } = formatarDataHora(String(item.criadoEm || ''));
-            return {
-              id: String(item.id),
-              especialidade: String(item.especialidade),
-              status: 'CONCLUIDO' as ItemHistoricoAtendimento['status'],
-              data,
-              hora,
-              profissionalNome: String(item.profissional || 'Profissional de Saúde'),
-              profissionalRegistro: 'Registro Ativo',
-              motivoConsulta: String(item.resumo || 'Consulta clínica realizada'),
-              condutaClinica: item.procedimentos || item.insumosUtilizados
-                ? String(item.procedimentos || item.insumosUtilizados)
-                : undefined,
-            };
-          });
+        // Histórico completo do paciente: inclui consultas concluídas, em atendimento e agendadas
+        const mapeadosApi: ItemHistoricoAtendimento[] = dadosApi.map((item) => {
+          const status = normalizarStatus(String(item.status || 'CONCLUIDO'));
+          const { data, hora, timestamp } = formatarDataHora(String(item.criadoEm || item.entradaFilaEm || ''));
+          return {
+            id: String(item.id),
+            especialidade: String(item.especialidade || 'Geral'),
+            status,
+            data,
+            hora,
+            rawTimestamp: timestamp,
+            profissionalNome: String(item.profissional || item.profissionalNome || 'Profissional de Saúde'),
+            profissionalRegistro: String(item.profissionalRegistro || 'Registro Ativo'),
+            motivoConsulta: String(item.resumo || (status === 'CONCLUIDO' ? 'Consulta clínica realizada' : 'Atendimento registrado no sistema')),
+            condutaClinica: item.procedimentos || item.insumosUtilizados
+              ? String(item.procedimentos || item.insumosUtilizados)
+              : undefined,
+          };
+        });
 
         const idsExistentes = new Set(mapeadosApi.map((h) => h.id));
 
         // Mescla com atendimentosLocais (se houver atendimento recém-salvo em memória)
         const cpfLimpoPaciente = (paciente.cpf || '').replace(/\D/g, '');
-        const atendimentosLocaisPaciente = atendimentosLocais
-          .filter(
-            (a) =>
-              (a.pacienteId === paciente.id || a.pacienteNome === paciente.nome) &&
-              a.status === 'CONCLUIDO' &&
-              !idsExistentes.has(a.id)
-          )
+        const nomeNormalizadoPaciente = paciente.nome.trim().toLowerCase();
+
+        const atendimentosLocaisPaciente: ItemHistoricoAtendimento[] = atendimentosLocais
+          .filter((a) => {
+            const mesmoId = a.pacienteId === paciente.id;
+            const mesmoNome = Boolean(a.pacienteNome && a.pacienteNome.trim().toLowerCase() === nomeNormalizadoPaciente);
+            return (mesmoId || mesmoNome) && !idsExistentes.has(a.id);
+          })
           .map((a) => {
-            const { data, hora } = formatarDataHora(a.criadoEm);
             idsExistentes.add(a.id);
+            const status = normalizarStatus(a.status);
+            const { data, hora, timestamp } = formatarDataHora(a.criadoEm || a.entradaFilaEm);
             return {
               id: a.id,
-              especialidade: a.especialidade,
-              status: (a.status || 'CONCLUIDO') as ItemHistoricoAtendimento['status'],
+              especialidade: a.especialidade || 'Geral',
+              status,
               data,
               hora,
+              rawTimestamp: timestamp,
               profissionalNome: a.profissionalNome || 'Profissional de Saúde',
               profissionalRegistro: 'Registro Ativo',
-              motivoConsulta: a.resumo || 'Consulta clínica realizada',
+              motivoConsulta: a.resumo || (status === 'CONCLUIDO' ? 'Consulta clínica realizada' : 'Atendimento registrado no sistema'),
               condutaClinica: undefined,
             };
           });
 
-        // Mescla também com itens da Fila do Dia desse paciente (caso esteja em atendimento ou com resumo na fila)
-        const itensFilaPaciente = itensFila
+        // Mescla também com itens da Fila do Dia desse paciente
+        const itensFilaPaciente: ItemHistoricoAtendimento[] = itensFila
           .filter((f) => {
             const cpfFila = (f.cpf || '').replace(/\D/g, '');
             const mesmoCpf = cpfLimpoPaciente.length === 11 && cpfFila === cpfLimpoPaciente;
-            const mesmoNome = f.pacienteNome.trim().toLowerCase() === paciente.nome.trim().toLowerCase();
+            const mesmoNome = Boolean(f.pacienteNome && f.pacienteNome.trim().toLowerCase() === nomeNormalizadoPaciente);
             const mesmoId = f.pacienteId === paciente.id;
-            return (mesmoId || mesmoCpf || mesmoNome) &&
-              f.status === 'CONCLUIDO' &&
-              (!f.atendimentoId || !idsExistentes.has(f.atendimentoId));
+            const jaExiste = (f.atendimentoId && idsExistentes.has(f.atendimentoId)) || idsExistentes.has(f.id);
+            return (mesmoId || mesmoCpf || mesmoNome) && !jaExiste;
           })
           .map((f) => {
-            const data = f.dataChegada || new Date().toLocaleDateString('pt-BR');
-            const hora = f.horarioChegada || '--:--';
+            const idFinal = f.atendimentoId || f.id;
+            idsExistentes.add(idFinal);
+            idsExistentes.add(f.id);
+            if (f.atendimentoId) idsExistentes.add(f.atendimentoId);
+
+            const status = normalizarStatus(f.status);
+            const parsed = formatarDataHora(f.dataChegada ? `${f.dataChegada} ${f.horarioChegada || ''}` : undefined);
+
             return {
-              id: f.atendimentoId || f.id,
-              especialidade: f.especialidade,
-              status: 'CONCLUIDO' as ItemHistoricoAtendimento['status'],
-              data,
-              hora,
+              id: idFinal,
+              especialidade: f.especialidade || 'Geral',
+              status,
+              data: f.dataChegada || parsed.data,
+              hora: f.horarioChegada || parsed.hora,
+              rawTimestamp: parsed.timestamp,
               profissionalNome: f.profissional || 'Profissional de Saúde',
               profissionalRegistro: f.profissionalRegistro || 'Registro Ativo',
-              motivoConsulta: f.anotacoes || 'Paciente em atendimento na unidade móvel',
+              motivoConsulta: f.anotacoes || (status === 'CONCLUIDO' ? 'Consulta clínica realizada' : 'Paciente na fila de atendimento da unidade móvel'),
               condutaClinica: undefined,
             };
           });
 
-        const listaFinal = [...itensFilaPaciente, ...atendimentosLocaisPaciente, ...mapeadosApi];
+        const listaFinal = [...mapeadosApi, ...atendimentosLocaisPaciente, ...itensFilaPaciente];
+        listaFinal.sort((a, b) => {
+          const statusPrioridade: Record<string, number> = {
+            EM_ANDAMENTO: 1,
+            AGENDADO: 2,
+            CONCLUIDO: 3,
+            CANCELADO: 4,
+          };
+          const prioA = statusPrioridade[a.status] || 99;
+          const prioB = statusPrioridade[b.status] || 99;
+          if (prioA !== prioB) return prioA - prioB;
+          return (b.rawTimestamp || 0) - (a.rawTimestamp || 0);
+        });
+
         setHistorico(listaFinal);
       } catch (err) {
         console.error('Erro ao buscar histórico do paciente:', err);
@@ -228,9 +291,16 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0 ml-2">
-              {/* Badge com quantidade de registros */}
-              <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-2xl text-[11px] font-bold border border-slate-200 shadow-2xs">
-                {totalRegistros} {totalRegistros === 1 ? 'registro' : 'registros'}
+              {/* Badge com quantidade de registros ou loading */}
+              <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-2xl text-[11px] font-bold border border-slate-200 shadow-2xs inline-flex items-center gap-1.5">
+                {carregando ? (
+                  <>
+                    <LoaderCircle className="w-3 h-3 animate-spin text-blue-600" />
+                    <span>Carregando...</span>
+                  </>
+                ) : (
+                  <span>{totalRegistros} {totalRegistros === 1 ? 'registro' : 'registros'}</span>
+                )}
               </span>
 
               {/* Botão Fechar (X) */}
@@ -246,8 +316,19 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
           </div>
 
           {/* ─── Conteúdo: Linha do Tempo de Atendimentos ──────────────────── */}
-          <div className={`flex-1 overflow-y-auto p-5 ${historico.length === 0 ? 'flex flex-col items-center justify-center' : ''}`}>
-            {historico.length === 0 ? (
+          <div className={`flex-1 overflow-y-auto p-5 ${carregando || historico.length === 0 ? 'flex flex-col items-center justify-center' : ''}`}>
+            {carregando ? (
+              /* Estado de Carregamento Suave */
+              <div className="text-center max-w-xs mx-auto">
+                <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3 shadow-2xs border border-blue-100">
+                  <LoaderCircle className="w-6 h-6 animate-spin" />
+                </div>
+                <h3 className="text-sm font-semibold text-slate-700">Carregando histórico...</h3>
+                <p className="text-[12.5px] text-slate-500 mt-1">
+                  Buscando consultas e registros clínicos deste paciente.
+                </p>
+              </div>
+            ) : historico.length === 0 ? (
               /* Estado Vazio Minimalista */
               <div className="text-center max-w-xs mx-auto -mt-10">
                 <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-4">
@@ -255,13 +336,9 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                 </div>
                 <h3 className="text-sm font-semibold text-slate-700">Nenhum atendimento registrado</h3>
                 <p className="text-[13px] text-slate-500 mt-1">
-                  {carregando ? (
-                    <span>Buscando histórico...</span>
-                  ) : (
-                    <span>Não há registros clínicos para este paciente.</span>
-                  )}
+                  Não há registros clínicos para este paciente.
                 </p>
-                {!carregando && aoNovoAtendimento && (
+                {aoNovoAtendimento && (
                   <button
                     type="button"
                     onClick={() => {
@@ -312,11 +389,17 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                         className={`absolute -left-[36px] top-4 w-8 h-8 rounded-full flex items-center justify-center z-10 transition-transform duration-300 group-hover/card:scale-110 ${
                           isConcluido
                             ? 'bg-gradient-to-b from-emerald-400 to-emerald-500 text-white shadow-[0_4px_12px_rgba(16,185,129,0.4)]'
-                            : 'bg-white text-amber-500 border-[2.5px] border-amber-400 shadow-[0_4px_12px_rgba(245,158,11,0.2)]'
+                            : item.status === 'EM_ANDAMENTO'
+                              ? 'bg-gradient-to-b from-blue-500 to-indigo-600 text-white shadow-[0_4px_12px_rgba(59,130,246,0.4)]'
+                              : item.status === 'CANCELADO'
+                                ? 'bg-rose-50 text-rose-500 border-[2.5px] border-rose-300'
+                                : 'bg-white text-amber-500 border-[2.5px] border-amber-400 shadow-[0_4px_12px_rgba(245,158,11,0.2)]'
                         }`}
                       >
                         {isConcluido ? (
                           <Check className="w-4 h-4 stroke-[2.5]" />
+                        ) : item.status === 'CANCELADO' ? (
+                          <X className="w-4 h-4 stroke-[2.5]" />
                         ) : (
                           <Clock3 className="w-4 h-4 stroke-[2.5]" />
                         )}
@@ -336,15 +419,31 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-widest border ${
                               isConcluido
                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-100/80'
-                                : 'bg-amber-50 text-amber-700 border-amber-100/80'
+                                : item.status === 'EM_ANDAMENTO'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-100/80'
+                                  : item.status === 'CANCELADO'
+                                    ? 'bg-rose-50 text-rose-700 border-rose-100/80'
+                                    : 'bg-amber-50 text-amber-700 border-amber-100/80'
                             }`}
                           >
                             <span
                               className={`w-1.5 h-1.5 rounded-full ${
-                                isConcluido ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.5)]'
+                                isConcluido
+                                  ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
+                                  : item.status === 'EM_ANDAMENTO'
+                                    ? 'bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]'
+                                    : item.status === 'CANCELADO'
+                                      ? 'bg-rose-500'
+                                      : 'bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.5)]'
                               }`}
                             />
-                            {item.status === 'CONCLUIDO' ? 'CONCLUÍDO' : 'AGENDADO'}
+                            {item.status === 'CONCLUIDO'
+                              ? 'CONCLUÍDO'
+                              : item.status === 'EM_ANDAMENTO'
+                                ? 'EM ATENDIMENTO'
+                                : item.status === 'CANCELADO'
+                                  ? 'CANCELADO'
+                                  : 'AGENDADO'}
                           </span>
                         </div>
 
@@ -379,11 +478,11 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                           </div>
                         </div>
 
-                        {/* Bloco Motivo da Consulta (Citacão destacada) */}
-                        <div className="relative pl-3.5 py-2.5 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-blue-300 before:rounded-full bg-gradient-to-r from-blue-50/40 to-transparent rounded-r-2xl border-y border-r border-slate-100/50 relative z-10">
-                          <p className="text-[9.5px] font-extrabold text-blue-500/80 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
+                        {/* Bloco Motivo da Consulta (Citação destacada) */}
+                        <div className="relative pl-3.5 py-2.5 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-blue-400 before:rounded-full bg-gradient-to-r from-blue-50/40 to-transparent rounded-r-2xl border-y border-r border-slate-100/50 relative z-10">
+                          <p className="text-[9.5px] font-extrabold text-blue-600/90 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
                             <FileText className="w-3 h-3" />
-                            MOTIVO DA CONSULTA
+                            {isConcluido ? 'RESUMO CLÍNICO / PRONTUÁRIO' : 'DETALHES DO ATENDIMENTO'}
                           </p>
                           <p className="font-medium text-slate-700 text-[13px]">
                             {item.motivoConsulta}
@@ -391,7 +490,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                           {item.condutaClinica && (
                             <div className="mt-2.5 pt-2.5 border-t border-slate-200/60">
                                 <p className="text-[11.5px] text-slate-500 leading-relaxed">
-                                  <span className="font-semibold text-slate-600">Conduta:</span> {item.condutaClinica}
+                                  <span className="font-semibold text-slate-600">Conduta / Procedimentos:</span> {item.condutaClinica}
                                 </p>
                             </div>
                           )}
@@ -399,7 +498,9 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
 
                         {/* Rodapé do Card: Ação Ver Prontuário */}
                         <div className="pt-2 flex items-center justify-between relative z-10">
-                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Prontuário Médico</span>
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                            {isConcluido ? 'Prontuário Médico' : 'Fila de Atendimento'}
+                          </span>
                           <button
                             type="button"
                             onClick={() => {
@@ -412,7 +513,13 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                             }}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-blue-50 text-blue-600 font-bold rounded-xl transition-colors cursor-pointer text-[11px] group-hover/card:bg-blue-50 group-hover/card:text-blue-700"
                           >
-                            <span>Ver Prontuário</span>
+                            <span>
+                              {isConcluido
+                                ? 'Ver Prontuário'
+                                : item.status === 'EM_ANDAMENTO'
+                                  ? 'Continuar Atendimento'
+                                  : 'Abrir na Fila'}
+                            </span>
                             <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover/card:translate-x-0.5" />
                           </button>
                         </div>

@@ -18,6 +18,7 @@ import {
   validarCpfMatematicamente,
   obterChaveApiCpf,
 } from '../servicos/apiCpf.ts';
+import { formatarTelefone } from '../utilitarios/mascaras.ts';
 import {
   Modal,
   ModalCampo,
@@ -39,7 +40,13 @@ const formNovoPacienteSchema = z.object({
     }),
   dataNascimento: z.string().min(1, 'Data de nascimento é obrigatória'),
   sexo: z.string().min(1, 'Selecione o sexo'),
-  telefone: z.string().min(8, 'Telefone é obrigatório'),
+  telefone: z
+    .string()
+    .min(1, 'Telefone é obrigatório')
+    .refine((val) => {
+      const digitos = val.replace(/\D/g, '');
+      return digitos.length >= 10 && digitos.length <= 11;
+    }, 'Telefone deve ter 10 ou 11 dígitos (com DDD)'),
   perfilUsuario: z.string().min(1, 'Selecione o perfil do usuário'),
   anoEscolar: z.string().optional(),
   turma: z.string().optional(),
@@ -108,6 +115,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
   });
 
   const cpfAtual = watch('cpf');
+  const telefoneAtual = watch('telefone');
   const sexoAtual = watch('sexo');
   const registroSexo = register('sexo');
   const perfilAtual = watch('perfilUsuario');
@@ -137,7 +145,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
         setValue('sexo', normalizarSexo(pacienteParaEditar.sexo), { shouldValidate: true });
         setValue('instituicao', pacienteParaEditar.escolaNome || instituicaoPadrao, { shouldValidate: true });
         setValue('perfilUsuario', pacienteParaEditar.perfil || 'ESTUDANTE', { shouldValidate: true });
-        setValue('telefone', pacienteParaEditar.telefone || '', { shouldValidate: true });
+        setValue('telefone', formatarTelefone(pacienteParaEditar.telefone || ''), { shouldValidate: true });
         setValue('anoEscolar', turma ? anoEscolar : '');
         setValue('turma', turma || pacienteParaEditar.turma || '');
         setCpfConsultado((pacienteParaEditar.cpf || '').replace(/\D/g, ''));
@@ -342,12 +350,15 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
                   <input
                     type="text"
                     {...register('cpf')}
+                    value={cpfAtual ?? ''}
                     onChange={(e) => {
                       const formatado = formatarCpf(e.target.value);
-                      setValue('cpf', formatado, { shouldValidate: true });
+                      e.target.value = formatado;
+                      setValue('cpf', formatado, { shouldValidate: true, shouldDirty: true });
                     }}
                     placeholder="000.000.000-00"
                     maxLength={14}
+                    inputMode="numeric"
                     className={`${ESTILO_INPUT_MODAL} font-mono pr-9`}
                   />
                   {consultandoCpf && (
@@ -435,7 +446,15 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
               <input
                 type="text"
                 {...register('telefone')}
+                value={telefoneAtual ?? ''}
+                onChange={(e) => {
+                  const formatado = formatarTelefone(e.target.value);
+                  e.target.value = formatado;
+                  setValue('telefone', formatado, { shouldValidate: true, shouldDirty: true });
+                }}
                 placeholder="(00) 00000-0000"
+                maxLength={15}
+                inputMode="tel"
                 className={`${ESTILO_INPUT_MODAL} font-mono`}
               />
             </ModalCampo>

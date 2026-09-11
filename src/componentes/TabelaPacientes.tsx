@@ -22,7 +22,7 @@ export interface ItemPaciente {
   dataNascimento: string;
   sexo?: string;
   escolaNome: string;
-  termoConsentimentoStatus: 'ACEITO' | 'DISPENSADO' | 'PENDENTE';
+  termoConsentimentoStatus: 'ACEITO' | 'PENDENTE';
   autorizacaoCatraki?: 'AUTORIZADO' | 'REVOGADO' | 'PENDENTE';
   atendimentosCount: number;
   criadoEm: string;
@@ -139,11 +139,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
         rotulo: 'AUTORIZAÇÃO',
         tipo: 'opcao',
         obterValor: (p) => p.termoConsentimentoStatus,
-        formatarRotulo: (val) => {
-          if (val === 'ACEITO') return 'Autorizado';
-          if (val === 'DISPENSADO') return 'Emergência Legal';
-          return 'Não Autorizado';
-        },
+        formatarRotulo: (val) => (val === 'ACEITO' ? 'Autorizado' : 'Não Autorizado'),
       },
       {
         id: 'escolaNome',
@@ -347,11 +343,6 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                           Autorizado
                         </button>
-                      ) : paciente.termoConsentimentoStatus === 'DISPENSADO' ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border shadow-2xs" style={{ backgroundColor: 'rgba(3,75,127,0.06)', color: '#14438f', borderColor: 'rgba(3,75,127,0.2)' }}>
-                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#14438f' }} />
-                          Emergência Legal
-                        </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100/90 text-slate-600 border border-slate-200/90 shadow-2xs">
                           <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />

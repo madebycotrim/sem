@@ -9,7 +9,7 @@ import {
   Turno,
 } from '../../../compartilhado/index.js';
 import { getDb } from '../../infraestrutura/banco/drizzle.js';
-import { atendimentos, pacientes, escolasLocais, consentimentos, usuarios } from '../../infraestrutura/banco/schema.js';
+import { atendimentos, pacientes, escolasLocais, usuarios } from '../../infraestrutura/banco/schema.js';
 import { eq, and, desc, asc, count, gte, lte } from 'drizzle-orm';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
@@ -151,22 +151,6 @@ rotasAtendimento.post(
         },
         200
       );
-    }
-
-    let consentimento = await db.query.consentimentos.findFirst({
-      where: eq(consentimentos.pacienteId, dados.pacienteId),
-      orderBy: [desc(consentimentos.criadoEm)],
-    });
-
-    // Se o paciente ainda não possui consentimento explícito registrado, assegura a tutela da saúde (LGPD Art. 7, VIII / Art. 14)
-    if (!consentimento) {
-      const [novoConsentimento] = await db.insert(consentimentos).values({
-        pacienteId: dados.pacienteId,
-        consentimentoDispensado: true,
-        justificativaDispensa: 'Tutela da saúde e atendimento ambulatorial itinerante (LGPD Art. 7, VIII / Art. 14)',
-        dataConsentimento: new Date().toISOString(),
-      }).returning();
-      consentimento = novoConsentimento;
     }
 
     let atendimento;
