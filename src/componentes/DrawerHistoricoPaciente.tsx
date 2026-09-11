@@ -1,9 +1,9 @@
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
-import { type FC, useEffect, useState } from 'react';
+import { type FC, useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { ItemPaciente } from './TabelaPacientes.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
-import { CalendarDays, Check, ChevronRight, CircleAlert, Clock3, FileText, LoaderCircle, UserRound, X } from 'lucide-react';
+import { Activity, CalendarDays, Check, ChevronRight, CircleAlert, Clock3, FileText, LoaderCircle, X } from 'lucide-react';
 
 export interface ItemHistoricoAtendimento {
   id: string;
@@ -109,9 +109,18 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
   const [historico, setHistorico] = useState<ItemHistoricoAtendimento[]>([]);
   const [carregando, setCarregando] = useState(false);
 
+  const pacienteId = paciente?.id;
+  const pacienteRef = useRef<ItemPaciente | null>(paciente);
+  pacienteRef.current = paciente;
+  const itensFilaRef = useRef<ItemFila[]>(itensFila);
+  itensFilaRef.current = itensFila;
+  const atendimentosLocaisRef = useRef<ItemAtendimentoLista[]>(atendimentosLocais);
+  atendimentosLocaisRef.current = atendimentosLocais;
+
   useEffect(() => {
-    if (!aberto || !paciente) {
+    if (!aberto || !pacienteId) {
       setHistorico([]);
+      setCarregando(false);
       return;
     }
 
@@ -124,7 +133,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
           const primeiraPagina = await requisicaoApi<{
             dados: Array<Record<string, unknown>>;
             totalPaginas: number;
-          }>(`/atendimentos?pacienteId=${encodeURIComponent(paciente.id)}&pagina=1&porPagina=100`);
+          }>(`/atendimentos?pacienteId=${encodeURIComponent(pacienteId)}&pagina=1&porPagina=100`);
           const paginasRestantes = Array.from(
             { length: Math.max(0, primeiraPagina.totalPaginas - 1) },
             (_, indice) => indice + 2
@@ -165,12 +174,15 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
         const idsExistentes = new Set(mapeadosApi.map((h) => h.id));
 
         // Mescla com atendimentosLocais (se houver atendimento recém-salvo em memória)
-        const cpfLimpoPaciente = (paciente.cpf || '').replace(/\D/g, '');
-        const nomeNormalizadoPaciente = paciente.nome.trim().toLowerCase();
+        const pacienteAtual = pacienteRef.current || paciente;
+        const cpfLimpoPaciente = (pacienteAtual?.cpf || '').replace(/\D/g, '');
+        const nomeNormalizadoPaciente = (pacienteAtual?.nome || '').trim().toLowerCase();
+        const atendimentosLocais = atendimentosLocaisRef.current;
+        const itensFila = itensFilaRef.current;
 
         const atendimentosLocaisPaciente: ItemHistoricoAtendimento[] = atendimentosLocais
           .filter((a) => {
-            const mesmoId = a.pacienteId === paciente.id;
+            const mesmoId = a.pacienteId === pacienteId;
             const mesmoNome = Boolean(a.pacienteNome && a.pacienteNome.trim().toLowerCase() === nomeNormalizadoPaciente);
             return (mesmoId || mesmoNome) && !idsExistentes.has(a.id);
           })
@@ -186,7 +198,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
               hora,
               rawTimestamp: timestamp,
               profissionalNome: a.profissionalNome || 'Profissional de Saúde',
-              profissionalRegistro: 'Registro Ativo',
+              profissionalRegistro: '',
               motivoConsulta: a.resumo || (status === 'CONCLUIDO' ? 'Consulta clínica realizada' : 'Atendimento registrado no sistema'),
               condutaClinica: undefined,
             };
@@ -198,7 +210,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
             const cpfFila = (f.cpf || '').replace(/\D/g, '');
             const mesmoCpf = cpfLimpoPaciente.length === 11 && cpfFila === cpfLimpoPaciente;
             const mesmoNome = Boolean(f.pacienteNome && f.pacienteNome.trim().toLowerCase() === nomeNormalizadoPaciente);
-            const mesmoId = f.pacienteId === paciente.id;
+            const mesmoId = f.pacienteId === pacienteId;
             const jaExiste = (f.atendimentoId && idsExistentes.has(f.atendimentoId)) || idsExistentes.has(f.id);
             return (mesmoId || mesmoCpf || mesmoNome) && !jaExiste;
           })
@@ -219,7 +231,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
               hora: f.horarioChegada || parsed.hora,
               rawTimestamp: parsed.timestamp,
               profissionalNome: f.profissional || 'Profissional de Saúde',
-              profissionalRegistro: f.profissionalRegistro || 'Registro Ativo',
+              profissionalRegistro: f.profissionalRegistro || '',
               motivoConsulta: f.anotacoes || (status === 'CONCLUIDO' ? 'Consulta clínica realizada' : 'Paciente na fila de atendimento da unidade móvel'),
               condutaClinica: undefined,
             };
@@ -251,7 +263,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
     buscarHistorico();
 
     return () => { ativo = false; };
-  }, [paciente, aberto, itensFila, atendimentosLocais]);
+  }, [aberto, pacienteId]);
 
   if (!aberto || !paciente) return null;
 
@@ -352,91 +364,49 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                 )}
               </div>
             ) : (
-              /* Linha do Tempo com Cards */
-              <div className="relative pl-10 space-y-8">
-                {historico.map((item, index) => {
+              /* Lista de Atendimentos com Cards 100% integrados */
+              <div className="space-y-4">
+                {historico.map((item) => {
                   const isConcluido = item.status === 'CONCLUIDO';
-                  const nextItem = historico[index + 1];
-                  const nextIsConcluido = nextItem?.status === 'CONCLUIDO';
-
-                  let gradientClasses = '';
-                  if (nextItem) {
-                    if (isConcluido && nextIsConcluido) gradientClasses = 'from-emerald-400 to-emerald-400';
-                    else if (isConcluido && !nextIsConcluido) gradientClasses = 'from-emerald-400 via-slate-200 to-amber-400';
-                    else if (!isConcluido && nextIsConcluido) gradientClasses = 'from-amber-400 via-slate-200 to-emerald-400';
-                    else gradientClasses = 'from-amber-400 to-amber-400';
-                  } else {
-                    gradientClasses = isConcluido ? 'from-emerald-400 to-transparent' : 'from-amber-400 to-transparent';
-                  }
 
                   return (
-                    <div key={item.id} className="relative group/card">
-                      {/* Linha vertical até o próximo item (ou fade no último) */}
-                      {nextItem ? (
-                        <div 
-                          className={`absolute -left-[21px] top-8 bottom-[-64px] w-[2px] bg-gradient-to-b ${gradientClasses} z-0`} 
-                          aria-hidden="true" 
-                        />
-                      ) : (
-                        <div 
-                          className={`absolute -left-[21px] top-8 h-24 w-[2px] bg-gradient-to-b ${gradientClasses} z-0`} 
-                          aria-hidden="true" 
-                        />
-                      )}
+                    <div
+                      key={item.id}
+                      className={`bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs hover:border-slate-300 transition-colors space-y-3.5 relative overflow-hidden border-l-4 ${
+                        isConcluido
+                          ? 'border-l-emerald-500'
+                          : item.status === 'EM_ANDAMENTO'
+                            ? 'border-l-blue-500'
+                            : item.status === 'CANCELADO'
+                              ? 'border-l-rose-400'
+                              : 'border-l-amber-400'
+                      }`}
+                    >
+                      {/* Topo do Card: Especialidade e Status */}
+                      <div className="flex items-center justify-between gap-2 relative z-10">
+                        <EspecialidadeBadge especialidade={item.especialidade} compacto />
 
-                      {/* Ponto / Ícone da Linha do Tempo (Alinhamento perfeito) */}
-                      <div
-                        className={`absolute -left-[36px] top-4 w-8 h-8 rounded-full flex items-center justify-center z-10 transition-transform duration-300 group-hover/card:scale-110 ${
-                          isConcluido
-                            ? 'bg-gradient-to-b from-emerald-400 to-emerald-500 text-white shadow-[0_4px_12px_rgba(16,185,129,0.4)]'
-                            : item.status === 'EM_ANDAMENTO'
-                              ? 'bg-gradient-to-b from-blue-500 to-indigo-600 text-white shadow-[0_4px_12px_rgba(59,130,246,0.4)]'
-                              : item.status === 'CANCELADO'
-                                ? 'bg-rose-50 text-rose-500 border-[2.5px] border-rose-300'
-                                : 'bg-white text-amber-500 border-[2.5px] border-amber-400 shadow-[0_4px_12px_rgba(245,158,11,0.2)]'
-                        }`}
-                      >
-                        {isConcluido ? (
-                          <Check className="w-4 h-4 stroke-[2.5]" />
-                        ) : item.status === 'CANCELADO' ? (
-                          <X className="w-4 h-4 stroke-[2.5]" />
-                        ) : (
-                          <Clock3 className="w-4 h-4 stroke-[2.5]" />
-                        )}
-                      </div>
-
-                      {/* Card do Atendimento - Premium Design */}
-                      <div className="bg-white border border-slate-200/70 rounded-[1.25rem] p-4 sm:p-5 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] hover:shadow-[0_8px_24px_-6px_rgba(6,81,237,0.15)] hover:-translate-y-0.5 transition-all duration-300 space-y-4 group/card relative overflow-hidden">
-                        
-                        {/* Decorador sutil de fundo */}
-                        <div className="absolute -top-12 -right-12 w-32 h-32 bg-blue-50/50 rounded-full blur-2xl opacity-60 pointer-events-none" />
-
-                        {/* Topo do Card: Especialidade e Status */}
-                        <div className="flex items-center justify-between gap-2 relative z-10">
-                          <EspecialidadeBadge especialidade={item.especialidade} compacto />
-
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-widest border ${
-                              isConcluido
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100/80'
-                                : item.status === 'EM_ANDAMENTO'
-                                  ? 'bg-blue-50 text-blue-700 border-blue-100/80'
-                                  : item.status === 'CANCELADO'
-                                    ? 'bg-rose-50 text-rose-700 border-rose-100/80'
-                                    : 'bg-amber-50 text-amber-700 border-amber-100/80'
-                            }`}
-                          >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                isConcluido
-                                  ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
-                                  : item.status === 'EM_ANDAMENTO'
-                                    ? 'bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]'
-                                    : item.status === 'CANCELADO'
-                                      ? 'bg-rose-500'
-                                      : 'bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.5)]'
-                              }`}
-                            />
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border shadow-2xs ${
+                            isConcluido
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                              : item.status === 'EM_ANDAMENTO'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200/80'
+                                : item.status === 'CANCELADO'
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200/80'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200/80'
+                          }`}
+                        >
+                          {isConcluido ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                          ) : item.status === 'EM_ANDAMENTO' ? (
+                            <Activity className="w-3.5 h-3.5 text-blue-600" />
+                          ) : item.status === 'CANCELADO' ? (
+                            <X className="w-3.5 h-3.5 text-rose-600 stroke-[2.5]" />
+                          ) : (
+                            <Clock3 className="w-3.5 h-3.5 text-amber-600 stroke-[2.5]" />
+                          )}
+                          <span>
                             {item.status === 'CONCLUIDO'
                               ? 'CONCLUÍDO'
                               : item.status === 'EM_ANDAMENTO'
@@ -445,84 +415,78 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                                   ? 'CANCELADO'
                                   : 'AGENDADO'}
                           </span>
-                        </div>
+                        </span>
+                      </div>
 
-                        {/* Profissional, Data e Horário */}
-                        <div className="flex items-start justify-between gap-4 relative z-10">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-100 to-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-2xs border border-white">
-                              <span className="font-bold text-[13px] tracking-tight">
-                                {item.profissionalNome.replace(/^(DR\.|DRA\.)\s*/i, '').split(' ').map(n => n[0]).filter((_, i) => i < 2).join('').toUpperCase()}
-                              </span>
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                                <span className="font-bold text-slate-800 text-sm truncate">
-                                  {item.profissionalNome}
-                                </span>
-                                <span className="text-[10px] font-semibold text-slate-500 mt-0.5 flex items-center gap-1.5">
-                                  <UserRound className="w-3 h-3 text-slate-400" />
-                                  {item.profissionalRegistro}
-                                </span>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col items-end gap-1.5 shrink-0 bg-slate-50/80 p-2 rounded-xl border border-slate-100/80">
-                            <div className="flex items-center gap-1.5 text-[10.5px] text-slate-700 font-bold">
-                              <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                              {item.data}
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500 font-semibold">
-                              <Clock3 className="w-3.5 h-3.5 text-slate-400" />
-                              {item.hora}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Bloco Motivo da Consulta (Citação destacada) */}
-                        <div className="relative pl-3.5 py-2.5 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-blue-400 before:rounded-full bg-gradient-to-r from-blue-50/40 to-transparent rounded-r-2xl border-y border-r border-slate-100/50 relative z-10">
-                          <p className="text-[9.5px] font-extrabold text-blue-600/90 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
-                            <FileText className="w-3 h-3" />
-                            {isConcluido ? 'RESUMO CLÍNICO / PRONTUÁRIO' : 'DETALHES DO ATENDIMENTO'}
-                          </p>
-                          <p className="font-medium text-slate-700 text-[13px]">
-                            {item.motivoConsulta}
-                          </p>
-                          {item.condutaClinica && (
-                            <div className="mt-2.5 pt-2.5 border-t border-slate-200/60">
-                                <p className="text-[11.5px] text-slate-500 leading-relaxed">
-                                  <span className="font-semibold text-slate-600">Conduta / Procedimentos:</span> {item.condutaClinica}
-                                </p>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Rodapé do Card: Ação Ver Prontuário */}
-                        <div className="pt-2 flex items-center justify-between relative z-10">
-                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                            {isConcluido ? 'Prontuário Médico' : 'Fila de Atendimento'}
+                      {/* Profissional e Data/Horário (Substituindo Registro Ativo) */}
+                      <div className="flex items-center gap-3 relative z-10">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-100 to-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-2xs border border-white">
+                          <span className="font-bold text-[13px] tracking-tight">
+                            {item.profissionalNome.replace(/^(DR\.|DRA\.)\s*/i, '').split(' ').map(n => n[0]).filter((_, i) => i < 2).join('').toUpperCase()}
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (aoVerProntuario) {
-                                aoVerProntuario(item);
-                              } else if (aoNovoAtendimento) {
-                                aoFechar();
-                                aoNovoAtendimento(paciente);
-                              }
-                            }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-blue-50 text-blue-600 font-bold rounded-xl transition-colors cursor-pointer text-[11px] group-hover/card:bg-blue-50 group-hover/card:text-blue-700"
-                          >
-                            <span>
-                              {isConcluido
-                                ? 'Ver Prontuário'
-                                : item.status === 'EM_ANDAMENTO'
-                                  ? 'Continuar Atendimento'
-                                  : 'Abrir na Fila'}
-                            </span>
-                            <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover/card:translate-x-0.5" />
-                          </button>
                         </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-bold text-slate-800 text-xs sm:text-sm truncate block" title={item.profissionalNome}>
+                            {item.profissionalNome}
+                          </span>
+                          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 mt-0.5">
+                            <CalendarDays className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{item.data}</span>
+                            {item.hora && (
+                              <>
+                                <span className="text-slate-300">•</span>
+                                <Clock3 className="w-3 h-3 text-slate-400 shrink-0" />
+                                <span>{item.hora}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bloco Motivo da Consulta (Citação destacada) */}
+                      <div className="relative pl-3.5 py-2.5 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-blue-400 before:rounded-full bg-gradient-to-r from-blue-50/40 to-transparent rounded-r-2xl border-y border-r border-slate-100/50 relative z-10">
+                        <p className="text-[9.5px] font-extrabold text-blue-600/90 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
+                          <FileText className="w-3 h-3" />
+                          {isConcluido ? 'RESUMO CLÍNICO / PRONTUÁRIO' : 'DETALHES DO ATENDIMENTO'}
+                        </p>
+                        <p className="font-medium text-slate-700 text-[13px] leading-relaxed">
+                          {item.motivoConsulta}
+                        </p>
+                        {item.condutaClinica && (
+                          <div className="mt-2.5 pt-2.5 border-t border-slate-200/60">
+                            <p className="text-[11.5px] text-slate-500 leading-relaxed">
+                              <span className="font-semibold text-slate-600">Conduta / Procedimentos:</span> {item.condutaClinica}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Rodapé do Card: Ação Ver Prontuário */}
+                      <div className="pt-2 flex items-center justify-between relative z-10">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                          {isConcluido ? 'Prontuário Médico' : 'Fila de Atendimento'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (aoVerProntuario) {
+                              aoVerProntuario(item);
+                            } else if (aoNovoAtendimento) {
+                              aoFechar();
+                              aoNovoAtendimento(paciente);
+                            }
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-blue-50 text-blue-600 font-bold rounded-xl transition-colors cursor-pointer text-[11px] group-hover:bg-blue-50 group-hover:text-blue-700"
+                        >
+                          <span>
+                            {isConcluido
+                              ? 'Ver Prontuário'
+                              : item.status === 'EM_ANDAMENTO'
+                                ? 'Continuar Atendimento'
+                                : 'Abrir na Fila'}
+                          </span>
+                          <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                        </button>
                       </div>
                     </div>
                   );
