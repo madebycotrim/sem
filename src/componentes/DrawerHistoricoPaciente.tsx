@@ -175,10 +175,8 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
 
         // Mescla com atendimentosLocais (se houver atendimento recém-salvo em memória)
         const pacienteAtual = pacienteRef.current || paciente;
-        const cpfLimpoPaciente = (pacienteAtual?.cpf || '').replace(/\D/g, '');
         const nomeNormalizadoPaciente = (pacienteAtual?.nome || '').trim().toLowerCase();
         const atendimentosLocais = atendimentosLocaisRef.current;
-        const itensFila = itensFilaRef.current;
 
         const atendimentosLocaisPaciente: ItemHistoricoAtendimento[] = atendimentosLocais
           .filter((a) => {
@@ -204,40 +202,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
             };
           });
 
-        // Mescla também com itens da Fila do Dia desse paciente
-        const itensFilaPaciente: ItemHistoricoAtendimento[] = itensFila
-          .filter((f) => {
-            const cpfFila = (f.cpf || '').replace(/\D/g, '');
-            const mesmoCpf = cpfLimpoPaciente.length === 11 && cpfFila === cpfLimpoPaciente;
-            const mesmoNome = Boolean(f.pacienteNome && f.pacienteNome.trim().toLowerCase() === nomeNormalizadoPaciente);
-            const mesmoId = f.pacienteId === pacienteId;
-            const jaExiste = (f.atendimentoId && idsExistentes.has(f.atendimentoId)) || idsExistentes.has(f.id);
-            return (mesmoId || mesmoCpf || mesmoNome) && !jaExiste;
-          })
-          .map((f) => {
-            const idFinal = f.atendimentoId || f.id;
-            idsExistentes.add(idFinal);
-            idsExistentes.add(f.id);
-            if (f.atendimentoId) idsExistentes.add(f.atendimentoId);
-
-            const status = normalizarStatus(f.status);
-            const parsed = formatarDataHora(f.dataChegada ? `${f.dataChegada} ${f.horarioChegada || ''}` : undefined);
-
-            return {
-              id: idFinal,
-              especialidade: f.especialidade || 'Geral',
-              status,
-              data: f.dataChegada || parsed.data,
-              hora: f.horarioChegada || parsed.hora,
-              rawTimestamp: parsed.timestamp,
-              profissionalNome: f.profissional || 'Profissional de Saúde',
-              profissionalRegistro: f.profissionalRegistro || '',
-              motivoConsulta: f.anotacoes || (status === 'CONCLUIDO' ? 'Consulta clínica realizada' : 'Paciente na fila de atendimento da unidade móvel'),
-              condutaClinica: undefined,
-            };
-          });
-
-        const listaFinal = [...mapeadosApi, ...atendimentosLocaisPaciente, ...itensFilaPaciente];
+        const listaFinal = [...mapeadosApi, ...atendimentosLocaisPaciente];
         listaFinal.sort((a, b) => {
           const statusPrioridade: Record<string, number> = {
             EM_ANDAMENTO: 1,
@@ -364,24 +329,38 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                 )}
               </div>
             ) : (
-              /* Lista de Atendimentos com Cards 100% integrados */
-              <div className="space-y-4">
+              /* Lista de Atendimentos com visual de Timeline */
+              <div className="relative border-l-2 border-slate-200 ml-4 pl-6 space-y-6">
                 {historico.map((item) => {
                   const isConcluido = item.status === 'CONCLUIDO';
 
                   return (
-                    <div
-                      key={item.id}
-                      className={`bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs hover:border-slate-300 transition-colors space-y-3.5 relative overflow-hidden border-l-4 ${
-                        isConcluido
-                          ? 'border-l-emerald-500'
-                          : item.status === 'EM_ANDAMENTO'
-                            ? 'border-l-blue-500'
-                            : item.status === 'CANCELADO'
-                              ? 'border-l-rose-400'
-                              : 'border-l-amber-400'
-                      }`}
-                    >
+                    <div key={item.id} className="relative">
+                      {/* Ponto da Timeline */}
+                      <span
+                        className={`absolute -left-[33px] top-5 w-4 h-4 rounded-full border-2 border-white shadow-sm z-10 ${
+                          isConcluido
+                            ? 'bg-emerald-500'
+                            : item.status === 'EM_ANDAMENTO'
+                              ? 'bg-blue-500'
+                              : item.status === 'CANCELADO'
+                                ? 'bg-rose-400'
+                                : 'bg-amber-400'
+                        }`}
+                      />
+
+                      {/* Card do Atendimento */}
+                      <div
+                        className={`bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs hover:border-slate-300 transition-colors space-y-3.5 relative overflow-hidden border-l-4 ${
+                          isConcluido
+                            ? 'border-l-emerald-500'
+                            : item.status === 'EM_ANDAMENTO'
+                              ? 'border-l-blue-500'
+                              : item.status === 'CANCELADO'
+                                ? 'border-l-rose-400'
+                                : 'border-l-amber-400'
+                        }`}
+                      >
                       {/* Topo do Card: Especialidade e Status */}
                       <div className="flex items-center justify-between gap-2 relative z-10">
                         <EspecialidadeBadge especialidade={item.especialidade} compacto />
@@ -488,6 +467,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
                           <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
                         </button>
                       </div>
+                    </div>
                     </div>
                   );
                 })}

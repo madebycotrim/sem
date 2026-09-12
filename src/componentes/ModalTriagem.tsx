@@ -276,7 +276,7 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
     return {
       valor: p.id,
       rotulo: p.nome.replace(/^(Dr\.ª?|Dra?\.?)\s*/i, ''),
-      subtexto: p.registro || p.especialidade,
+      textoBusca: p.especialidade,
       icone: IconeEsp,
       corFundoIcone: estiloEsp.fundo,
       corIcone: estiloEsp.texto,

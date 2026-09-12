@@ -486,7 +486,8 @@ export const ModalSelectCustom: FC<ModalSelectCustomProps> = ({
     icone: o.icone,
     corFundoIcone: o.corFundoIcone,
     corIcone: o.corIcone,
-    subtexto: o.subtexto ?? o.textoBusca,
+    subtexto: o.subtexto,
+    textoBusca: o.textoBusca,
     badge: o.badge,
     desabilitado: o.desabilitado,
   }));

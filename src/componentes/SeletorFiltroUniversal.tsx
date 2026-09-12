@@ -60,6 +60,7 @@ export interface OpcaoFiltroItem {
   corIcone?: string;
   corFundoIcone?: string;
   subtexto?: string;
+  textoBusca?: string;
   grupo?: string;
   badge?: string | ReactNode;
   desabilitado?: boolean;
@@ -300,7 +301,7 @@ export const SeletorFiltroUniversal = forwardRef<
     if (!termoBusca.trim()) return listaOpcoesNormalizada;
     const termo = termoBusca.toLowerCase().trim();
     return listaOpcoesNormalizada.filter((item) => {
-      const texto = `${item.nome ?? ''} ${item.rotulo ?? ''} ${item.subtexto ?? ''} ${item.id ?? ''}`.toLowerCase();
+      const texto = `${item.nome ?? ''} ${item.rotulo ?? ''} ${item.subtexto ?? ''} ${item.textoBusca ?? ''} ${item.id ?? ''}`.toLowerCase();
       return texto.includes(termo);
     });
   }, [listaOpcoesNormalizada, termoBusca]);
