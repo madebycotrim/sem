@@ -435,7 +435,8 @@ export function App() {
         horarioChegada: entradaFilaEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         dataChegada: entradaFilaEm.toLocaleDateString('pt-BR'),
         profissional: atendimento.profissionalNome || profissional?.nome,
-        profissionalRegistro: profissional?.registro,
+        profissionalRegistro: profissional?.registro || (atendimento as any).profissionalRegistro,
+        profissionalConselho: profissional?.conselho || (atendimento as any).profissionalConselho,
         anotacoes: atendimento.resumo,
       };
     });

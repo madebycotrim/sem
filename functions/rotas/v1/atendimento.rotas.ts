@@ -363,7 +363,7 @@ rotasAtendimento.get('/profissionais', async (c) => {
   const db = getDb(c.env.DB);
   const profissionais = await db.query.usuarios.findMany({
     where: and(eq(usuarios.perfil, 'PROFISSIONAL_SAUDE'), eq(usuarios.ativo, true)),
-    columns: { id: true, nomeCompleto: true, especialidade: true, registroProfissional: true },
+    columns: { id: true, nomeCompleto: true, especialidade: true, registroProfissional: true, conselhoProfissional: true },
     orderBy: [asc(usuarios.nomeCompleto)],
   });
 
@@ -373,6 +373,7 @@ rotasAtendimento.get('/profissionais', async (c) => {
       nome: profissional.nomeCompleto,
       especialidade: profissional.especialidade,
       registro: profissional.registroProfissional,
+      conselho: profissional.conselhoProfissional,
     })),
   });
 });

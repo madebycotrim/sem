@@ -39,9 +39,50 @@ export interface ItemFila {
   dataChegada?: string;
   profissional?: string;
   profissionalRegistro?: string;
+  profissionalConselho?: string;
   prioridade?: boolean;
   anotacoes?: string;
 }
+
+/**
+ * Formata Conselho e Registro do profissional para exibição consistente (ex: "CRP-DF 4898")
+ */
+export const formatarConselhoERegistro = (
+  registro?: string,
+  conselho?: string,
+  especialidade?: Especialidade
+): string | null => {
+  const regLimpo = (registro || '').trim();
+  let conselhoLimpo = (conselho || '').trim();
+
+  // Se conselho não informado diretamente, tenta inferir pela especialidade
+  if (!conselhoLimpo || conselhoLimpo === 'NAO_INFORMADO') {
+    if (especialidade === 'PSICOLOGIA') conselhoLimpo = 'CRP';
+    else if (especialidade === 'ODONTOLOGIA') conselhoLimpo = 'CRO';
+    else if (especialidade === 'OFTALMOLOGIA') conselhoLimpo = 'CRM';
+    else if (especialidade === 'NUTRICAO') conselhoLimpo = 'CRN';
+    else if (especialidade === 'AUDIOMETRIA') conselhoLimpo = 'CRFA';
+  }
+
+  if (conselhoLimpo === 'NAO_INFORMADO' || conselhoLimpo === 'OUTRO') {
+    return regLimpo || null;
+  }
+
+  // Se o registro já começa com a sigla do conselho (ex: "CRP 4898" ou "CRP-DF 4898")
+  if (regLimpo && /^(CRM|CRO|CRP|CRN|CRFA|COREN|CRESS)/i.test(regLimpo)) {
+    return regLimpo;
+  }
+
+  const siglaComUf = conselhoLimpo
+    ? conselhoLimpo.includes('-') ? conselhoLimpo : `${conselhoLimpo}-DF`
+    : '';
+
+  if (siglaComUf && regLimpo) {
+    return `${siglaComUf} ${regLimpo}`;
+  }
+
+  return siglaComUf || regLimpo || null;
+};
 
 export interface FilaDoDiaProps {
   aoIniciarAtendimento: (item: {
@@ -146,6 +187,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
     profissionalId: string;
     profissionalNome: string;
     profissionalRegistro?: string;
+    profissionalConselho?: string;
     especialidade: Especialidade;
   }) => {
     const cpfLimpo = (dados.cpf || '').replace(/\D/g, '');
@@ -205,6 +247,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       turno,
       profissional: dados.profissionalNome,
       profissionalRegistro: dados.profissionalRegistro,
+      profissionalConselho: dados.profissionalConselho,
       anotacoes: atendimentoExistente?.resumo || '',
     };
 
@@ -313,6 +356,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       profissional: item.profissional,
       profissionalId: item.profissionalId,
       profissionalRegistro: item.profissionalRegistro,
+      profissionalConselho: item.profissionalConselho,
       horarioChegada: item.horarioChegada,
       anotacoes: textoAnotacoes,
     });
@@ -493,7 +537,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         id: 'profissional',
         rotulo: 'PROFISSIONAL',
         tipo: 'texto',
-        obterValor: (f) => `${f.profissional || ''} ${f.profissionalRegistro || ''}`,
+        obterValor: (f) => `${f.profissional || ''} ${formatarConselhoERegistro(f.profissionalRegistro, f.profissionalConselho, f.especialidade) || ''}`,
       },
       {
         id: 'especialidade',
@@ -540,7 +584,9 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       item.pacienteNome.toLowerCase().includes(termo) ||
       Boolean(item.cpf && item.cpf.includes(termo)) ||
       item.horarioChegada.includes(termo) ||
-      Boolean(item.profissional && item.profissional.toLowerCase().includes(termo)),
+      Boolean(item.profissional && item.profissional.toLowerCase().includes(termo)) ||
+      Boolean(item.profissionalRegistro && item.profissionalRegistro.toLowerCase().includes(termo)) ||
+      Boolean(item.profissionalConselho && item.profissionalConselho.toLowerCase().includes(termo)),
   });
 
   const { dadosFiltrados, temAlgumFiltroAtivo } = filtroExcel;
@@ -730,6 +776,21 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                           <span className="font-semibold text-slate-900 uppercase tracking-tight text-xs truncate max-w-[210px]">
                             {item.profissional.replace(/^(Dr\.ª?|Dra?\.?)\s*/i, '')}
                           </span>
+                          {(() => {
+                            const prof = profissionais.find(
+                              (p) => p.id === item.profissionalId || p.nome === item.profissional
+                            );
+                            const conselhoRegistro = formatarConselhoERegistro(
+                              item.profissionalRegistro || prof?.registro || (prof as any)?.registroProfissional,
+                              item.profissionalConselho || prof?.conselho || (prof as any)?.conselhoProfissional,
+                              item.especialidade
+                            );
+                            return conselhoRegistro ? (
+                              <span className="text-[11px] font-mono text-slate-400 mt-0.5">
+                                {conselhoRegistro}
+                              </span>
+                            ) : null;
+                          })()}
                         </div>
                       ) : (
                         <span className="text-slate-400 text-xs italic">Não informado</span>

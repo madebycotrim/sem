@@ -88,3 +88,34 @@ describe('Confirmações de Ações na Fila do Dia', () => {
     expect(confirmandoReativacaoId).toBeNull();
   });
 });
+
+describe('Formatação de Conselho e Registro Profissional', () => {
+  it('deve formatar conselho e registro corretamente com UF padrão DF', async () => {
+    const { formatarConselhoERegistro } = await import('../componentes/FilaDoDia.tsx');
+    expect(formatarConselhoERegistro('4898', 'CRP')).toBe('CRP-DF 4898');
+    expect(formatarConselhoERegistro('4898', 'CRP-DF')).toBe('CRP-DF 4898');
+    expect(formatarConselhoERegistro('12345', 'CRM')).toBe('CRM-DF 12345');
+  });
+
+  it('deve inferir conselho pela especialidade quando não informado explicitamente', async () => {
+    const { formatarConselhoERegistro } = await import('../componentes/FilaDoDia.tsx');
+    expect(formatarConselhoERegistro('4898', undefined, 'PSICOLOGIA')).toBe('CRP-DF 4898');
+    expect(formatarConselhoERegistro('9999', undefined, 'ODONTOLOGIA')).toBe('CRO-DF 9999');
+    expect(formatarConselhoERegistro('1111', undefined, 'OFTALMOLOGIA')).toBe('CRM-DF 1111');
+    expect(formatarConselhoERegistro('2222', undefined, 'NUTRICAO')).toBe('CRN-DF 2222');
+    expect(formatarConselhoERegistro('3333', undefined, 'AUDIOMETRIA')).toBe('CRFA-DF 3333');
+  });
+
+  it('não deve duplicar a sigla se o registro já contiver o conselho', async () => {
+    const { formatarConselhoERegistro } = await import('../componentes/FilaDoDia.tsx');
+    expect(formatarConselhoERegistro('CRP 4898', 'CRP')).toBe('CRP 4898');
+    expect(formatarConselhoERegistro('CRP-DF 4898', 'CRP')).toBe('CRP-DF 4898');
+  });
+
+  it('deve retornar null se nenhum registro ou conselho for fornecido', async () => {
+    const { formatarConselhoERegistro } = await import('../componentes/FilaDoDia.tsx');
+    expect(formatarConselhoERegistro('', undefined)).toBeNull();
+    expect(formatarConselhoERegistro(undefined, undefined)).toBeNull();
+  });
+});
+

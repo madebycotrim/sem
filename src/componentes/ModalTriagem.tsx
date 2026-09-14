@@ -34,6 +34,9 @@ export interface ItemProfissionalTriagem {
   nome: string;
   especialidade: Especialidade;
   registro?: string;
+  conselho?: string;
+  conselhoProfissional?: string;
+  registroProfissional?: string;
 }
 
 export interface ModalTriagemProps {
@@ -49,6 +52,7 @@ export interface ModalTriagemProps {
     profissionalId: string;
     profissionalNome: string;
     profissionalRegistro?: string;
+    profissionalConselho?: string;
     especialidade: Especialidade;
   }) => Promise<void> | void;
   escolas?: Array<{ id: string; nome: string }>;
@@ -237,7 +241,8 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
         escolaNome: escolaObj?.nome || pacienteSelecionado.escolaNome || 'Instituição não informada',
         profissionalId: profissionalSelecionado.id,
         profissionalNome: profissionalSelecionado.nome,
-        profissionalRegistro: profissionalSelecionado.registro,
+        profissionalRegistro: profissionalSelecionado.registro || profissionalSelecionado.registroProfissional,
+        profissionalConselho: profissionalSelecionado.conselho || profissionalSelecionado.conselhoProfissional,
         especialidade,
       });
 
@@ -273,10 +278,12 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
   const opcoesProfissional: OpcaoSelectCustom[] = profissionais.map((p) => {
     const estiloEsp = obterEstiloEspecialidade(p.especialidade);
     const IconeEsp = estiloEsp.icone;
+    const conselhoReg = [p.conselho || p.conselhoProfissional, p.registro || p.registroProfissional].filter(Boolean).join(' ');
     return {
       valor: p.id,
       rotulo: p.nome.replace(/^(Dr\.ª?|Dra?\.?)\s*/i, ''),
-      textoBusca: p.especialidade,
+      subtexto: conselhoReg ? `Conselho/Reg: ${conselhoReg}` : undefined,
+      textoBusca: `${p.especialidade} ${conselhoReg}`,
       icone: IconeEsp,
       corFundoIcone: estiloEsp.fundo,
       corIcone: estiloEsp.texto,
