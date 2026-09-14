@@ -84,6 +84,7 @@ export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar
                 value={senhaAtual}
                 onChange={(e) => setSenhaAtual(e.target.value)}
                 placeholder="Digite sua senha atual"
+                autoComplete="current-password"
                 className={ESTILO_INPUT_MODAL}
               />
             </div>
@@ -99,6 +100,7 @@ export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar
                   value={novaSenha}
                   onChange={(e) => setNovaSenha(e.target.value)}
                   placeholder="Mínimo de 8 caracteres"
+                  autoComplete="new-password"
                   className={ESTILO_INPUT_MODAL}
                 />
               </div>
@@ -115,6 +117,7 @@ export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar
                   value={confirmarSenha}
                   onChange={(e) => setConfirmarSenha(e.target.value)}
                   placeholder="Repita a nova senha"
+                  autoComplete="new-password"
                   className={`${ESTILO_INPUT_MODAL} ${confirmarSenha && !senhasConferem ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : ''}`}
                 />
               </div>

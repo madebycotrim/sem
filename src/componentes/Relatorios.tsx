@@ -22,7 +22,6 @@ import {
   User,
   ShieldCheck,
   FileText,
-  Clock,
   ArrowUpRight,
   Stethoscope,
   Smile,
@@ -31,10 +30,8 @@ import { utils, writeFile } from 'xlsx';
 import { requisicaoApi } from '../servicos/api.ts';
 import {
   ESPECIALIDADE_LABELS,
-  TURNO_LABELS,
   STATUS_ATENDIMENTO_LABELS,
   StatusAtendimento,
-  Turno,
   type Especialidade,
 } from '../../compartilhado/index.ts';
 import {
@@ -63,7 +60,6 @@ interface RelatorioDados {
   mediaDiaria?: number;
   picoAtendimento?: { data: string; total: number } | null;
   porStatus?: Record<string, number>;
-  porTurno?: Record<string, number>;
   porEspecialidade: Array<{ especialidade: string; total: number; encaminhamentos: number }>;
   porEscola: Array<{ id: string; nome: string; total: number }>;
   porProfissional: Array<{ id: string; nome: string; total: number }>;
@@ -99,7 +95,6 @@ interface RegistroTabela {
   profissional: string;
   registroConselho?: string;
   instituicao: string;
-  turno: string;
   status: string;
   resumo: string;
   procedimentos: string;
@@ -124,7 +119,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   const [escolaFiltro, setEscolaFiltro] = useState('');
   const [especialidadeFiltro, setEspecialidadeFiltro] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('');
-  const [turnoFiltro, setTurnoFiltro] = useState('');
   const [profissionalFiltro, setProfissionalFiltro] = useState('');
 
   const [dataInicio, setDataInicio] = useState(() => {
@@ -160,7 +154,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     mediaDiaria: 0,
     picoAtendimento: null,
     porStatus: {},
-    porTurno: {},
     porEspecialidade: [],
     porEscola: [],
     porProfissional: [],
@@ -261,7 +254,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       if (escolaFiltro) parametros.set('escolaLocalId', escolaFiltro);
       if (especialidadeFiltro) parametros.set('especialidade', especialidadeFiltro);
       if (statusFiltro) parametros.set('status', statusFiltro);
-      if (turnoFiltro) parametros.set('turno', turnoFiltro);
       if (profissionalFiltro) parametros.set('usuarioId', profissionalFiltro);
 
       try {
@@ -281,7 +273,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           mediaDiaria: respostaRelatorio.mediaDiaria ?? 0,
           picoAtendimento: respostaRelatorio.picoAtendimento ?? null,
           porStatus: respostaRelatorio.porStatus ?? {},
-          porTurno: respostaRelatorio.porTurno ?? {},
           porEspecialidade: respostaRelatorio.porEspecialidade ?? [],
           porEscola: respostaRelatorio.porEscola ?? [],
           porProfissional: respostaRelatorio.porProfissional ?? [],
@@ -302,7 +293,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             profissional: item.profissional || 'Não informado',
             registroConselho: formatarConselhoERegistro(item.profissionalRegistro || undefined, item.profissionalConselho || undefined, item.especialidade as any) || 'Não informado',
             instituicao: item.escolaLocal || 'Não informado',
-            turno: item.turno ? TURNO_LABELS[item.turno as keyof typeof TURNO_LABELS] ?? item.turno : 'Não informado',
             status: item.status || StatusAtendimento.CONCLUIDO,
             resumo: item.resumo || 'Sem observações registradas',
             procedimentos: item.procedimentos || 'Procedimento padrão realizado',
@@ -322,7 +312,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             mediaDiaria: 0,
             picoAtendimento: null,
             porStatus: {},
-            porTurno: {},
             porEspecialidade: [],
             porEscola: [],
             porProfissional: [],
@@ -338,7 +327,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
 
     void carregarRelatorio();
     return () => controlador.abort();
-  }, [relatorioGerado, dataInicio, dataFim, escolaFiltro, especialidadeFiltro, statusFiltro, turnoFiltro, profissionalFiltro]);
+  }, [relatorioGerado, dataInicio, dataFim, escolaFiltro, especialidadeFiltro, statusFiltro, profissionalFiltro]);
 
   // Cálculos Derivados e Inteligência Analítica
   const totalGeral = dados.total || 0;
@@ -533,7 +522,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       { id: 'especialidade', rotulo: 'Especialidade', tipo: 'texto', obterValor: (item) => ESPECIALIDADE_LABELS[item.especialidade as Especialidade] ?? item.especialidade },
       { id: 'profissional', rotulo: 'Profissional', tipo: 'texto', obterValor: (item) => item.profissional },
       { id: 'instituicao', rotulo: 'Unidade Escolar', tipo: 'texto', obterValor: (item) => item.instituicao },
-      { id: 'turno', rotulo: 'Turno', tipo: 'texto', obterValor: (item) => item.turno },
       { id: 'status', rotulo: 'Situação', tipo: 'texto', obterValor: (item) => STATUS_ATENDIMENTO_LABELS[item.status as StatusAtendimento] ?? item.status },
     ],
     []
@@ -544,7 +532,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     colunas: colunasTabela,
     buscaGeral: buscaTabela,
     funcaoBuscaGeral: (item, termo) =>
-      [item.data, item.paciente, item.turma, item.cpf, item.especialidade, item.profissional, item.instituicao, item.turno, item.status]
+      [item.data, item.paciente, item.turma, item.cpf, item.especialidade, item.profissional, item.instituicao, item.status]
         .some((valor) => valor.toLowerCase().includes(termo)),
   });
 
@@ -577,7 +565,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       if (escolaFiltro) parametrosBase.set('escolaLocalId', escolaFiltro);
       if (especialidadeFiltro) parametrosBase.set('especialidade', especialidadeFiltro);
       if (statusFiltro) parametrosBase.set('status', statusFiltro);
-      if (turnoFiltro) parametrosBase.set('turno', turnoFiltro);
       if (profissionalFiltro) parametrosBase.set('usuarioId', profissionalFiltro);
 
       const primeiraPagina = await requisicaoApi<{
@@ -611,7 +598,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         escolaFiltro ? `Escola: ${escolasLocais.find((e) => e.id === escolaFiltro)?.nome ?? escolaFiltro}` : null,
         especialidadeFiltro ? `Especialidade: ${ESPECIALIDADE_LABELS[especialidadeFiltro as Especialidade] ?? especialidadeFiltro}` : null,
         statusFiltro ? `Situação: ${STATUS_ATENDIMENTO_LABELS[statusFiltro as StatusAtendimento] ?? statusFiltro}` : null,
-        turnoFiltro ? `Turno: ${TURNO_LABELS[turnoFiltro as keyof typeof TURNO_LABELS] ?? turnoFiltro}` : null,
         profissionalFiltro ? `Profissional: ${profissionaisDisponiveis.find((p) => p.id === profissionalFiltro)?.nome ?? profissionalFiltro}` : null,
       ].filter(Boolean).join(' | ') || 'Nenhum filtro aplicado (Todos os dados)';
 
@@ -669,20 +655,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           `${item.pctTotal}%`,
         ]),
         [],
-        ['=== 4. DISTRIBUIÇÃO POR TURNO DE ATENDIMENTO ==='],
-        ['Turno', 'Total de Atendimentos', 'Participação no Total (%)'],
-        [
-          'Manhã',
-          dados.porTurno?.MANHA ?? 0,
-          totalGeral > 0 ? `${Math.round(((dados.porTurno?.MANHA ?? 0) / totalGeral) * 100)}%` : '0%',
-        ],
-        [
-          'Tarde',
-          dados.porTurno?.TARDE ?? 0,
-          totalGeral > 0 ? `${Math.round(((dados.porTurno?.TARDE ?? 0) / totalGeral) * 100)}%` : '0%',
-        ],
-        [],
-        ['=== 5. SITUAÇÃO OPERACIONAL DOS ATENDIMENTOS ==='],
+        ['=== 4. SITUAÇÃO OPERACIONAL DOS ATENDIMENTOS ==='],
         ['Situação / Status', 'Quantidade de Atendimentos', 'Participação no Total (%)'],
         ...Object.entries(STATUS_ATENDIMENTO_LABELS).map(([chave, rotulo]) => {
           const qtd = dados.porStatus?.[chave] ?? 0;
@@ -722,7 +695,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         'CPF (Mascarado)': item.pacienteCpf || 'Não informado',
         Turma: item.pacienteTurma || 'Não informada',
         Especialidade: ESPECIALIDADE_LABELS[item.especialidade as Especialidade] ?? item.especialidade,
-        Turno: item.turno ? TURNO_LABELS[item.turno as keyof typeof TURNO_LABELS] ?? item.turno : 'Não informado',
         Situação: item.status ? STATUS_ATENDIMENTO_LABELS[item.status as StatusAtendimento] ?? item.status : 'Concluído',
         Profissional: item.profissional || 'Não informado',
         'Conselho e Registro': formatarConselhoERegistro(item.profissionalRegistro || undefined, item.profissionalConselho || undefined, item.especialidade as any) || 'Não informado',
@@ -754,7 +726,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         { wch: 18 }, // CPF
         { wch: 15 }, // Turma
         { wch: 22 }, // Especialidade
-        { wch: 12 }, // Turno
         { wch: 16 }, // Status
         { wch: 28 }, // Profissional
         { wch: 32 }, // Unidade Escolar
@@ -803,8 +774,8 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         subtitulo="CENTRAL DE INTELIGÊNCIA OPERACIONAL, EPIDEMIOLÓGICA E GESTÃO CLÍNICA"
         acoesExtras={
           <div className="flex flex-col gap-2.5 w-full min-w-0">
-            {/* Linha 1: De | Até | Status | Turno | Unidade | Especialidade | Profissional */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-[140px_140px_1fr_1fr_1.6fr_1.3fr_1.5fr] items-center gap-2 w-full min-w-0">
+            {/* Linha 1: De | Até | Status | Unidade | Especialidade | Profissional */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-[140px_140px_1fr_1.6fr_1.3fr_1.5fr] items-center gap-2 w-full min-w-0">
               {/* Data Inicial */}
               <label
                 className="relative flex h-10 cursor-pointer items-center justify-between gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 w-full min-w-0 shadow-2xs"
@@ -876,27 +847,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   tamanho="sm"
                   fundoBranco
                   pesquisavel={false}
-                />
-              </div>
-
-              {/* Turno */}
-              <div className="w-full min-w-0">
-                <SeletorFiltroUniversal
-                  categoria="custom"
-                  valor={turnoFiltro}
-                  aoMudar={(val) => {
-                    setTurnoFiltro(val);
-                    if (relatorioGerado) setFiltrosModificados(true);
-                  }}
-                  placeholder="Todos os turnos"
-                  tamanho="sm"
-                  fundoBranco
-                  pesquisavel={false}
-                  opcoes={[
-                    { id: '', valor: '', nome: 'Todos os turnos', rotulo: 'Todos os turnos' },
-                    { id: Turno.MANHA, valor: Turno.MANHA, nome: 'Manhã', rotulo: 'Manhã' },
-                    { id: Turno.TARDE, valor: Turno.TARDE, nome: 'Tarde', rotulo: 'Tarde' },
-                  ]}
                 />
               </div>
 
@@ -994,7 +944,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   onClick={() => {
                     setBuscaTabela('');
                     setStatusFiltro('');
-                    setTurnoFiltro('');
                     setEscolaFiltro('');
                     setEspecialidadeFiltro('');
                     setProfissionalFiltro('');
@@ -1418,52 +1367,23 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           </div>
         </div>
 
-        {/* 2. Distribuição por Turno */}
+        {/* 2. Status Operacional */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
           <div className="mb-3 flex items-center justify-between">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Volume por Turno</div>
-            <Clock className="h-3.5 w-3.5 text-slate-400" />
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Status Operacional</div>
+            <Activity className="h-3.5 w-3.5 text-slate-400" />
           </div>
-
-          <div className="space-y-4">
-            {[
-              { id: 'MANHA', label: 'Manhã', cor: '#0284c7' },
-              { id: 'TARDE', label: 'Tarde', cor: '#f59e0b' },
-            ].map((t) => {
-              const contagem = dados.porTurno?.[t.id] ?? 0;
-              const pct = totalGeral > 0 ? Math.round((contagem / totalGeral) * 100) : 0;
-
+          <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+            {Object.entries(STATUS_ATENDIMENTO_LABELS).map(([chave, rotulo]) => {
+              const qtd = dados.porStatus?.[chave] ?? 0;
+              if (qtd === 0 && chave !== 'CONCLUIDO') return null;
               return (
-                <div key={t.id}>
-                  <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-700">
-                    <span className="font-bold text-slate-700">{t.label}</span>
-                    <span className="font-black text-slate-800">{contagem} <span className="text-[10px] text-slate-400 font-normal">({pct}%)</span></span>
-                  </div>
-                  <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${pct}%`, backgroundColor: t.cor }}
-                    />
-                  </div>
+                <div key={chave} className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1 border border-slate-100">
+                  <span className="text-slate-500 truncate">{rotulo}</span>
+                  <span className="font-black text-slate-800">{qtd}</span>
                 </div>
               );
             })}
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-slate-100">
-            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Status Operacional</div>
-            <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-              {Object.entries(STATUS_ATENDIMENTO_LABELS).map(([chave, rotulo]) => {
-                const qtd = dados.porStatus?.[chave] ?? 0;
-                if (qtd === 0 && chave !== 'CONCLUIDO') return null;
-                return (
-                  <div key={chave} className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1 border border-slate-100">
-                    <span className="text-slate-500 truncate">{rotulo}</span>
-                    <span className="font-black text-slate-800">{qtd}</span>
-                  </div>
-                );
-              })}
-            </div>
           </div>
         </div>
 
@@ -1569,7 +1489,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                 <CabecalhoColunaExcel colunaId="especialidade" rotulo="Especialidade" estado={filtroExcel} className="px-4 py-3" />
                 <CabecalhoColunaExcel colunaId="profissional" rotulo="Profissional" estado={filtroExcel} className="px-4 py-3" />
                 <CabecalhoColunaExcel colunaId="instituicao" rotulo="Unidade" estado={filtroExcel} className="px-4 py-3" />
-                <CabecalhoColunaExcel colunaId="turno" rotulo="Turno" estado={filtroExcel} className="px-4 py-3" />
                 <CabecalhoColunaExcel colunaId="status" rotulo="Situação" estado={filtroExcel} className="px-4 py-3" />
                 <th className="px-4 py-3 text-right">Ações</th>
               </tr>
@@ -1593,7 +1512,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                     </td>
                     <td className="px-4 py-3 text-slate-700">{linha.profissional}</td>
                     <td className="px-4 py-3 text-slate-700 truncate max-w-[180px]" title={linha.instituicao}>{linha.instituicao}</td>
-                    <td className="px-4 py-3 text-slate-600 font-medium whitespace-nowrap">{linha.turno}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <StatusAtendimentoBadge status={linha.status as StatusAtendimento} />
                     </td>
@@ -1678,8 +1596,8 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   <span className="font-semibold text-slate-800 block mt-1">{atendimentoSelecionado.profissional}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Data e Turno</span>
-                  <span className="font-semibold text-slate-800 block mt-1">{atendimentoSelecionado.data} ({atendimentoSelecionado.turno})</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Data</span>
+                  <span className="font-semibold text-slate-800 block mt-1">{atendimentoSelecionado.data}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Situação</span>

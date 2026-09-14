@@ -390,28 +390,6 @@ rotasAtendimento.get('/profissionais', async (c) => {
 });
 
 /**
- * GET /atendimentos/:id
- * Retorna dados detalhados de um atendimento específico.
- */
-rotasAtendimento.get('/:id', async (c) => {
-  const db = getDb(c.env.DB);
-  const id = c.req.param('id');
-  const atendimento = await db.query.atendimentos.findFirst({
-    where: eq(atendimentos.id, id),
-    with: {
-      escolaLocal: { columns: { nome: true } },
-      usuario: { columns: { nomeCompleto: true, conselhoProfissional: true, registroProfissional: true } },
-    },
-  });
-
-  if (!atendimento) {
-    return c.json({ erro: 'Atendimento não encontrado.' }, 404);
-  }
-
-  return c.json(atendimento);
-});
-
-/**
  * GET /atendimentos/relatorio
  * Agrega somente dados operacionais já filtrados no banco.
  */
@@ -457,7 +435,6 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
   const porEscola = new Map<string, { id: string; nome: string; total: number }>();
   const porProfissional = new Map<string, { id: string; nome: string; total: number }>();
   const porStatus: Record<string, number> = {};
-  const porTurno: Record<string, number> = {};
   const pacientesUnicosSet = new Set<string>();
 
   for (const atendimento of listaAtendimentos) {
@@ -467,9 +444,6 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
 
     const st = atendimento.status || 'CONCLUIDO';
     porStatus[st] = (porStatus[st] ?? 0) + 1;
-
-    const tr = atendimento.turno || 'MANHA';
-    porTurno[tr] = (porTurno[tr] ?? 0) + 1;
 
     const especialidade = porEspecialidade.get(atendimento.especialidade) ?? { total: 0, encaminhamentos: 0 };
     especialidade.total += 1;
@@ -529,13 +503,34 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
     mediaDiaria,
     picoAtendimento,
     porStatus,
-    porTurno,
     porEspecialidade: Array.from(porEspecialidade, ([especialidade, valores]) => ({ especialidade, ...valores }))
       .sort((a, b) => b.total - a.total),
     porEscola: Array.from(porEscola.values()).sort((a, b) => b.total - a.total),
     porProfissional: Array.from(porProfissional.values()).sort((a, b) => b.total - a.total),
     serie,
   });
+});
+
+/**
+ * GET /atendimentos/:id
+ * Retorna dados detalhados de um atendimento específico.
+ */
+rotasAtendimento.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
+  const id = c.req.param('id');
+  const atendimento = await db.query.atendimentos.findFirst({
+    where: eq(atendimentos.id, id),
+    with: {
+      escolaLocal: { columns: { nome: true } },
+      usuario: { columns: { nomeCompleto: true, conselhoProfissional: true, registroProfissional: true } },
+    },
+  });
+
+  if (!atendimento) {
+    return c.json({ erro: 'Atendimento não encontrado.' }, 404);
+  }
+
+  return c.json(atendimento);
 });
 
 /**
