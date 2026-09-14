@@ -16,14 +16,13 @@ import {
   Check,
   Printer,
   X,
-  TrendingUp,
   Activity,
   Building2,
-  User,
   FileText,
-  Stethoscope,
   Smile,
   Zap,
+  ShieldCheck,
+  Target,
 } from 'lucide-react';
 import { utils, writeFile } from 'xlsx';
 import { requisicaoApi } from '../servicos/api.ts';
@@ -151,6 +150,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   // Cache inteligente em memória para reutilização instantânea
   const cacheSinteseRef = useRef<Map<string, RespostaSinteseIa>>(new Map());
   const timerStreamingRef = useRef<number[]>([]);
+  const gerarSinteseComIaRef = useRef<((forcarNovo?: boolean, dadosDiretos?: RelatorioDados) => Promise<void>) | null>(null);
 
   // Modais
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState<RegistroTabela | null>(null);
@@ -316,6 +316,11 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         );
 
         setRelatorioGerado(true);
+
+        // Disparo 100% AUTOMÁTICO da síntese executiva por IA com base nos dados filtrados
+        if ((respostaRelatorio.total ?? 0) > 0) {
+          void gerarSinteseComIaRef.current?.(false, respostaRelatorio);
+        }
       } catch (erroApi) {
         if (!controlador.signal.aborted) {
           setDados(DADOS_RELATORIO_INICIAIS);
@@ -561,10 +566,10 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     if (totalGeral === 0) {
       return {
         origem: 'ALGORITMO_LOCAL',
-        titulo: 'Síntese Executiva do Período',
-        resumo: 'Nenhum registro encontrado no intervalo selecionado para compor o parecer executivo.',
+        titulo: 'Síntese Executiva do Período — Gestão de Saúde Escolar',
+        resumo: 'Nenhum atendimento clínico foi registrado no intervalo e filtros selecionados. O painel permanece em aguardo de novos atendimentos da operação móvel.',
         pontos: [],
-        recomendacao: 'Amplie os filtros de busca para extrair indicadores de gestão.',
+        recomendacao: 'Amplie os filtros de busca no cabeçalho para extrair os indicadores analíticos completos da rede.',
         veioDoCache: false,
       };
     }
@@ -572,29 +577,36 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     const dataIniFormatada = dataInicio ? formatarDataBrasileira(dataInicio) : 'Início';
     const dataFimFormatada = dataFim ? formatarDataBrasileira(dataFim) : 'Atual';
     const topEsp = dados.porEspecialidade[0];
-    const topEspNome = topEsp ? ESPECIALIDADE_LABELS[topEsp.especialidade as Especialidade] ?? topEsp.especialidade : 'N/A';
+    const topEspNome = topEsp ? ESPECIALIDADE_LABELS[topEsp.especialidade as Especialidade] ?? topEsp.especialidade : 'Geral';
     const topEspPct = topEsp ? Math.round((topEsp.total / totalGeral) * 100) : 0;
     const topEscola = dados.porEscola[0]?.nome ?? 'Não identificada';
+    const totalEscolasAtendidas = dados.porEscola.length;
+    const picoTexto = picoGrafico ? ` O dia com maior atividade registrada foi ${formatarDataBrasileira(picoGrafico.data)}, atingindo ${picoGrafico.total} atendimentos.` : '';
 
-    const texto = `No período de ${dataIniFormatada} a ${dataFimFormatada}, a operação itinerante de saúde escolar realizou ${totalGeral} atendimentos para ${dados.pacientesUnicos ?? totalGeral} estudantes em ${dados.porEscola.length} escola(s). A especialidade mais requisitada foi ${topEspNome} (${topEsp?.total ?? 0} consultas, representando ${topEspPct}% do volume geral).`;
+    const p1 = `No período analisado (${dataIniFormatada} a ${dataFimFormatada}), a operação móvel do Programa Saúde na Escola realizou ${totalGeral} consultas assistenciais, contemplando diretamente ${dados.pacientesUnicos ?? totalGeral} estudantes distintos em ${totalEscolasAtendidas} unidade(s) de ensino municipal. A regularidade operacional manteve uma média de ${dados.mediaDiaria ?? 0} consultas diárias.${picoTexto}`;
+    const p2 = `Sob a perspectiva do perfil epidemiológico da demanda, a especialidade de ${topEspNome} despontou como a principal frente clínica de intervenção, concentrando ${topEsp?.total ?? 0} consultas (${topEspPct}% de todo o volume apurado). A unidade escolar com maior fluxo registrado foi "${topEscola}", evidenciando a concentração assistencial nesta região.`;
+    const p3 = `A estratégia de atenção primária in loco alcançou alta resolutividade no período, proporcionando acesso médico e odontológico direto no ambiente pedagógico e minimizando o absenteísmo escolar de crianças e adolescentes.`;
+
+    const textoCompleto = `${p1}\n\n${p2}\n\n${p3}`;
 
     const pontos = [
-      `Cobertura de Alunos: ${dados.pacientesUnicos ?? totalGeral} estudantes distintos atendidos com média de ${dados.mediaDiaria ?? 0} consultas/dia útil.`,
-      `Foco de Demanda: ${topEspNome} liderou com ${topEspPct}% das intervenções, seguido pela unidade "${topEscola}".`,
-      `Cobertura Escolar: Atendimento clínico distribuído em ${dados.porEscola.length} unidade(s) de ensino municipal.`,
+      `Cobertura de Estudantes: ${dados.pacientesUnicos ?? totalGeral} alunos distintos atendidos com média estável de ${dados.mediaDiaria ?? 0} consultas/dia útil.`,
+      `Demanda Epidemiológica Líder: ${topEspNome} concentrou ${topEspPct}% de todas as intervenções realizadas pela equipe móvel.`,
+      `Polo de Maior Concentração: A unidade "${topEscola}" concentrou a maior demanda assistencial do período analisado.`,
+      `Capacidade e Regularidade: Circuito itinerante com cobertura ativa em ${totalEscolasAtendidas} escola(s) municipais.`,
     ];
 
-    const recomendacao = `Manter o planejamento do cronograma itinerante e o dimensionamento da equipe clínica conforme os polos escolares de maior demanda.`;
+    const recomendacao = `Recomenda-se dimensionar prioritariamente a escala de profissionais e a reposição de insumos clínicos para a especialidade de ${topEspNome} e para a unidade polo "${topEscola}". Sugere-se também programar visitas intensivas às escolas da rede que registraram menor volume de atendimentos no próximo ciclo móvel.`;
 
     return {
       origem: 'ALGORITMO_LOCAL',
-      titulo: 'Síntese Executiva e Parecer Clínico Operacional',
-      resumo: texto,
+      titulo: 'Síntese Executiva e Parecer Clínico Operacional da Gestão',
+      resumo: textoCompleto,
       pontos,
       recomendacao,
       veioDoCache: false,
     };
-  }, [totalGeral, dataInicio, dataFim, dados]);
+  }, [totalGeral, dataInicio, dataFim, dados, picoGrafico]);
 
   const sinteseExecutiva = sinteseExecutivaIa ?? sintesePadrao;
 
@@ -665,11 +677,13 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     };
   }, []);
 
-  const gerarSinteseComIa = async (forcarNovo = false) => {
-    if (totalGeral === 0 || gerandoSinteseIa) return;
+  const gerarSinteseComIa = async (forcarNovo = false, dadosDiretos?: RelatorioDados) => {
+    const dadosBase = dadosDiretos ?? dados;
+    const totalEfetivo = dadosDiretos ? dadosDiretos.total : totalGeral;
+    if (totalEfetivo === 0 || gerandoSinteseIa) return;
 
     // Chave de cache baseada nas dimensões quantitativas e filtros
-    const chaveCache = `${dataInicio}_${dataFim}_${escolaFiltro || 'todas'}_${especialidadeFiltro || 'todas'}_${profissionalFiltro || 'todos'}_${totalGeral}_${dados.pacientesUnicos ?? 0}`;
+    const chaveCache = `${dataInicio}_${dataFim}_${escolaFiltro || 'todas'}_${especialidadeFiltro || 'todas'}_${profissionalFiltro || 'todos'}_${totalEfetivo}_${dadosBase.pacientesUnicos ?? 0}`;
 
     // Reutilização instantânea de cache se não foi solicitada regeneração forçada
     if (!forcarNovo && cacheSinteseRef.current.has(chaveCache)) {
@@ -683,22 +697,22 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     setGerandoSinteseIa(true);
     try {
       const payload = {
-        totalGeral,
-        estudantesUnicos: dados.pacientesUnicos ?? totalGeral,
-        mediaDiaria: dados.mediaDiaria ?? 0,
-        pico: picoGrafico ? { data: picoGrafico.data, total: picoGrafico.total } : null,
+        totalGeral: totalEfetivo,
+        estudantesUnicos: dadosBase.pacientesUnicos ?? totalEfetivo,
+        mediaDiaria: dadosBase.mediaDiaria ?? 0,
+        pico: dadosBase.picoAtendimento ?? (picoGrafico ? { data: picoGrafico.data, total: picoGrafico.total } : null),
         dataInicio,
         dataFim,
-        porEspecialidade: rankingEspecialidades.map((e) => ({
-          especialidade: e.especialidade,
-          total: e.atendimentos,
-          pct: e.pctTotal,
+        porEspecialidade: (dadosBase.porEspecialidade || []).map((e) => ({
+          especialidade: ESPECIALIDADE_LABELS[e.especialidade as Especialidade] ?? e.especialidade,
+          total: e.total,
+          pct: totalEfetivo > 0 ? Math.round((e.total / totalEfetivo) * 100) : 0,
         })),
-        porEscola: rankingEscolas.map((e) => ({
+        porEscola: (dadosBase.porEscola || []).map((e) => ({
           nome: e.nome,
           total: e.total,
         })),
-        porStatus: dados.porStatus ?? {},
+        porStatus: dadosBase.porStatus ?? {},
       };
 
       const res = await requisicaoApi<RespostaSinteseIa>('/atendimentos/relatorio/sintese-ia', {
@@ -718,6 +732,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       setGerandoSinteseIa(false);
     }
   };
+  gerarSinteseComIaRef.current = gerarSinteseComIa;
 
   const copiarParecer = () => {
     concluirStreamingImediatamente();
@@ -1271,124 +1286,81 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       {/* ─── Painel do Relatório: só visível após clicar em Gerar ───── */}
       {relatorioGerado && !carregando && (
         <>
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between border-b border-slate-200 bg-gradient-to-r from-[#f8fafc] to-[#edf4fa] px-5 py-3.5 gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
+      <div className="mt-4 rounded-3xl border border-slate-200/90 bg-white shadow-sm overflow-hidden transition-all">
+        {/* Cabeçalho de Comando Executivo */}
+        <div className="flex flex-wrap items-center justify-between border-b border-slate-200/80 bg-gradient-to-r from-slate-900 via-[#0d2a4a] to-[#0a426d] px-6 py-4.5 text-white gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-blue-300 shadow-inner">
               <Activity className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Painel de Inteligência SEM</div>
-              <div className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
-                Relatório Oficial de Saúde Itinerante
-                <span className="text-xs font-semibold text-slate-400">
-                  ({dataInicio ? formatarDataBrasileira(dataInicio) : 'Desde o início'} — {dataFim ? formatarDataBrasileira(dataFim) : 'Até o momento'})
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300">
+                  Painel Executivo • Saúde na Escola
+                </span>
+                <span className="inline-flex items-center rounded-full bg-blue-400/20 px-2 py-0.5 text-[9px] font-bold text-blue-200 border border-blue-400/30">
+                  OFICIAL
+                </span>
+              </div>
+              <div className="text-base font-extrabold tracking-tight text-white flex flex-wrap items-center gap-2.5 mt-0.5">
+                Relatório de Saúde Itinerante
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-2.5 py-1 text-xs font-medium text-slate-200 border border-white/10">
+                  <Calendar className="h-3 w-3 text-blue-300" />
+                  {dataInicio ? formatarDataBrasileira(dataInicio) : 'Desde o início'} — {dataFim ? formatarDataBrasileira(dataFim) : 'Até o momento'}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={() => void handleExportarPlanilha()}
               disabled={exportando}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[#cfe1ee] bg-[#0d4d7a] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#093c60] disabled:opacity-60 cursor-pointer"
+              className="inline-flex items-center gap-2 rounded-xl bg-white text-slate-900 px-4 py-2.5 text-xs font-bold shadow-sm transition-all hover:bg-slate-100 hover:shadow-md active:scale-95 disabled:opacity-60 cursor-pointer"
             >
-              {exportando ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {exportando ? 'Gerando Planilha...' : 'Baixar Planilha Excel'}
+              {exportando ? <LoaderCircle className="h-4 w-4 animate-spin text-blue-700" /> : <Download className="h-4 w-4 text-blue-700" />}
+              {exportando ? 'Exportando Planilha...' : 'Baixar Planilha Excel'}
             </button>
           </div>
         </div>
 
-        {/* ─── 4 Cards de KPIs Estratégicos ───── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 p-5 bg-white">
-          {/* Card 1: Total de Atendimentos */}
-          <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/70 to-white p-4 text-[#0d4d7a] shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-700">Total Atendimentos</span>
-              <FileBarChart2 className="h-4 w-4 text-blue-500" />
-            </div>
-            <div className="mt-2 text-3xl font-black tracking-tight text-slate-900">{totalGeral}</div>
-            <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-slate-500">
-              <span>{rankingEspecialidades.length} especialidades ativas</span>
-            </div>
-          </div>
-
-          {/* Card 2: Alunos Únicos Atendidos */}
-          <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/70 to-white p-4 text-emerald-800 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">Alunos Únicos</span>
-              <User className="h-4 w-4 text-emerald-600" />
-            </div>
-            <div className="mt-2 text-3xl font-black tracking-tight text-emerald-950">{dados.pacientesUnicos ?? totalGeral}</div>
-            <div className="mt-1 text-[11px] font-semibold text-emerald-700 truncate">
-              Estudantes distintos atendidos
-            </div>
-          </div>
-
-          {/* Card 3: Média Diária */}
-          <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50/70 to-white p-4 text-purple-900 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-purple-700">Média Diária</span>
-              <TrendingUp className="h-4 w-4 text-purple-600" />
-            </div>
-            <div className="mt-2 text-3xl font-black tracking-tight text-purple-950">{dados.mediaDiaria ?? 0}</div>
-            <div className="mt-1 text-[11px] font-semibold text-purple-700 truncate">
-              {picoGrafico ? `Pico: ${picoGrafico.total} em ${formatarDataBrasileira(picoGrafico.data)}` : 'Sem registros'}
-            </div>
-          </div>
-
-          {/* Card 4: Especialidade Líder */}
-          <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-white p-4 text-indigo-900 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">Demanda Principal</span>
-              <Stethoscope className="h-4 w-4 text-indigo-600" />
-            </div>
-            <div className="mt-2 text-xl font-black tracking-tight text-indigo-950 truncate">
-              {rankingEspecialidades[0]?.especialidade ?? 'Nenhuma'}
-            </div>
-            <div className="mt-1 text-[11px] font-semibold text-indigo-700 truncate">
-              {rankingEspecialidades[0] ? `${rankingEspecialidades[0].atendimentos} atendimentos (${rankingEspecialidades[0].pctTotal}%)` : 'Sem dados'}
-            </div>
-          </div>
-        </div>
-
         {/* ─── Síntese Executiva Inteligente (Gerada por Algoritmo Clínico / Cloudflare Workers AI) ───── */}
-        <div className="border-t border-slate-200 bg-gradient-to-br from-[#f8fafc] via-[#f1f5f9] to-[#edf2f7] p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-700 to-indigo-800 text-white shadow-xs">
+        <div className="bg-gradient-to-b from-slate-50/70 via-white to-slate-50/40 p-6 space-y-5">
+          {/* Barra Superior de Ações da Síntese */}
+          <div className="flex flex-wrap items-center justify-between gap-3.5 pb-1">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-700 to-indigo-800 text-white shadow-xs">
                 <Sparkles className="h-4 w-4 text-amber-300" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-blue-950">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs font-black uppercase tracking-[0.15em] text-slate-900">
                     {sinteseExecutiva.titulo}
                   </span>
                   {estaEmStreaming ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-purple-300 bg-purple-50 px-2 py-0.5 text-[10px] font-bold text-purple-800 animate-pulse">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-200 bg-purple-50 px-2.5 py-0.5 text-[10px] font-bold text-purple-700 animate-pulse">
                       <Sparkles className="h-3 w-3 text-purple-600 animate-spin" />
                       Transmitindo em Tempo Real...
                     </span>
                   ) : sinteseExecutiva.veioDoCache ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-800" title="Recuperado instantaneamente do cache local">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-[10px] font-bold text-sky-700 shadow-2xs">
                       <Zap className="h-3 w-3 text-sky-600" />
                       Cache Instantâneo • Llama 3
                     </span>
                   ) : sinteseExecutiva.origem === 'CLOUDFLARE_WORKERS_AI' ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 shadow-2xs">
                       <Sparkles className="h-3 w-3 text-emerald-600" />
                       Cloudflare Workers AI • Llama 3
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-[10px] font-semibold text-blue-700">
                       Algoritmo Clínico Estruturado
                     </span>
                   )}
                 </div>
-                <div className="text-[10px] text-slate-500 font-medium">
-                  Parecer automatizado baseado exclusivamente em estatísticas consolidadas da operação itinerante.
+                <div className="text-[11px] text-slate-500 font-medium">
+                  Análise gerencial e parecer técnico consolidados para tomada de decisão em saúde pública.
                 </div>
               </div>
             </div>
@@ -1398,7 +1370,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                 <button
                   type="button"
                   onClick={concluirStreamingImediatamente}
-                  className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1.5 text-xs font-semibold text-purple-700 hover:bg-purple-100 transition cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-1 rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-semibold text-purple-700 hover:bg-purple-100 transition cursor-pointer shadow-2xs"
                   title="Exibe o texto completo imediatamente sem aguardar a digitação"
                 >
                   Pular digitação
@@ -1407,10 +1379,10 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
 
               <button
                 type="button"
-                onClick={() => void gerarSinteseComIa(!!sinteseExecutivaIa)}
+                onClick={() => void gerarSinteseComIa(true)}
                 disabled={gerandoSinteseIa || totalGeral === 0}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:from-blue-800 hover:to-indigo-900 transition cursor-pointer disabled:opacity-50"
-                title="Gera síntese executiva profunda via Cloudflare Workers AI com resposta transmitida em tempo real"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:from-blue-800 hover:to-indigo-900 transition-all hover:shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+                title="Regenera análise executiva aprofundada via Cloudflare Workers AI sem utilizar o cache local"
               >
                 {gerandoSinteseIa ? (
                   <>
@@ -1420,7 +1392,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                 ) : (
                   <>
                     <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-                    <span>{sinteseExecutivaIa ? 'Regenerar com Workers AI' : 'Gerar Parecer com Workers AI'}</span>
+                    <span>Regenerar com Workers AI</span>
                   </>
                 )}
               </button>
@@ -1428,7 +1400,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
               <button
                 type="button"
                 onClick={copiarParecer}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer shadow-2xs"
               >
                 {copiadoFeedback ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-slate-500" />}
                 {copiadoFeedback ? 'Parecer Copiado!' : 'Copiar Parecer Executivo'}
@@ -1436,38 +1408,91 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs space-y-3 text-xs leading-relaxed text-slate-700">
-            <p className="font-medium text-slate-800 text-[13px] min-h-[1.5em]">
+          {/* Cartão de Leitura Editorial do Resumo */}
+          <div className="rounded-2xl border-l-4 border-blue-600 border-y border-r border-slate-200/80 bg-white p-5 shadow-2xs">
+            <div className="flex items-center gap-2 mb-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-blue-700">
+              <FileText className="h-3.5 w-3.5 text-blue-600" />
+              Diagnóstico Operacional & Epidemiológico
+            </div>
+            <div className="font-medium text-slate-800 text-[13.5px] min-h-[1.5em] whitespace-pre-line leading-relaxed">
               {estaEmStreaming ? textoResumoStreaming : sinteseExecutiva.resumo}
               {estaEmStreaming && textoResumoStreaming.length < (sinteseExecutiva.resumo?.length || 0) && (
                 <span className="inline-block w-1.5 h-3.5 bg-blue-600 animate-pulse ml-0.5 align-middle rounded-xs" />
               )}
-            </p>
+            </div>
+          </div>
 
-            {((estaEmStreaming ? destaquesStreaming : sinteseExecutiva.pontos).length > 0) && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
-                {(estaEmStreaming ? destaquesStreaming : sinteseExecutiva.pontos).map((ponto, i) => (
-                  <div key={i} className="flex items-start gap-2 rounded-lg bg-slate-50 p-2.5 border border-slate-100 transition-all duration-200">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600 mt-1.5 shrink-0" />
-                    <span className="text-[11px] font-medium text-slate-700">{ponto}</span>
+          {/* Grid de Cards de Destaques Estratégicos */}
+          {((estaEmStreaming ? destaquesStreaming : sinteseExecutiva.pontos).length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {(estaEmStreaming ? destaquesStreaming : sinteseExecutiva.pontos).map((ponto, i) => {
+                const partes = ponto.split(': ');
+                const tituloPonto = partes.length > 1 ? partes[0] : `Destaque ${i + 1}`;
+                const descricaoPonto = partes.length > 1 ? partes.slice(1).join(': ') : ponto;
+
+                const icones = [
+                  <ShieldCheck key="sc" className="h-4 w-4 text-blue-600" />,
+                  <Sparkles key="sp" className="h-4 w-4 text-emerald-600" />,
+                  <Building2 key="b2" className="h-4 w-4 text-purple-600" />,
+                  <Calendar key="cd" className="h-4 w-4 text-amber-600" />,
+                ];
+                const bgIcone = [
+                  'bg-blue-50 border-blue-200 text-blue-700',
+                  'bg-emerald-50 border-emerald-200 text-emerald-700',
+                  'bg-purple-50 border-purple-200 text-purple-700',
+                  'bg-amber-50 border-amber-200 text-amber-700',
+                ];
+
+                return (
+                  <div
+                    key={i}
+                    className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all duration-200"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`flex h-7 w-7 items-center justify-center rounded-lg border ${bgIcone[i % 4]}`}>
+                          {icones[i % 4]}
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 truncate">
+                          {tituloPonto}
+                        </span>
+                      </div>
+                      <p className="text-[11.5px] font-medium leading-relaxed text-slate-700">
+                        {descricaoPonto}
+                      </p>
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
+          )}
 
-            <div className="flex items-start gap-2 pt-1 border-t border-slate-100 text-slate-600 min-h-[1.5em]">
-              <span className="text-[11px] font-black uppercase text-blue-700 shrink-0">Diretriz da Gestão:</span>
-              <span className="text-[11px] font-medium text-slate-700">
+          {/* Caixa Herói: Diretriz Estratégica da Gestão */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-[#0b2447] to-[#19376d] p-5 text-white shadow-sm border border-blue-900/40">
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-400/20 border border-amber-400/30 text-amber-300">
+                  <Target className="h-3.5 w-3.5" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">
+                  Diretriz Estratégica da Coordenação
+                </span>
+              </div>
+              <div className="text-xs md:text-[12.5px] leading-relaxed text-blue-50 font-medium">
                 {estaEmStreaming ? textoDiretrizStreaming : sinteseExecutiva.recomendacao}
                 {estaEmStreaming && textoDiretrizStreaming.length > 0 && textoDiretrizStreaming.length < (sinteseExecutiva.recomendacao?.length || 0) && (
-                  <span className="inline-block w-1.5 h-3.5 bg-indigo-600 animate-pulse ml-0.5 align-middle rounded-xs" />
+                  <span className="inline-block w-1.5 h-3.5 bg-amber-400 animate-pulse ml-0.5 align-middle rounded-xs" />
                 )}
-              </span>
+              </div>
             </div>
+          </div>
 
-            <div className="pt-1 text-[10px] text-slate-400 font-medium italic">
-              * Conformidade e Privacidade: A síntese executiva utiliza estritamente dados quantitativos agregados. Nenhuma informação individual ou PII de estudante é processada por modelos de inteligência artificial.
-            </div>
+          {/* Rodapé de Governança e Privacidade */}
+          <div className="flex items-center gap-2 pt-1 text-[10.5px] text-slate-500 font-medium">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+            <span>
+              Conformidade LGPD & Governança em Saúde: Síntese gerada estritamente com base em dados quantitativos e epidemiológicos agregados. Nenhum dado pessoal ou PII de estudante é processado pela inteligência artificial.
+            </span>
           </div>
         </div>
 

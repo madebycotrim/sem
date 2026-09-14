@@ -529,18 +529,18 @@ rotasAtendimento.post('/relatorio/sintese-ia', zValidator('json', sinteseIaSchem
   const dados = c.req.valid('json');
   const qtdEstudantes = dados.estudantesUnicos ?? dados.pacientesUnicos ?? dados.totalGeral;
 
-  // Função auxiliar de Fallback Algorítmico Local (robusto e determinístico)
+  // Função auxiliar de Fallback Algorítmico Local (robusto, rico e analítico para a Gestora)
   const gerarFallbackLocal = () => {
     if (dados.totalGeral === 0) {
       return {
         origem: 'ALGORITMO_LOCAL' as const,
-        titulo: 'Síntese Executiva do Período',
-        resumo: 'Nenhum atendimento registrado no intervalo selecionado para geração de parecer executivo.',
+        titulo: 'Síntese Executiva do Período — Gestão de Saúde Escolar',
+        resumo: 'Nenhum atendimento clínico foi registrado no intervalo e filtros selecionados. O painel permanece em aguardo de novas consultas registradas pela equipe volante.',
         pontos: [
-          'Aguardando registros clínicos no período para apuração de indicadores.',
-          'Consulte os filtros aplicados para ampliar a amostra.',
+          'Amostra Vazia: Sem registros assistenciais identificados com os critérios vigentes.',
+          'Orientação de Filtro: Recomenda-se expandir o período ou remover restrições de escola para consolidar métricas.',
         ],
-        recomendacao: 'Amplie o intervalo de datas ou selecione outra unidade escolar para emitir diretrizes.',
+        recomendacao: 'Ajuste os filtros de busca no cabeçalho para gerar o panorama analítico completo da rede.',
       };
     }
 
@@ -548,49 +548,63 @@ rotasAtendimento.post('/relatorio/sintese-ia', zValidator('json', sinteseIaSchem
     const topEspNome = topEsp?.especialidade ?? 'Geral';
     const topEspPct = topEsp && dados.totalGeral > 0 ? Math.round((topEsp.total / dados.totalGeral) * 100) : 0;
     const topEscola = dados.porEscola?.[0]?.nome ?? 'Unidades municipais';
+    const totalEscolasAtendidas = dados.porEscola?.length ?? 0;
+    const picoTexto = dados.pico ? ` O maior pico de atividade ocorreu em ${dados.pico.data} com ${dados.pico.total} atendimentos em um único dia.` : '';
+
+    const paragrafo1 = `No período avaliado (${dados.dataInicio || 'Início'} a ${dados.dataFim || 'Atual'}), a operação itinerante do Programa Saúde na Escola realizou ${dados.totalGeral} atendimentos assistenciais, contemplando diretamente ${qtdEstudantes} estudantes da rede municipal de ensino distribuídos em ${totalEscolasAtendidas} unidade(s) escolar(es). O ritmo operacional manteve uma média de ${dados.mediaDiaria} atendimentos diários.${picoTexto}`;
+    
+    const paragrafo2 = `Sob a ótica da demanda epidemiológica, a especialidade de ${topEspNome} despontou como a principal frente clínica de intervenção, concentrando ${topEsp?.total ?? 0} consultas (${topEspPct}% do volume geral do período). A unidade escolar com maior fluxo registrado foi "${topEscola}", evidenciando a necessidade de suporte continuado nessa região.`;
+    
+    const paragrafo3 = `A taxa de cobertura estudantil demonstra alta resolutividade nas escolas contempladas, com os atendimentos sendo prestados in loco e minimizando o absenteísmo escolar e a sobrecarga da atenção primária convencional.`;
 
     return {
       origem: 'ALGORITMO_LOCAL' as const,
-      titulo: 'Síntese Executiva e Parecer Clínico Operacional',
-      resumo: `No período analisado (${dados.dataInicio || 'Início'} a ${dados.dataFim || 'Atual'}), a operação móvel registrou ${dados.totalGeral} atendimentos com cobertura de ${qtdEstudantes} estudantes distintos. A especialidade ${topEspNome} apresentou a maior concentração assistencial (${topEsp?.total ?? 0} consultas, representando ${topEspPct}% da demanda global).`,
+      titulo: 'Síntese Executiva e Parecer Clínico Operacional da Gestão',
+      resumo: `${paragrafo1}\n\n${paragrafo2}\n\n${paragrafo3}`,
       pontos: [
-        `Cobertura Populacional: ${qtdEstudantes} estudantes atendidos com média de ${dados.mediaDiaria} consultas por dia de atividade.`,
-        `Foco Epidemiológico: ${topEspNome} lidera a demanda com ${topEspPct}% do volume, com maior fluxo registrado em "${topEscola}".`,
-        `Capacidade Operacional: ${dados.porEscola?.length ?? 0} unidade(s) escolar(es) assistidas com atendimento in loco.`,
+        `Cobertura Estudantil: ${qtdEstudantes} alunos distintos atendidos em ${totalEscolasAtendidas} unidade(s) escolar(es), mantendo média de ${dados.mediaDiaria} consultas/dia.`,
+        `Demanda Líder: ${topEspNome} concentrou ${topEspPct}% de todas as intervenções realizadas pela equipe itinerante.`,
+        `Polo de Concentração: "${topEscola}" registrou o maior contingente assistencial entre as unidades visitadas.`,
+        `Capacidade e Regularidade: Operação com fluxo contínuo e pico registrado de ${dados.pico?.total ?? dados.totalGeral} consultas.`,
       ],
-      recomendacao: 'Priorizar o abastecimento de insumos e dimensionamento das equipes móveis para as unidades e especialidades de maior tração epidemiológica.',
+      recomendacao: `Priorizar o reabastecimento de insumos clínicos e odontológicos para as unidades com maior volume observado ("${topEscola}"), garantindo também a continuidade do cronograma móvel nas escolas periféricas que ainda apresentam menor índice de cobertura assistencial.`,
     };
   };
 
   // Se Cloudflare Workers AI estiver disponível no runtime
   if (c.env.AI && typeof c.env.AI.run === 'function') {
     try {
-      const promptSistema = `Você é o Diretor Clínico e Analista de Gestão em Saúde Pública do sistema SEM (Saúde Escolar Móvel).
-Sua missão é gerar uma Síntese Executiva e Parecer Clínico Operacional formal, analítico e de alto nível com base nos dados estatísticos agregados.
-DIRETRIZES MANDATÓRIAS DE PRIVACIDADE E SEGURANÇA (LGPD):
-- É ESTRITAMENTE PROIBIDO inventar, citar ou supor nomes de alunos, CPFs ou dados pessoais. Trabalhe exclusivamente com números agregados de saúde pública.
-- Responda EXCLUSIVAMENTE em formato JSON puro, sem blocos markdown (sem \`\`\`json), contendo:
+      const promptSistema = `Você é a Consultora Sênior de Saúde Pública e Diretora Clínica do Programa Saúde Escolar Móvel (SEM), emitindo um parecer executivo oficial e aprofundado diretamente para a Gestora Geral da Secretaria de Saúde e Educação.
+
+Sua missão é fornecer um panorama analítico de ALTO NÍVEL, DETALHADO, COMPLETO E ESTRATÉGICO com base nos dados estatísticos fornecidos.
+
+DIRETRIZES DE PRIVACIDADE E SEGURANÇA (LGPD - INEGOCIÁVEL):
+- É EXPRESSAMENTE PROIBIDO inventar, citar ou supor nomes de alunos, CPFs ou quaisquer dados pessoais. Trabalhe exclusivamente com números agregados de saúde pública.
+
+ESTRUTURA OBRIGATÓRIA DA RESPOSTA:
+Responda EXCLUSIVAMENTE em formato JSON puro, sem cercaduras markdown (sem \`\`\`json):
 {
-  "titulo": "Síntese Executiva e Parecer Clínico Operacional",
-  "resumo": "Texto formal com visão panorâmica dos resultados, volume total, estudantes e especialidade líder.",
+  "titulo": "Síntese Executiva e Parecer Clínico Operacional da Gestão",
+  "resumo": "Análise aprofundada em 2 a 3 parágrafos formais e densos. Trate de: 1) Balanço quantitativo e alcance populacional de estudantes; 2) Perfil epidemiológico da especialidade líder e correlação clínica; 3) Análise da capacidade de campo, escolas polo e regularidade diária.",
   "pontos": [
-    "Destaque 1: Cobertura e capacidade diária",
-    "Destaque 2: Análise epidemiológica da especialidade dominante",
-    "Destaque 3: Abrangência e logística das unidades escolares"
+    "Cobertura e Alcance: detalhe com números de estudantes e média diária",
+    "Foco Epidemiológico: detalhe da especialidade líder e concentração assistencial",
+    "Logística de Polos Escolares: destaque das escolas polo atendidas",
+    "Ritmo Operacional: análise da estabilidade diária e picos registrados"
   ],
-  "recomendacao": "Diretriz estratégica clara para a coordenação de saúde escolar."
+  "recomendacao": "Diretrizes e Ações da Gestão: plano prático para dimensionamento de insumos clínicos, escalonamento de equipes e roteamento do próximo ciclo itinerante."
 }`;
 
-      const promptUsuario = `Dados Consolidados:
+      const promptUsuario = `Dados Consolidados da Operação:
 - Período: ${dados.dataInicio || 'Início'} até ${dados.dataFim || 'Atual'}
 - Atendimentos Totais: ${dados.totalGeral}
-- Estudantes Únicos: ${dados.pacientesUnicos}
-- Média Diária: ${dados.mediaDiaria} consultas/dia ${dados.pico ? `(Pico: ${dados.pico.total} em ${dados.pico.data})` : ''}
-- Especialidades: ${dados.porEspecialidade.map((e) => `${e.especialidade}: ${e.total}`).join(', ') || 'Nenhuma'}
-- Escolas Atendidas: ${dados.porEscola?.slice(0, 5).map((e) => `${e.nome}: ${e.total}`).join(', ') || 'Não informado'}
+- Estudantes Únicos Atendidos: ${qtdEstudantes}
+- Média Diária: ${dados.mediaDiaria} consultas/dia útil ${dados.pico ? `(Pico de ${dados.pico.total} em ${dados.pico.data})` : ''}
+- Distribuição por Especialidade: ${dados.porEspecialidade.map((e) => `${e.especialidade}: ${e.total}`).join(', ') || 'Nenhuma'}
+- Unidades Escolares Atendidas: ${dados.porEscola?.slice(0, 8).map((e) => `${e.nome}: ${e.total}`).join(', ') || 'Não discriminado'}
 - Status Operacional: ${JSON.stringify(dados.porStatus ?? {})}`;
 
-      const timeoutMs = 8000;
+      const timeoutMs = 9000;
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('TIMEOUT_WORKERS_AI')), timeoutMs)
       );
@@ -601,21 +615,20 @@ DIRETRIZES MANDATÓRIAS DE PRIVACIDADE E SEGURANÇA (LGPD):
           { role: 'user', content: promptUsuario },
         ],
         temperature: 0.2,
-        max_tokens: 600,
+        max_tokens: 1000,
       });
 
       const resultado: any = await Promise.race([aiPromise, timeoutPromise]);
       let textoGerado = typeof resultado?.response === 'string' ? resultado.response.trim() : '';
 
       if (textoGerado) {
-        // Remover eventuais delimitadores markdown do modelo
         textoGerado = textoGerado.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
         const parsed = JSON.parse(textoGerado);
         if (parsed.resumo && Array.isArray(parsed.pontos) && parsed.recomendacao) {
           return c.json({
             origem: 'CLOUDFLARE_WORKERS_AI',
             modelo: '@cf/meta/llama-3-8b-instruct',
-            titulo: parsed.titulo || 'Síntese Executiva e Parecer Clínico Operacional',
+            titulo: parsed.titulo || 'Síntese Executiva e Parecer Clínico Operacional da Gestão',
             resumo: String(parsed.resumo),
             pontos: parsed.pontos.map((p: any) => String(p)),
             recomendacao: String(parsed.recomendacao),
