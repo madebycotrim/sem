@@ -21,12 +21,20 @@ import { sanitizarTexto, sanitizarTextoOpcional } from '../../infraestrutura/san
 
 export const rotasAtendimento = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
+function mascararCpf(cpf?: string | null): string {
+  if (!cpf) return 'Não informado';
+  const limpo = cpf.replace(/\D/g, '');
+  if (limpo.length !== 11) return cpf;
+  return `${limpo.slice(0, 3)}.***.***-${limpo.slice(9, 11)}`;
+}
+
 const filtroRelatorioSchema = z.object({
   dataInicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   dataFim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   escolaLocalId: z.string().uuid().optional(),
   especialidade: z.nativeEnum(Especialidade).optional(),
   turno: z.nativeEnum(Turno).optional(),
+  status: z.nativeEnum(StatusAtendimento).optional(),
   usuarioId: z.string().uuid().optional(),
 });
 
@@ -415,6 +423,7 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
   if (filtros.escolaLocalId) condicoes.push(eq(atendimentos.escolaLocalId, filtros.escolaLocalId));
   if (filtros.especialidade) condicoes.push(eq(atendimentos.especialidade, filtros.especialidade));
   if (filtros.turno) condicoes.push(eq(atendimentos.turno, filtros.turno));
+  if (filtros.status) condicoes.push(eq(atendimentos.status, filtros.status));
   if (filtros.usuarioId) condicoes.push(eq(atendimentos.usuarioId, filtros.usuarioId));
   if (filtros.dataInicio || filtros.dataFim) {
     if (filtros.dataInicio && filtros.dataFim && filtros.dataInicio > filtros.dataFim) {
@@ -429,8 +438,10 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
   const listaAtendimentos = await db.query.atendimentos.findMany({
     where: whereClause,
     columns: {
+      pacienteId: true,
       especialidade: true,
       turno: true,
+      status: true,
       encaminhamentoExterno: true,
       criadoEm: true,
     },
@@ -445,8 +456,21 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
   let totalEncaminhamentos = 0;
   const porEscola = new Map<string, { id: string; nome: string; total: number }>();
   const porProfissional = new Map<string, { id: string; nome: string; total: number }>();
+  const porStatus: Record<string, number> = {};
+  const porTurno: Record<string, number> = {};
+  const pacientesUnicosSet = new Set<string>();
 
   for (const atendimento of listaAtendimentos) {
+    if (atendimento.pacienteId) {
+      pacientesUnicosSet.add(atendimento.pacienteId);
+    }
+
+    const st = atendimento.status || 'CONCLUIDO';
+    porStatus[st] = (porStatus[st] ?? 0) + 1;
+
+    const tr = atendimento.turno || 'MANHA';
+    porTurno[tr] = (porTurno[tr] ?? 0) + 1;
+
     const especialidade = porEspecialidade.get(atendimento.especialidade) ?? { total: 0, encaminhamentos: 0 };
     especialidade.total += 1;
     if (atendimento.encaminhamentoExterno?.trim()) {
@@ -476,18 +500,41 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
     }
   }
 
+  const total = listaAtendimentos.length;
+  const taxaEncaminhamento = total > 0 ? Math.round((totalEncaminhamentos / total) * 100) : 0;
+  const taxaResolutividade = total > 0 ? Math.max(0, 100 - taxaEncaminhamento) : 100;
+
+  const serie = listaAtendimentos.reduce((acc: Record<string, number>, atendimento) => {
+    const dia = (atendimento.criadoEm ?? '').slice(0, 10);
+    if (dia) acc[dia] = (acc[dia] ?? 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const diasComAtendimento = Object.keys(serie).length;
+  const mediaDiaria = diasComAtendimento > 0 ? Math.round((total / diasComAtendimento) * 10) / 10 : 0;
+
+  let picoAtendimento: { data: string; total: number } | null = null;
+  for (const [data, qtd] of Object.entries(serie)) {
+    if (!picoAtendimento || qtd > picoAtendimento.total) {
+      picoAtendimento = { data, total: qtd };
+    }
+  }
+
   return c.json({
-    total: listaAtendimentos.length,
+    total,
     totalEncaminhamentos,
+    taxaEncaminhamento,
+    taxaResolutividade,
+    pacientesUnicos: pacientesUnicosSet.size,
+    mediaDiaria,
+    picoAtendimento,
+    porStatus,
+    porTurno,
     porEspecialidade: Array.from(porEspecialidade, ([especialidade, valores]) => ({ especialidade, ...valores }))
       .sort((a, b) => b.total - a.total),
     porEscola: Array.from(porEscola.values()).sort((a, b) => b.total - a.total),
     porProfissional: Array.from(porProfissional.values()).sort((a, b) => b.total - a.total),
-    serie: listaAtendimentos.reduce((acc: Record<string, number>, atendimento) => {
-      const dia = (atendimento.criadoEm ?? '').slice(0, 10);
-      if (dia) acc[dia] = (acc[dia] ?? 0) + 1;
-      return acc;
-    }, {} as Record<string, number>),
+    serie,
   });
 });
 
@@ -502,10 +549,11 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
 
   if (filtros.especialidade) condicoes.push(eq(atendimentos.especialidade, filtros.especialidade));
   if (filtros.turno) condicoes.push(eq(atendimentos.turno, filtros.turno));
+  if (filtros.status) condicoes.push(eq(atendimentos.status, filtros.status));
   if (filtros.escolaLocalId) condicoes.push(eq(atendimentos.escolaLocalId, filtros.escolaLocalId));
   if (filtros.usuarioId) condicoes.push(eq(atendimentos.usuarioId, filtros.usuarioId));
   if (filtros.pacienteId) condicoes.push(eq(atendimentos.pacienteId, filtros.pacienteId));
-  if (filtros.dataInicio) condicoes.push(gte(atendimentos.criadoEm, filtros.dataInicio));
+  if (filtros.dataInicio) condicoes.push(gte(atendimentos.criadoEm, `${filtros.dataInicio} 00:00:00`));
   if (filtros.dataFim) condicoes.push(lte(atendimentos.criadoEm, `${filtros.dataFim} 23:59:59`));
 
   const whereClause = condicoes.length > 0 ? and(...condicoes) : undefined;
@@ -519,7 +567,7 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
       with: {
         escolaLocal: { columns: { nome: true } },
         usuario: { columns: { nomeCompleto: true } },
-        paciente: { columns: { nomeEnc: true, dekCifrada: true, ivPii: true, tagPii: true } },
+        paciente: { columns: { nomeEnc: true, dekCifrada: true, ivPii: true, tagPii: true, turma: true } },
       },
     }),
     db.select({ total: count() }).from(atendimentos).where(whereClause),
@@ -531,6 +579,8 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
   const atendimentosMapeados = await Promise.all(
     listaAtendimentos.map(async (a) => {
       let pacienteNome = 'Paciente Desconhecido';
+      let pacienteCpf = 'Não informado';
+      const pacienteTurma = a.paciente?.turma ?? 'Não informada';
       if (a.paciente) {
         try {
           const piiJson = await descriptografarPii(
@@ -542,6 +592,9 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
           );
           const pii = JSON.parse(piiJson);
           pacienteNome = pii.nome;
+          if (pii.cpf) {
+            pacienteCpf = mascararCpf(pii.cpf);
+          }
         } catch {
           pacienteNome = '[ERRO DE DESCRIPTOGRAFIA]';
         }
@@ -553,6 +606,8 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
         escolaLocalId: a.escolaLocalId,
         usuarioId: a.usuarioId,
         pacienteNome,
+        pacienteCpf,
+        pacienteTurma,
         especialidade: a.especialidade,
         turno: a.turno,
         status: a.status,

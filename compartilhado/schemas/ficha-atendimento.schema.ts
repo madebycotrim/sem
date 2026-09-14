@@ -82,6 +82,7 @@ export const fichaAtendimentoSchema = z.object({
 export const filtroAtendimentoSchema = z.object({
   especialidade: z.nativeEnum(Especialidade).optional(),
   turno: z.nativeEnum(Turno).optional(),
+  status: z.nativeEnum(StatusAtendimento).optional(),
   escolaLocalId: z.string().uuid().optional(),
   usuarioId: z.string().uuid().optional(),
   pacienteId: z.string().uuid().optional(),
