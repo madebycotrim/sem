@@ -921,6 +921,7 @@ export function App() {
                 aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}
                 aoNovoAtendimento={() => navegarParaSecao('filaDia')}
                 aoAbrirAtendimentos={() => setSecaoAtiva('consultas')}
+                aoAbrirFila={() => navegarParaSecao('filaDia')}
                 aoAbrirRelatorios={() => setSecaoAtiva('relatorios')}
                 aoAbrirBi={() => setSecaoAtiva('bi')}
               />

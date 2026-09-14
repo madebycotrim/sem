@@ -82,6 +82,7 @@ export function validarCpfMatematicamente(cpf: string): boolean {
  * Formata string de CPF para o padrão 000.000.000-00
  */
 export function formatarCpf(cpf: string): string {
+  if (cpf.includes('*')) return cpf;
   const limpo = cpf.replace(/\D/g, '').slice(0, 11);
   if (limpo.length <= 3) return limpo;
   if (limpo.length <= 6) return `${limpo.slice(0, 3)}.${limpo.slice(3)}`;
@@ -101,9 +102,18 @@ export function normalizarCpf(cpf?: string | null): string {
  */
 export function mascararCpf(cpf?: string | null): string {
   if (!cpf) return 'Não informado';
-  const limpo = cpf.replace(/\D/g, '');
-  if (limpo.length !== 11) return cpf;
-  return `${limpo.slice(0, 3)}.***.***-${limpo.slice(9, 11)}`;
+  const str = String(cpf).trim();
+  if (/^\d{3}\.\*{3}\.\*{3}-\d{2}$/.test(str)) {
+    return str;
+  }
+  const limpo = str.replace(/\D/g, '');
+  if (limpo.length === 11) {
+    return `${limpo.slice(0, 3)}.***.***-${limpo.slice(9, 11)}`;
+  }
+  if (limpo.length === 5) {
+    return `${limpo.slice(0, 3)}.***.***-${limpo.slice(3, 5)}`;
+  }
+  return str;
 }
 
 /**

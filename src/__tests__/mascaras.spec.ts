@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { formatarCpf, formatarTelefone, somenteDigitos } from '../utilitarios/mascaras.ts';
+import { censurarCpf } from '../componentes/TabelaPacientes.tsx';
 
 describe('Utilitários de Máscaras (CPF e Telefone)', () => {
   describe('somenteDigitos', () => {
@@ -33,10 +34,36 @@ describe('Utilitários de Máscaras (CPF e Telefone)', () => {
       expect(formatarCpf('12345678901999')).toBe('123.456.789-01');
     });
 
+    it('deve preservar asteriscos caso o CPF já esteja mascarado pela LGPD', () => {
+      expect(formatarCpf('736.***.***-30')).toBe('736.***.***-30');
+    });
+
     it('deve retornar vazio se valor for nulo ou vazio', () => {
       expect(formatarCpf('')).toBe('');
       expect(formatarCpf(null)).toBe('');
       expect(formatarCpf(undefined)).toBe('');
+    });
+  });
+
+  describe('censurarCpf (Censura na segunda e terceira parte)', () => {
+    it('deve censurar a segunda e terceira parte do CPF no formato XXX.***.***-DD', () => {
+      expect(censurarCpf('12345678900')).toBe('123.***.***-00');
+      expect(censurarCpf('123.456.789-00')).toBe('123.***.***-00');
+      expect(censurarCpf('73630123456')).toBe('736.***.***-56');
+    });
+
+    it('deve manter CPFs já censurados', () => {
+      expect(censurarCpf('736.***.***-30')).toBe('736.***.***-30');
+    });
+
+    it('deve recuperar a censura se receber formato de 5 dígitos (ex: 736.30)', () => {
+      expect(censurarCpf('736.30')).toBe('736.***.***-30');
+    });
+
+    it('deve retornar vazio se nulo ou vazio', () => {
+      expect(censurarCpf('')).toBe('');
+      expect(censurarCpf(null)).toBe('');
+      expect(censurarCpf(undefined)).toBe('');
     });
   });
 

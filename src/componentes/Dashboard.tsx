@@ -22,7 +22,7 @@ const NumeroAnimado: FC<{ valor: number; duracao?: number }> = ({ valor, duracao
   return <>{valorExibido}</>;
 };
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
-import { Activity, Apple, BarChart3, ClipboardCheck, Clock3, Ear, Eye, FileText, Lightbulb, Brain, Smile, UserPlus, XCircle } from 'lucide-react';
+import { Activity, Apple, BarChart3, ClipboardCheck, Clock3, Ear, Eye, FileText, Lightbulb, Brain, Play, Smile, UserPlus, XCircle } from 'lucide-react';
 import type { ItemFila } from './FilaDoDia.tsx';
 
 export interface DashboardProps {
@@ -46,6 +46,7 @@ export interface DashboardProps {
   aoNovoPaciente: () => void;
   aoNovoAtendimento: () => void;
   aoAbrirAtendimentos: () => void;
+  aoAbrirFila?: () => void;
   aoAbrirRelatorios: () => void;
   aoAbrirBi?: () => void;
 }
@@ -59,6 +60,7 @@ export const Dashboard: FC<DashboardProps> = ({
   aoNovoPaciente,
   aoNovoAtendimento,
   aoAbrirAtendimentos,
+  aoAbrirFila,
   aoAbrirRelatorios,
   aoAbrirBi,
 }) => {
@@ -101,8 +103,11 @@ export const Dashboard: FC<DashboardProps> = ({
   const totalConsultasConcluidas = todasConsultasHoje.filter((item) =>
     (item.status === 'CONCLUIDO' || !item.status)
   ).length;
-  const totalConsultasPendentes = todasConsultasHoje.filter((item) =>
-    ['AGUARDANDO', 'CONFIRMADO', 'EM_ATENDIMENTO', 'AGENDADO', 'PENDENTE'].includes(item.status || '')
+  const totalConsultasAguardando = todasConsultasHoje.filter((item) =>
+    ['AGUARDANDO', 'CONFIRMADO', 'AGENDADO', 'PENDENTE'].includes(item.status || '')
+  ).length;
+  const totalConsultasEmAtendimento = todasConsultasHoje.filter((item) =>
+    item.status === 'EM_ATENDIMENTO'
   ).length;
   const totalConsultasCanceladas = todasConsultasHoje.filter((item) =>
     ['CANCELADO', 'FALTOU', 'CANCELADA'].includes(item.status || '')
@@ -145,7 +150,7 @@ export const Dashboard: FC<DashboardProps> = ({
           <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Resumo operacional do dia</span>
           <span className="text-[11px] font-semibold text-slate-400">Hoje</span>
         </div>
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {[
             {
               rotulo: 'TOTAL DE CONSULTAS',
@@ -157,20 +162,30 @@ export const Dashboard: FC<DashboardProps> = ({
               aoClicar: aoAbrirAtendimentos,
             },
             {
+              rotulo: 'AGUARDANDO',
+              valor: totalConsultasAguardando,
+              detalhe: 'pacientes na fila hoje',
+              icone: Clock3,
+              cor: 'text-amber-600',
+              fundo: 'bg-amber-50',
+              aoClicar: aoAbrirFila || aoAbrirAtendimentos,
+            },
+            {
+              rotulo: 'EM ANDAMENTO',
+              valor: totalConsultasEmAtendimento,
+              detalhe: 'consultas em atendimento',
+              icone: Play,
+              cor: 'text-violet-600',
+              fundo: 'bg-violet-50',
+              aoClicar: aoAbrirFila || aoAbrirAtendimentos,
+            },
+            {
               rotulo: 'CONCLUÍDA',
               valor: totalConsultasConcluidas,
               detalhe: 'atendimentos finalizados hoje',
               icone: ClipboardCheck,
               cor: 'text-emerald-600',
               fundo: 'bg-emerald-50',
-            },
-            {
-              rotulo: 'EM ANDAMENTO',
-              valor: totalConsultasPendentes,
-              detalhe: 'em andamento ou aguardando',
-              icone: Clock3,
-              cor: 'text-amber-600',
-              fundo: 'bg-amber-50',
               aoClicar: aoAbrirAtendimentos,
             },
             {

@@ -54,6 +54,64 @@ const formNovoPacienteSchema = z.object({
 
 export type FormNovoPaciente = z.infer<typeof formNovoPacienteSchema>;
 
+export const OPCOES_ANO_ESCOLAR = [
+  '1º Ano EF',
+  '2º Ano EF',
+  '3º Ano EF',
+  '4º Ano EF',
+  '5º Ano EF',
+  '6º Ano EF',
+  '7º Ano EF',
+  '8º Ano EF',
+  '9º Ano EF',
+  '1º Ano EM',
+  '2º Ano EM',
+  '3º Ano EM',
+];
+
+export function extrairAnoETurma(turmaBruta?: string | null): { anoEscolar: string; turma: string } {
+  if (!turmaBruta || turmaBruta.trim() === '' || turmaBruta.trim() === 'Não informada') {
+    return { anoEscolar: '', turma: '' };
+  }
+
+  // Remove traços ou barras soltos no final
+  const limpo = turmaBruta.trim().replace(/\s*[-—–/]\s*$/, '');
+  const normalizarGrau = (t: string) => t.replace(/°/g, 'º').trim();
+
+  // Testar se tem separador: ' — ', ' – ', ' - ', ou ' / '
+  const partes = limpo.split(/\s+[-—–]\s+|\s*\/\s*/);
+  if (partes.length >= 2) {
+    const parteAno = normalizarGrau(partes[0]);
+    const parteTurma = partes.slice(1).join(' — ').trim();
+
+    const matchAno = OPCOES_ANO_ESCOLAR.find(
+      (a) => a.toLowerCase() === parteAno.toLowerCase()
+    );
+    if (matchAno) {
+      return { anoEscolar: matchAno, turma: parteTurma };
+    }
+    if (/ano/i.test(parteAno) || /^(ef|em)/i.test(parteTurma)) {
+      return { anoEscolar: parteAno, turma: parteTurma };
+    }
+    return { anoEscolar: parteAno, turma: parteTurma };
+  }
+
+  // Sem separador: verificar se é ano escolar isolado
+  const anoNorm = normalizarGrau(limpo);
+  const matchAno = OPCOES_ANO_ESCOLAR.find(
+    (a) => a.toLowerCase() === anoNorm.toLowerCase()
+  );
+  if (matchAno) {
+    return { anoEscolar: matchAno, turma: '' };
+  }
+  if (/ano/i.test(anoNorm)) {
+    return { anoEscolar: anoNorm, turma: '' };
+  }
+
+  // Se não tem padrão de ano escolar, é apenas a turma
+  return { anoEscolar: '', turma: limpo };
+}
+
 const normalizarSexo = (valor?: string | null): FormNovoPaciente['sexo'] => {
   const sexo = (valor || '').trim().toLowerCase();
   if (sexo === 'm' || sexo === 'masculino' || sexo === 'male') return 'Masculino';
@@ -119,8 +177,19 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
   const sexoAtual = watch('sexo');
   const registroSexo = register('sexo');
   const perfilAtual = watch('perfilUsuario');
+  const registroPerfil = register('perfilUsuario');
+  const anoEscolarAtual = watch('anoEscolar');
+  const registroAnoEscolar = register('anoEscolar');
   const instituicaoAtual = watch('instituicao');
   const ehAluno = perfilAtual === 'ESTUDANTE';
+
+  const opcoesAnoEscolar = useMemo(() => {
+    const base = [...OPCOES_ANO_ESCOLAR];
+    if (anoEscolarAtual && !base.some((a) => a.toLowerCase() === anoEscolarAtual.toLowerCase())) {
+      return [{ valor: anoEscolarAtual, rotulo: anoEscolarAtual }, ...base.map((ano) => ({ valor: ano, rotulo: ano }))];
+    }
+    return base.map((ano) => ({ valor: ano, rotulo: ano }));
+  }, [anoEscolarAtual]);
 
   // ─── Busca e Filtragem Inteligente de Instituição (Combobox) ────────────────
   const listaInstituicoes = useMemo(() => {
@@ -138,7 +207,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
       setSucessoConsultaCpf(null);
 
       if (pacienteParaEditar) {
-        const [anoEscolar, turma] = (pacienteParaEditar.turma || '').split(' — ', 2);
+        const { anoEscolar, turma } = extrairAnoETurma(pacienteParaEditar.turma);
         setValue('nomeCompleto', pacienteParaEditar.nome, { shouldValidate: true });
         setValue('cpf', formatarCpf(pacienteParaEditar.cpf || ''), { shouldValidate: true });
         setValue('dataNascimento', pacienteParaEditar.dataNascimento || '', { shouldValidate: true });
@@ -146,8 +215,8 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
         setValue('instituicao', pacienteParaEditar.escolaNome || instituicaoPadrao, { shouldValidate: true });
         setValue('perfilUsuario', pacienteParaEditar.perfil || 'ESTUDANTE', { shouldValidate: true });
         setValue('telefone', formatarTelefone(pacienteParaEditar.telefone || ''), { shouldValidate: true });
-        setValue('anoEscolar', turma ? anoEscolar : '');
-        setValue('turma', turma || pacienteParaEditar.turma || '');
+        setValue('anoEscolar', anoEscolar, { shouldValidate: true });
+        setValue('turma', turma, { shouldValidate: true });
         setCpfConsultado((pacienteParaEditar.cpf || '').replace(/\D/g, ''));
         setCamposBloqueadosPorCpf(false);
       } else {
@@ -467,8 +536,14 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
             <div className={ehAluno ? 'md:col-span-4' : 'md:col-span-12'}>
               <ModalCampo rotulo="Perfil do Usuário" obrigatorio erro={errors.perfilUsuario?.message}>
                 <SelectModal
-                  {...register('perfilUsuario')}
-                  defaultValue="ESTUDANTE"
+                  name={registroPerfil.name}
+                  ref={registroPerfil.ref}
+                  value={perfilAtual || 'ESTUDANTE'}
+                  onBlur={registroPerfil.onBlur}
+                  onChange={(evento) => {
+                    const valor = typeof evento === 'string' ? evento : evento?.target?.value;
+                    setValue('perfilUsuario', valor || 'ESTUDANTE', { shouldValidate: true, shouldDirty: true });
+                  }}
                   className="font-semibold uppercase"
                   opcoes={[
                     { valor: 'ESTUDANTE', rotulo: 'ESTUDANTE' },
@@ -485,11 +560,16 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
                 <div className="md:col-span-4">
                   <ModalCampo rotulo="Ano Escolar">
                     <SelectModal
-                      {...register('anoEscolar')}
+                      name={registroAnoEscolar.name}
+                      ref={registroAnoEscolar.ref}
+                      value={anoEscolarAtual || ''}
+                      onBlur={registroAnoEscolar.onBlur}
+                      onChange={(evento) => {
+                        const valor = typeof evento === 'string' ? evento : evento?.target?.value;
+                        setValue('anoEscolar', valor || '', { shouldValidate: true, shouldDirty: true });
+                      }}
                       placeholder="Selecione..."
-                      opcoes={[
-                        '8º Ano EF', '9º Ano EF', '1º Ano EM', '2º Ano EM', '3º Ano EM',
-                      ].map((ano) => ({ valor: ano, rotulo: ano }))}
+                      opcoes={opcoesAnoEscolar}
                     />
                   </ModalCampo>
                 </div>

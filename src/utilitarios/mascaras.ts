@@ -15,6 +15,7 @@ export function somenteDigitos(valor?: string | null): string {
  */
 export function formatarCpf(cpf?: string | null): string {
   if (!cpf) return '';
+  if (cpf.includes('*')) return cpf;
   const limpo = somenteDigitos(cpf).slice(0, 11);
   if (limpo.length <= 3) return limpo;
   if (limpo.length <= 6) return `${limpo.slice(0, 3)}.${limpo.slice(3)}`;

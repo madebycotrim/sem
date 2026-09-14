@@ -93,9 +93,18 @@ export function formatarDataBR(dataStr: string | null | undefined): string {
 
 export function censurarCpf(cpf: string | null | undefined): string {
   if (!cpf) return '';
-  const limpo = cpf.replace(/\D/g, '');
-  if (limpo.length !== 11) return cpf;
-  return `${limpo.substring(0, 3)}.***.***-${limpo.substring(9, 11)}`;
+  const str = String(cpf).trim();
+  if (/^\d{3}\.\*{3}\.\*{3}-\d{2}$/.test(str)) {
+    return str;
+  }
+  const limpo = str.replace(/\D/g, '');
+  if (limpo.length === 11) {
+    return `${limpo.slice(0, 3)}.***.***-${limpo.slice(9, 11)}`;
+  }
+  if (limpo.length === 5) {
+    return `${limpo.slice(0, 3)}.***.***-${limpo.slice(3, 5)}`;
+  }
+  return str;
 }
 
 interface TabelaPacientesProps {

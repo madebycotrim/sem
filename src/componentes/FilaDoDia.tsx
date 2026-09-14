@@ -10,7 +10,7 @@ import {
 import { Paginacao } from './Paginacao.tsx';
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 import { censurarCpf } from './TabelaPacientes.tsx';
-import { Clock3, RotateCcw, CalendarDays, ClipboardCheck, Play, Plus, Ban, FileText, Check } from 'lucide-react';
+import { Clock3, RotateCcw, CalendarDays, ClipboardCheck, Play, Plus, Ban } from 'lucide-react';
 import { Botao } from './Botao.tsx';
 import { ModalTriagem, type ItemPacienteTriagem, type ItemProfissionalTriagem } from './ModalTriagem.tsx';
 import { ModalIniciarAtendimento, type DadosAtendimento } from './ModalIniciarAtendimento.tsx';
@@ -84,6 +84,8 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   const [dadosAtendimentoAtivo, setDadosAtendimentoAtivo] = useState<DadosAtendimento | null>(null);
   const [confirmandoAlteracaoId, setConfirmandoAlteracaoId] = useState<string | null>(null);
   const [confirmandoCancelamentoId, setConfirmandoCancelamentoId] = useState<string | null>(null);
+  const [confirmandoPresencaId, setConfirmandoPresencaId] = useState<string | null>(null);
+  const [confirmandoReativacaoId, setConfirmandoReativacaoId] = useState<string | null>(null);
   const [erroOperacao, setErroOperacao] = useState<string | null>(null);
 
   const [filaLocal, setFilaLocal] = useState<ItemFila[]>(() => {
@@ -99,7 +101,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   const fila = filaProp ?? filaLocal;
 
   useEffect(() => {
-    if (!confirmandoAlteracaoId && !confirmandoCancelamentoId) return undefined;
+    if (!confirmandoAlteracaoId && !confirmandoCancelamentoId && !confirmandoPresencaId && !confirmandoReativacaoId) return undefined;
 
     const fecharAoClicarFora = (evento: MouseEvent) => {
       const alvo = evento?.target as HTMLElement | undefined;
@@ -107,16 +109,22 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         if (!alvo.closest('[data-confirmacao-popover]')) {
           setConfirmandoAlteracaoId(null);
           setConfirmandoCancelamentoId(null);
+          setConfirmandoPresencaId(null);
+          setConfirmandoReativacaoId(null);
         }
       } else {
         setConfirmandoAlteracaoId(null);
         setConfirmandoCancelamentoId(null);
+        setConfirmandoPresencaId(null);
+        setConfirmandoReativacaoId(null);
       }
     };
     const fecharComEscape = (evento: KeyboardEvent) => {
       if (evento.key === 'Escape') {
         setConfirmandoAlteracaoId(null);
         setConfirmandoCancelamentoId(null);
+        setConfirmandoPresencaId(null);
+        setConfirmandoReativacaoId(null);
       }
     };
 
@@ -126,7 +134,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       document.removeEventListener('mousedown', fecharAoClicarFora);
       document.removeEventListener('keydown', fecharComEscape);
     };
-  }, [confirmandoAlteracaoId, confirmandoCancelamentoId]);
+  }, [confirmandoAlteracaoId, confirmandoCancelamentoId, confirmandoPresencaId, confirmandoReativacaoId]);
 
   const handleConfirmarTriagem = async (dados: {
     pacienteId: string;
@@ -445,6 +453,8 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   const handleCancelarAtendimento = async (id: string) => {
     setConfirmandoCancelamentoId(null);
     setConfirmandoAlteracaoId(null);
+    setConfirmandoPresencaId(null);
+    setConfirmandoReativacaoId(null);
     try {
       await alternarStatus(id, 'CANCELADO');
     } catch (erro) {
@@ -453,6 +463,10 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   };
 
   const handleReativarAtendimento = async (id: string) => {
+    setConfirmandoCancelamentoId(null);
+    setConfirmandoAlteracaoId(null);
+    setConfirmandoPresencaId(null);
+    setConfirmandoReativacaoId(null);
     try {
       await alternarStatus(id, 'AGUARDANDO');
     } catch (erro) {
@@ -518,15 +532,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
     [fila]
   );
 
-  // Contadores em tempo real para os cards de contabilização
-  const contadoresFila = useMemo(() => ({
-    total: filaHoje.length,
-    aguardando: filaHoje.filter((f) => f.status === 'AGUARDANDO' || f.status === 'CONFIRMADO').length,
-    emAtendimento: filaHoje.filter((f) => f.status === 'EM_ATENDIMENTO').length,
-    concluidos: filaHoje.filter((f) => f.status === 'CONCLUIDO').length,
-    cancelados: filaHoje.filter((f) => f.status === 'CANCELADO').length,
-  }), [filaHoje]);
-
   const filtroExcel = useFiltroExcel<ItemFila>({
     dados: filaHoje,
     colunas: colunasConfig,
@@ -574,64 +579,12 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         fixo={true}
       />
 
-      {/* ─── Cards de Contabilização Operacional da Fila do Dia ─────────── */}
       {erroOperacao && (
         <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700" role="alert">
           <span>{erroOperacao}</span>
           <button type="button" onClick={() => setErroOperacao(null)} className="font-bold hover:text-rose-900">Fechar</button>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-2 mb-4 sm:grid-cols-3 lg:grid-cols-5">
-        <div className="bg-white border border-slate-200/90 rounded-xl p-2.5 shadow-xs flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
-            <ClipboardCheck className="w-4 h-4" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Total na Fila</p>
-            <p className="text-lg font-black text-slate-800 leading-tight">{contadoresFila.total}</p>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200/90 rounded-xl p-2.5 shadow-xs flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
-            <Clock3 className="w-4 h-4" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Aguardando</p>
-            <p className="text-lg font-black text-amber-600 leading-tight">{contadoresFila.aguardando}</p>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200/90 rounded-xl p-2.5 shadow-xs flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center shrink-0 border border-violet-100">
-            <Play className="w-4 h-4 text-violet-600" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Em Atendimento</p>
-            <p className="text-lg font-black text-violet-700 leading-tight">{contadoresFila.emAtendimento}</p>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200/90 rounded-xl p-2.5 shadow-xs flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
-            <Check className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Concluídos</p>
-            <p className="text-lg font-black text-emerald-600 leading-tight">{contadoresFila.concluidos}</p>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200/90 rounded-xl p-2.5 shadow-xs flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
-            <Ban className="w-4 h-4 text-rose-600" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Cancelados</p>
-            <p className="text-lg font-black text-rose-600 leading-tight">{contadoresFila.cancelados}</p>
-          </div>
-        </div>
-      </div>
 
       {/* ─── Tabela da Fila de Presença com Filtros Excel ─────────────────── */}
       <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-[460px]">
@@ -767,31 +720,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                         </div>
                         <div className="flex items-center gap-2 text-[11px] text-slate-500 font-normal mt-0.5">
                           <span>CPF: {item.cpf ? censurarCpf(item.cpf) : 'Não informado'}</span>
-                          {aoVerHistoricoPaciente && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const pacienteObj = pacientes.find(
-                                  (p) =>
-                                    p.id === item.pacienteId ||
-                                    (p.cpf && item.cpf && p.cpf.replace(/\D/g, '') === item.cpf.replace(/\D/g, '')) ||
-                                    p.nome === item.pacienteNome
-                                );
-                                aoVerHistoricoPaciente?.({
-                                  id: item.pacienteId || pacienteObj?.id || item.id,
-                                  nome: item.pacienteNome,
-                                  cpf: item.cpf,
-                                  dataNascimento: pacienteObj?.dataNascimento,
-                                  escolaNome: item.escolaNome,
-                                });
-                              }}
-                              className="inline-flex items-center gap-1 text-[10.5px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer hover:underline"
-                              title="Visualizar Histórico Clínico"
-                            >
-                              <FileText className="w-3 h-3" />
-                              Histórico
-                            </button>
-                          )}
                         </div>
                       </div>
                     </td>
@@ -801,9 +729,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                         <div className="flex flex-col text-left">
                           <span className="font-semibold text-slate-900 uppercase tracking-tight text-xs truncate max-w-[210px]">
                             {item.profissional.replace(/^(Dr\.ª?|Dra?\.?)\s*/i, '')}
-                          </span>
-                          <span className="text-[11px] text-slate-500 font-mono font-medium">
-                            {item.profissionalRegistro || 'Registro N/I'}
                           </span>
                         </div>
                       ) : (
@@ -844,19 +769,51 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                       )}
                     </td>
 
-                    <td className={`py-3 px-4 text-right ${confirmandoAlteracaoId === item.id || confirmandoCancelamentoId === item.id ? 'relative z-50' : ''}`}>
+                    <td className={`py-3 px-4 text-right ${confirmandoAlteracaoId === item.id || confirmandoCancelamentoId === item.id || confirmandoPresencaId === item.id || confirmandoReativacaoId === item.id ? 'relative z-50' : ''}`}>
                       <div className="flex items-center justify-end gap-1.5" data-confirmacao-popover>
                         {/* PASSO 1: Confirmar presença — botão âmbar + opção de cancelar (apenas admin) */}
                         {item.status === 'AGUARDANDO' && (
                           <>
-                            <button
-                              type="button"
-                              onClick={() => alternarStatus(item.id, 'CONFIRMADO')}
-                              className="inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl shadow-[0_2px_8px_rgba(245,158,11,0.12)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-100"
-                            >
-                              <ClipboardCheck className="w-3.5 h-3.5 text-amber-600" />
-                              Confirmar
-                            </button>
+                            <div className="relative inline-flex items-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmandoPresencaId(confirmandoPresencaId === item.id ? null : item.id);
+                                  setConfirmandoCancelamentoId(null);
+                                  setConfirmandoAlteracaoId(null);
+                                  setConfirmandoReativacaoId(null);
+                                }}
+                                className="inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl shadow-[0_2px_8px_rgba(245,158,11,0.12)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-100"
+                              >
+                                <ClipboardCheck className="w-3.5 h-3.5 text-amber-600" />
+                                Confirmar
+                              </button>
+                              {confirmandoPresencaId === item.id && (
+                                <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
+                                  <div className="absolute right-6 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                  <span className="text-[11.5px] font-bold text-slate-700">Deseja confirmar a presença deste aluno?</span>
+                                  <div className="flex items-center justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmandoPresencaId(null)}
+                                      className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                    >
+                                      Voltar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        setConfirmandoPresencaId(null);
+                                        await alternarStatus(item.id, 'CONFIRMADO');
+                                      }}
+                                      className="px-2.5 py-1 text-[11px] bg-amber-600 text-white hover:bg-amber-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                    >
+                                      Sim, confirmar
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                             {ehAdmin && (
                               <div className="relative inline-flex items-center">
                                 <button
@@ -864,6 +821,8 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                                   onClick={() => {
                                     setConfirmandoCancelamentoId(confirmandoCancelamentoId === item.id ? null : item.id);
                                     setConfirmandoAlteracaoId(null);
+                                    setConfirmandoPresencaId(null);
+                                    setConfirmandoReativacaoId(null);
                                   }}
                                   title="Cancelar atendimento (Administrador)"
                                   className="inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition-all cursor-pointer"
@@ -915,6 +874,8 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                                   onClick={() => {
                                     setConfirmandoCancelamentoId(confirmandoCancelamentoId === item.id ? null : item.id);
                                     setConfirmandoAlteracaoId(null);
+                                    setConfirmandoPresencaId(null);
+                                    setConfirmandoReativacaoId(null);
                                   }}
                                   title="Cancelar atendimento (Administrador)"
                                   className="inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition-all cursor-pointer"
@@ -966,6 +927,8 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                                   onClick={() => {
                                     setConfirmandoCancelamentoId(confirmandoCancelamentoId === item.id ? null : item.id);
                                     setConfirmandoAlteracaoId(null);
+                                    setConfirmandoPresencaId(null);
+                                    setConfirmandoReativacaoId(null);
                                   }}
                                   title="Cancelar atendimento (Administrador)"
                                   className="inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition-all cursor-pointer"
@@ -1007,6 +970,8 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                               onClick={() => {
                                 setConfirmandoAlteracaoId(confirmandoAlteracaoId === item.id ? null : item.id);
                                 setConfirmandoCancelamentoId(null);
+                                setConfirmandoPresencaId(null);
+                                setConfirmandoReativacaoId(null);
                               }}
                               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-transparent hover:border-slate-200 hover:bg-slate-50 text-[11px] text-slate-500 hover:text-blue-700 font-medium transition-colors cursor-pointer group/finalizado"
                             >
@@ -1033,7 +998,10 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                                 {ehAdmin && (
                                   <button
                                     type="button"
-                                    onClick={() => handleCancelarAtendimento(item.id)}
+                                    onClick={() => {
+                                      setConfirmandoCancelamentoId(item.id);
+                                      setConfirmandoAlteracaoId(null);
+                                    }}
                                     className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
                                   >
                                     <Ban className="w-3.5 h-3.5 text-rose-600" />
@@ -1042,22 +1010,76 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                                 )}
                               </div>
                             )}
+                            {confirmandoCancelamentoId === item.id && (
+                              <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
+                                <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                <span className="text-[11.5px] font-bold text-slate-700">Deseja cancelar este atendimento finalizado?</span>
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmandoCancelamentoId(null)}
+                                    className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                  >
+                                    Voltar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelarAtendimento(item.id)}
+                                    className="px-2.5 py-1 text-[11px] bg-rose-600 text-white hover:bg-rose-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                  >
+                                    Sim, cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
 
                         {/* CANCELADO — Exibição e opção de reativar (reativar apenas para admin) */}
                         {item.status === 'CANCELADO' && (
-                          <div className="inline-flex items-center gap-2">
+                          <div className="relative inline-flex items-center gap-2">
                             <span className="text-[11px] font-semibold text-rose-500 italic">Cancelado</span>
                             {ehAdmin && (
-                              <button
-                                type="button"
-                                onClick={() => handleReativarAtendimento(item.id)}
-                                className="text-[10.5px] font-bold text-slate-500 hover:text-blue-600 hover:underline cursor-pointer"
-                                title="Reabrir / colocar de volta na fila"
-                              >
-                                Reativar
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConfirmandoReativacaoId(confirmandoReativacaoId === item.id ? null : item.id);
+                                    setConfirmandoCancelamentoId(null);
+                                    setConfirmandoAlteracaoId(null);
+                                    setConfirmandoPresencaId(null);
+                                  }}
+                                  className="text-[10.5px] font-bold text-slate-500 hover:text-blue-600 hover:underline cursor-pointer"
+                                  title="Reabrir / colocar de volta na fila"
+                                >
+                                  Reativar
+                                </button>
+                                {confirmandoReativacaoId === item.id && (
+                                  <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
+                                    <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                    <span className="text-[11.5px] font-bold text-slate-700">Deseja reativar este atendimento?</span>
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmandoReativacaoId(null)}
+                                        className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                      >
+                                        Voltar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          setConfirmandoReativacaoId(null);
+                                          await handleReativarAtendimento(item.id);
+                                        }}
+                                        className="px-2.5 py-1 text-[11px] bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                      >
+                                        Sim, reativar
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         )}

@@ -158,6 +158,12 @@ export const SeletorFiltroUniversal = forwardRef<
   const [valInterno, setValInterno] = useState(defaultValue);
   const valorSel = valEfetivoProp !== undefined ? valEfetivoProp : valInterno;
 
+  useEffect(() => {
+    if (defaultValue !== undefined) {
+      setValInterno(defaultValue);
+    }
+  }, [defaultValue]);
+
   const [aberto, setAberto] = useState(false);
   const [termoBusca, setTermoBusca] = useState('');
 
