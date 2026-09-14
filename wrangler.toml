@@ -2,7 +2,7 @@ name = "catraki---sem"
 compatibility_date = "2024-03-20"
 pages_build_output_dir = "dist"
 
-[d1_databases]
+[[d1_databases]]
 binding = "DB"
 database_name = "sem_catraki_db"
 database_id = "5f216daa-0ef7-497b-9764-164b08373f94"
