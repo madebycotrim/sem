@@ -21,7 +21,7 @@ import { ConsoleBootstrap } from './componentes/ConsoleBootstrap.tsx';
 import { requisicaoApi } from './servicos/api.ts';
 import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCatraki.ts';
 import { formatarCpf, formatarTelefone } from './utilitarios/mascaras.ts';
-import { type PermissoesPerfil, type PerfilAcesso, StatusAtendimento, type StatusAtendimento as TipoStatusAtendimento } from '../compartilhado/index.ts';
+import { type PermissoesPerfil, type PerfilAcesso, StatusAtendimento, type StatusAtendimento as TipoStatusAtendimento, Turno } from '../compartilhado/index.ts';
 
 interface RespostaListaPacientes {
   dados: Array<{
@@ -339,7 +339,13 @@ export function App() {
   }, [autenticado]);
 
   // Lista de Atendimentos
-  const [atendimentos, setAtendimentos] = useState<ItemAtendimentoLista[]>([]);
+  const [atendimentos, setAtendimentos] = useState<ItemAtendimentoLista[]>(() => {
+    try {
+      const salvo = localStorage.getItem('catraki_atendimentos_local');
+      if (salvo) return JSON.parse(salvo);
+    } catch {}
+    return [];
+  });
   const [carregandoAtendimentos, setCarregandoAtendimentos] = useState(true);
 
   useEffect(() => {
@@ -372,7 +378,16 @@ export function App() {
             profissionalId: d.usuarioId ? String(d.usuarioId) : undefined,
             status: d.status as ItemAtendimentoLista['status'],
           }));
-          setAtendimentos(listaMapeada);
+          setAtendimentos((anteriores) => {
+            const mapa = new Map<string, ItemAtendimentoLista>();
+            anteriores.forEach((item) => mapa.set(item.id, item));
+            listaMapeada.forEach((item) => mapa.set(item.id, item));
+            const combinada = Array.from(mapa.values());
+            try {
+              localStorage.setItem('catraki_atendimentos_local', JSON.stringify(combinada));
+            } catch {}
+            return combinada;
+          });
         }
       } catch (erro) {
         if (ativo) {
@@ -441,10 +456,16 @@ export function App() {
       };
     });
 
-    setFila(filaPersistida);
-    try {
-      localStorage.setItem('catraki_fila_do_dia', JSON.stringify(filaPersistida));
-    } catch {}
+    setFila((filaAtual) => {
+      const mapaFila = new Map<string, ItemFila>();
+      filaAtual.forEach((item) => mapaFila.set(item.id, item));
+      filaPersistida.forEach((item) => mapaFila.set(item.id, item));
+      const combinada = Array.from(mapaFila.values());
+      try {
+        localStorage.setItem('catraki_fila_do_dia', JSON.stringify(combinada));
+      } catch {}
+      return combinada;
+    });
   }, [autenticado, carregandoAtendimentos, atendimentos, pacientes, escolasGlobais, profissionais]);
 
   const handleSalvarAtendimento = (novoAtendimento: ItemAtendimentoLista) => {
@@ -452,12 +473,17 @@ export function App() {
       const index = lista.findIndex(
         (a) => a.id === novoAtendimento.id || (novoAtendimento.pacienteId && a.pacienteId === novoAtendimento.pacienteId && a.especialidade === novoAtendimento.especialidade)
       );
+      let nova: ItemAtendimentoLista[];
       if (index >= 0) {
-        const nova = [...lista];
+        nova = [...lista];
         nova[index] = { ...nova[index], ...novoAtendimento };
-        return nova;
+      } else {
+        nova = [novoAtendimento, ...lista];
       }
-      return [novoAtendimento, ...lista];
+      try {
+        localStorage.setItem('catraki_atendimentos_local', JSON.stringify(nova));
+      } catch {}
+      return nova;
     });
 
     // Sincroniza também a fila local em tempo real
@@ -655,19 +681,73 @@ export function App() {
 
   const handleAtualizarStatusAtendimento = async (id: string, status: StatusAtendimento) => {
     const atendimentoExistente = atendimentos.find((atendimento) => atendimento.id === id);
-    if (!atendimentoExistente) {
-      return;
+    const statusAnterior = atendimentoExistente?.status;
+
+    setAtendimentos((lista) => {
+      const index = lista.findIndex((a) => a.id === id);
+      let nova: ItemAtendimentoLista[];
+      if (index >= 0) {
+        nova = lista.map((a) => (a.id === id ? { ...a, status } : a));
+      } else {
+        const itemFila = fila.find((f) => f.id === id || f.atendimentoId === id);
+        if (itemFila) {
+          const novoAtend: ItemAtendimentoLista = {
+            id,
+            pacienteId: itemFila.pacienteId || id,
+            pacienteNome: itemFila.pacienteNome,
+            especialidade: itemFila.especialidade,
+            turno: itemFila.turno || Turno.MANHA,
+            escolaNome: itemFila.escolaNome || 'Não informada',
+            profissionalNome: itemFila.profissional || 'Profissional de Saúde',
+            resumo: itemFila.anotacoes || '',
+            criadoEm: new Date().toISOString(),
+            status,
+          };
+          nova = [novoAtend, ...lista];
+        } else {
+          nova = lista;
+        }
+      }
+      try {
+        localStorage.setItem('catraki_atendimentos_local', JSON.stringify(nova));
+      } catch {}
+      return nova;
+    });
+
+    // Sincroniza fila do dia em tempo real
+    const statusFilaMap: Partial<Record<StatusAtendimento, ItemFila['status']>> = {
+      [StatusAtendimento.AGENDADO]: 'AGUARDANDO',
+      [StatusAtendimento.CONFIRMADO]: 'CONFIRMADO',
+      [StatusAtendimento.EM_ATENDIMENTO]: 'EM_ATENDIMENTO',
+      [StatusAtendimento.CONCLUIDO]: 'CONCLUIDO',
+      [StatusAtendimento.CANCELADO]: 'CANCELADO',
+      [StatusAtendimento.FALTOU]: 'CANCELADO',
+    };
+    const statusFilaConvertido = statusFilaMap[status];
+    if (statusFilaConvertido) {
+      setFila((prev) => {
+        const novaFila = prev.map((item) =>
+          item.id === id || item.atendimentoId === id
+            ? { ...item, status: statusFilaConvertido }
+            : item
+        );
+        try {
+          localStorage.setItem('catraki_fila_do_dia', JSON.stringify(novaFila));
+        } catch {}
+        return novaFila;
+      });
     }
-    const statusAnterior = atendimentoExistente.status;
-    setAtendimentos((lista) => lista.map((atendimento) => atendimento.id === id ? { ...atendimento, status } : atendimento));
+
     try {
       await requisicaoApi(`/atendimentos/${id}/status`, {
         metodo: 'PATCH',
         corpo: { status },
       });
     } catch (erro) {
-      setAtendimentos((lista) => lista.map((atendimento) => atendimento.id === id ? { ...atendimento, status: statusAnterior } : atendimento));
-      mostrarToast(erro instanceof Error ? `Não foi possível atualizar o status: ${erro.message}` : 'Não foi possível atualizar o status.', 'erro');
+      if (statusAnterior) {
+        setAtendimentos((lista) => lista.map((atendimento) => atendimento.id === id ? { ...atendimento, status: statusAnterior } : atendimento));
+      }
+      console.warn('Não foi possível atualizar status na API:', erro);
     }
   };
 
@@ -705,6 +785,71 @@ export function App() {
         : paciente;
     });
   }, [pacientes, atendimentos, fila]);
+
+  // Lista unificada de todas as consultas: consolida atendimentos persistidos e itens da fila do dia
+  const todosAtendimentos = useMemo<ItemAtendimentoLista[]>(() => {
+    const mapa = new Map<string, ItemAtendimentoLista>();
+
+    atendimentos.forEach((a) => {
+      mapa.set(a.id, a);
+    });
+
+    const statusMap: Record<ItemFila['status'], StatusAtendimento> = {
+      AGUARDANDO: StatusAtendimento.AGENDADO,
+      CONFIRMADO: StatusAtendimento.CONFIRMADO,
+      EM_ATENDIMENTO: StatusAtendimento.EM_ATENDIMENTO,
+      CONCLUIDO: StatusAtendimento.CONCLUIDO,
+      CANCELADO: StatusAtendimento.CANCELADO,
+    };
+
+    fila.forEach((f) => {
+      const chave = f.atendimentoId || f.id;
+      const existente = mapa.get(chave);
+      const statusFinal = statusMap[f.status] || StatusAtendimento.AGENDADO;
+
+      let criadoEm = existente?.criadoEm;
+      if (!criadoEm && f.dataChegada) {
+        const partes = f.dataChegada.split('/');
+        if (partes.length === 3) {
+          const [d, m, y] = partes;
+          const hora = f.horarioChegada || '00:00';
+          criadoEm = `${y}-${m}-${d}T${hora}:00`;
+        }
+      }
+      if (!criadoEm) {
+        criadoEm = new Date().toISOString();
+      }
+
+      if (existente) {
+        mapa.set(chave, {
+          ...existente,
+          status: existente.status || statusFinal,
+          resumo: f.anotacoes || existente.resumo,
+          profissionalNome: f.profissional || existente.profissionalNome,
+          escolaNome: f.escolaNome || existente.escolaNome,
+        });
+      } else {
+        mapa.set(chave, {
+          id: chave,
+          pacienteId: f.pacienteId || chave,
+          pacienteNome: f.pacienteNome,
+          especialidade: f.especialidade,
+          turno: f.turno || Turno.MANHA,
+          escolaNome: f.escolaNome || 'Não informada',
+          profissionalNome: f.profissional || 'Profissional de Saúde',
+          resumo: f.anotacoes || '',
+          criadoEm,
+          status: statusFinal,
+        });
+      }
+    });
+
+    return Array.from(mapa.values()).sort((a, b) => {
+      const tempoA = new Date(a.criadoEm).getTime();
+      const tempoB = new Date(b.criadoEm).getTime();
+      return (isNaN(tempoB) ? 0 : tempoB) - (isNaN(tempoA) ? 0 : tempoA);
+    });
+  }, [atendimentos, fila]);
 
   // Filtragem da Lista de Pacientes
   const pacientesFiltrados = useMemo(() => pacientesComAtendimentos.filter((paciente) => {
@@ -879,7 +1024,7 @@ export function App() {
               <FilaDoDia
                 escolas={escolasGlobais}
                 pacientes={pacientes}
-                atendimentos={atendimentos}
+                atendimentos={todosAtendimentos}
                 fila={fila}
                 profissionais={profissionais}
                 ehAdmin={usuarioLogado?.perfil === 'ADMIN' || usuarioLogado?.perfil === 'BOOTSTRAP'}
@@ -901,7 +1046,7 @@ export function App() {
           if (secaoAtiva === 'consultas') {
             return (
               <Atendimentos
-                atendimentos={atendimentos}
+                atendimentos={todosAtendimentos}
                 statusSincronizacaoCatraki={statusSincronizacaoCatraki}
                 aoAtualizarStatus={handleAtualizarStatusAtendimento}
                 aoSalvarAtendimento={handleSalvarAtendimento}
@@ -922,10 +1067,10 @@ export function App() {
             return (
               <Dashboard
                 totalPacientes={pacientes.length}
-                totalAtendimentos={atendimentos.length}
+                totalAtendimentos={todosAtendimentos.length}
                 totalInstituicoes={escolasGlobais.length}
                 pacientes={pacientes}
-                atendimentos={atendimentos}
+                atendimentos={todosAtendimentos}
                 fila={fila}
                 carregando={carregandoPacientes || carregandoAtendimentos}
                 aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}

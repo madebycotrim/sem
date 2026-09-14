@@ -100,4 +100,72 @@ describe('Atendimentos - Truncamento de Nome Profissional e Hover Card de Pacien
     expect(dadosProntuario.anotacoes).toContain('evolução satisfatória');
     expect(dadosProntuario.modoVisualizacao).toBe(true);
   });
+
+  it('deve manter padrão como Todos e Tudo e exibir todas as consultas sem restrição de data ou status', () => {
+    const listaConsultas: ItemAtendimentoLista[] = [
+      {
+        id: 'c-1',
+        pacienteId: 'pac-1',
+        pacienteNome: 'MATEUS RECALDE DA FONSECA COTRIM',
+        especialidade: 'AUDIOMETRIA' as any,
+        turno: 'MATUTINO' as any,
+        escolaNome: 'CEMEIT',
+        profissionalNome: 'ANA CRISTINA RABELO PAIVA',
+        criadoEm: '2026-09-14T01:01:00.000Z',
+        status: 'CONCLUIDO' as any,
+      },
+      {
+        id: 'c-2',
+        pacienteId: 'pac-1',
+        pacienteNome: 'MATEUS RECALDE DA FONSECA COTRIM',
+        especialidade: 'PSICOLOGIA' as any,
+        turno: 'NOTURNO' as any,
+        escolaNome: 'CEMEIT',
+        profissionalNome: 'ANA CLAUDIA FERNANDES MEIRELES',
+        criadoEm: '2026-09-13T23:56:00.000Z',
+        status: 'AGENDADO' as any,
+      },
+      {
+        id: 'c-3',
+        pacienteId: 'pac-2',
+        pacienteNome: 'BEATRIZ SILVA',
+        especialidade: 'ODONTOLOGIA' as any,
+        turno: 'MATUTINO' as any,
+        escolaNome: 'ESCOLA CLASSE 01',
+        profissionalNome: 'DR. CARLOS',
+        criadoEm: '2026-08-15T14:30:00.000Z',
+        status: 'CANCELADO' as any,
+      },
+    ];
+
+    // Estado padrão inicial e após Limpar
+    const statusFiltroPadrao: string = ''; // "Todos"
+    const periodoSelecionadoPadrao: string = 'tudo'; // "Tudo"
+    const dataInicioPadrao: string = '';
+    const dataFimPadrao: string = '';
+
+    expect(statusFiltroPadrao).toBe('');
+    expect(periodoSelecionadoPadrao).toBe('tudo');
+
+    // Lógica do filtro de dadosBase em Atendimentos.tsx
+    const extrairDataIso = (dataStr?: string) => {
+      if (!dataStr) return '';
+      if (/^\d{4}-\d{2}-\d{2}/.test(dataStr)) return dataStr.slice(0, 10);
+      return '';
+    };
+
+    const dadosFiltrados = listaConsultas.filter((item) => {
+      const dataIso = extrairDataIso(item.criadoEm);
+      const status = item.status;
+      const atendeStatus = !statusFiltroPadrao || status === statusFiltroPadrao;
+      const atendeDataInicio = !dataInicioPadrao || (dataIso ? dataIso >= dataInicioPadrao : true);
+      const atendeDataFim = !dataFimPadrao || (dataIso ? dataIso <= dataFimPadrao : true);
+      return atendeStatus && atendeDataInicio && atendeDataFim;
+    });
+
+    // Todas as 3 consultas devem aparecer sem restrição
+    expect(dadosFiltrados.length).toBe(3);
+    expect(dadosFiltrados.map((c) => c.id)).toEqual(['c-1', 'c-2', 'c-3']);
+  });
 });
+

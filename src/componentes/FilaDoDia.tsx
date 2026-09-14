@@ -772,7 +772,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                                   onClick={() => {
                                     aoVerHistoricoPaciente?.(pacienteCompleto);
                                   }}
-                                  className="text-left font-semibold text-slate-900 uppercase tracking-tight text-xs hover:text-blue-600 hover:underline transition-colors cursor-pointer"
+                                  className="text-left font-semibold text-slate-900 uppercase tracking-tight text-xs cursor-pointer select-none no-underline"
                                   title="Clique para abrir o Histórico Clínico deste paciente"
                                 >
                                   {item.pacienteNome}

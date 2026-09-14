@@ -8,7 +8,6 @@ import {
   BarraFiltrosAtivos,
   type ConfiguracaoColuna,
 } from './tabelaExcel/index.ts';
-import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { Paginacao } from './Paginacao.tsx';
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 import { SelectModal } from './Modal.tsx';
@@ -228,14 +227,40 @@ export const Atendimentos: FC<AtendimentosProps> = ({
     }
   };
   const [busca, setBusca] = useState('');
-  // O histórico clínico começa mostrando todos os atendimentos por padrão.
+  // O histórico clínico começa mostrando todos os atendimentos por padrão: status "Todos" e período "Tudo".
   const [statusFiltro, setStatusFiltro] = useState('');
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
-  const [periodoSelecionado, setPeriodoSelecionado] = useState<number | 'mes' | 'tudo' | null>(null);
+  const [periodoSelecionado, setPeriodoSelecionado] = useState<number | 'mes' | 'tudo' | null>('tudo');
   const [diaSelecionado, setDiaSelecionado] = useState<number | null>(null);
   const dataInicioRef = useRef<HTMLInputElement>(null);
   const dataFimRef = useRef<HTMLInputElement>(null);
+
+  const normalizarStatusAtendimento = (status?: string): StatusAtendimento => {
+    if (!status) return StatusAtendimento.CONCLUIDO;
+    if (status === 'AGUARDANDO') return StatusAtendimento.AGENDADO;
+    return status as StatusAtendimento;
+  };
+
+  const extrairDataIsoParaFiltro = (dataStr?: string): string => {
+    if (!dataStr) return '';
+    const limpo = dataStr.trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(limpo)) {
+      return limpo.slice(0, 10);
+    }
+    const matchBr = limpo.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (matchBr) {
+      return `${matchBr[3]}-${matchBr[2]}-${matchBr[1]}`;
+    }
+    const d = new Date(limpo);
+    if (!isNaN(d.getTime())) {
+      const ano = d.getFullYear();
+      const mes = String(d.getMonth() + 1).padStart(2, '0');
+      const dia = String(d.getDate()).padStart(2, '0');
+      return `${ano}-${mes}-${dia}`;
+    }
+    return '';
+  };
 
   const colunasConfig = useMemo<ConfiguracaoColuna<ItemAtendimentoLista>[]>(
     () => [
@@ -276,7 +301,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         id: 'status',
         rotulo: 'STATUS',
         tipo: 'opcao',
-        obterValor: (i) => i.status || StatusAtendimento.CONCLUIDO,
+        obterValor: (i) => normalizarStatusAtendimento(i.status),
         formatarRotulo: (val) => STATUS_ATENDIMENTO_LABELS[val as StatusAtendimento] || String(val),
       },
     ],
@@ -285,11 +310,12 @@ export const Atendimentos: FC<AtendimentosProps> = ({
 
   const dadosBase = useMemo(() => {
     return atendimentos.filter((item) => {
-      const data = item.criadoEm.slice(0, 10);
-      const status = item.status || StatusAtendimento.CONCLUIDO;
-      return (!statusFiltro || status === statusFiltro) &&
-        (!dataInicio || data >= dataInicio) &&
-        (!dataFim || data <= dataFim);
+      const dataIso = extrairDataIsoParaFiltro(item.criadoEm);
+      const status = normalizarStatusAtendimento(item.status);
+      const atendeStatus = !statusFiltro || status === statusFiltro;
+      const atendeDataInicio = !dataInicio || (dataIso ? dataIso >= dataInicio : true);
+      const atendeDataFim = !dataFim || (dataIso ? dataIso <= dataFim : true);
+      return atendeStatus && atendeDataInicio && atendeDataFim;
     });
   }, [atendimentos, dataFim, dataInicio, statusFiltro]);
 
@@ -297,12 +323,8 @@ export const Atendimentos: FC<AtendimentosProps> = ({
     setPeriodoSelecionado(dias);
     setDiaSelecionado(null);
     if (dias === 'tudo') {
-      const datas = atendimentos
-        .map((item) => item.criadoEm.slice(0, 10))
-        .filter(Boolean)
-        .sort();
-      setDataInicio(datas[0] || '');
-      setDataFim(datas[datas.length - 1] || '');
+      setDataInicio('');
+      setDataFim('');
       return;
     }
 
@@ -411,18 +433,114 @@ export const Atendimentos: FC<AtendimentosProps> = ({
             </div>
             <div className="flex flex-nowrap items-center justify-end gap-1.5">
               <div className="flex h-10 items-center gap-1 rounded-xl border border-slate-200 bg-white p-1">
-                <button type="button" onClick={() => aplicarDia(-2)} aria-pressed={diaSelecionado === -2} className={`h-8 rounded-lg px-3 text-[11px] font-bold transition-all ${diaSelecionado === -2 ? 'bg-blue-50 text-blue-700 shadow-xs' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>Anteontem</button>
-                <button type="button" onClick={() => aplicarDia(-1)} aria-pressed={diaSelecionado === -1} className={`h-8 rounded-lg px-3 text-[11px] font-bold transition-all ${diaSelecionado === -1 ? 'bg-blue-50 text-blue-700 shadow-xs' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>Ontem</button>
-                <button type="button" onClick={() => aplicarDia(0)} aria-pressed={diaSelecionado === 0} className={`h-8 rounded-lg px-3 text-[11px] font-bold transition-all ${diaSelecionado === 0 ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>Hoje</button>
+                <button
+                  type="button"
+                  onClick={() => aplicarDia(-2)}
+                  aria-pressed={diaSelecionado === -2}
+                  className={`h-8 rounded-lg px-3 text-[11px] font-bold transition-all cursor-pointer ${
+                    diaSelecionado === -2
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                  }`}
+                >
+                  Anteontem
+                </button>
+                <button
+                  type="button"
+                  onClick={() => aplicarDia(-1)}
+                  aria-pressed={diaSelecionado === -1}
+                  className={`h-8 rounded-lg px-3 text-[11px] font-bold transition-all cursor-pointer ${
+                    diaSelecionado === -1
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                  }`}
+                >
+                  Ontem
+                </button>
+                <button
+                  type="button"
+                  onClick={() => aplicarDia(0)}
+                  aria-pressed={diaSelecionado === 0}
+                  className={`h-8 rounded-lg px-3 text-[11px] font-bold transition-all cursor-pointer ${
+                    diaSelecionado === 0
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                  }`}
+                >
+                  Hoje
+                </button>
               </div>
               <span className="mx-0.5 h-6 w-px bg-slate-200" aria-hidden="true" />
-              <button type="button" onClick={() => aplicarPeriodo(7)} className={`h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors ${periodoSelecionado === 7 ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>7 dias</button>
-              <button type="button" onClick={() => aplicarPeriodo(15)} className={`hidden h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors md:block ${periodoSelecionado === 15 ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>15 dias</button>
-              <button type="button" onClick={() => aplicarPeriodo(30)} className={`h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors ${periodoSelecionado === 30 ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>30 dias</button>
-              <button type="button" onClick={() => aplicarPeriodo('mes')} className={`hidden h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors lg:block ${periodoSelecionado === 'mes' ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Este mês</button>
-              <button type="button" onClick={() => aplicarPeriodo('tudo')} className={`h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors ${periodoSelecionado === 'tudo' ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Tudo</button>
+              <button
+                type="button"
+                onClick={() => aplicarPeriodo(7)}
+                className={`h-10 rounded-xl border px-3 text-[11px] font-bold transition-all cursor-pointer ${
+                  periodoSelecionado === 7
+                    ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                7 dias
+              </button>
+              <button
+                type="button"
+                onClick={() => aplicarPeriodo(15)}
+                className={`hidden h-10 rounded-xl border px-3 text-[11px] font-bold transition-all cursor-pointer md:block ${
+                  periodoSelecionado === 15
+                    ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                15 dias
+              </button>
+              <button
+                type="button"
+                onClick={() => aplicarPeriodo(30)}
+                className={`h-10 rounded-xl border px-3 text-[11px] font-bold transition-all cursor-pointer ${
+                  periodoSelecionado === 30
+                    ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                30 dias
+              </button>
+              <button
+                type="button"
+                onClick={() => aplicarPeriodo('mes')}
+                className={`hidden h-10 rounded-xl border px-3 text-[11px] font-bold transition-all cursor-pointer lg:block ${
+                  periodoSelecionado === 'mes'
+                    ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                Este mês
+              </button>
+              <button
+                type="button"
+                onClick={() => aplicarPeriodo('tudo')}
+                className={`h-10 rounded-xl border px-3 text-[11px] font-bold transition-all cursor-pointer ${
+                  periodoSelecionado === 'tudo'
+                    ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                Tudo
+              </button>
               <span className="mx-0.5 h-6 w-px bg-slate-200" aria-hidden="true" />
-              <button type="button" onClick={() => { setBusca(''); setStatusFiltro(''); setDataInicio(''); setDataFim(''); setPeriodoSelecionado(null); setDiaSelecionado(null); }} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-rose-600 transition-colors hover:bg-rose-50">
+              <button
+                type="button"
+                onClick={() => {
+                  setBusca('');
+                  setStatusFiltro('');
+                  setDataInicio('');
+                  setDataFim('');
+                  setPeriodoSelecionado('tudo');
+                  setDiaSelecionado(null);
+                  filtroExcel.limparTodosFiltros();
+                  setPaginaAtual(1);
+                }}
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-rose-600 transition-colors hover:bg-rose-50 cursor-pointer"
+              >
                 <RotateCcw className="h-3.5 w-3.5" /> Limpar
               </button>
             </div>
@@ -535,28 +653,15 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                           paciente={pacienteCompleto}
                           aoVerDetalhes={aoVerHistoricoPaciente ? () => aoVerHistoricoPaciente(pacienteCompleto) : undefined}
                         >
-                          <div className="flex items-center gap-3">
-                            {(() => {
-                              const estilo = obterEstiloAvatarGoogle(item.pacienteNome);
-                              return (
-                                <div
-                                  style={estilo.style}
-                                  className="w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs select-none ring-2 ring-white"
-                                >
-                                  {item.pacienteNome.charAt(0).toUpperCase()}
-                                </div>
-                              );
-                            })()}
-                            <div className="flex flex-col text-left">
-                              <button
-                                type="button"
-                                onClick={() => aoVerHistoricoPaciente?.(pacienteCompleto)}
-                                className="text-left font-semibold text-slate-900 uppercase tracking-tight text-xs hover:text-blue-600 hover:underline transition-colors cursor-pointer"
-                                title="Clique para abrir o Histórico Clínico deste paciente"
-                              >
-                                {item.pacienteNome}
-                              </button>
-                            </div>
+                          <div className="flex flex-col text-left">
+                            <button
+                              type="button"
+                              onClick={() => aoVerHistoricoPaciente?.(pacienteCompleto)}
+                              className="text-left font-semibold text-slate-900 uppercase tracking-tight text-xs cursor-pointer select-none no-underline"
+                              title="Clique para abrir o Histórico Clínico deste paciente"
+                            >
+                              {item.pacienteNome}
+                            </button>
                           </div>
                         </CardHoverPaciente>
                       </td>
