@@ -12,8 +12,6 @@ import {
   Sparkles,
   TriangleAlert,
   Apple,
-  Copy,
-  Check,
   Printer,
   X,
   Activity,
@@ -22,7 +20,6 @@ import {
   Smile,
   Zap,
   ShieldCheck,
-  Target,
   Users,
 } from 'lucide-react';
 import { utils, writeFile } from 'xlsx';
@@ -130,7 +127,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
 
   const [relatorioGerado, setRelatorioGerado] = useState(false);
   const [gatilhoExecucao, setGatilhoExecucao] = useState(0);
-  const [copiadoFeedback, setCopiadoFeedback] = useState(false);
   interface RespostaSinteseIa {
     origem?: string;
     modelo?: string;
@@ -143,14 +139,9 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
 
   const [sinteseExecutivaIa, setSinteseExecutivaIa] = useState<RespostaSinteseIa | null>(null);
   const [gerandoSinteseIa, setGerandoSinteseIa] = useState(false);
-  const [estaEmStreaming, setEstaEmStreaming] = useState(false);
-  const [textoResumoStreaming, setTextoResumoStreaming] = useState('');
-  const [destaquesStreaming, setDestaquesStreaming] = useState<string[]>([]);
-  const [textoDiretrizStreaming, setTextoDiretrizStreaming] = useState('');
 
   // Cache inteligente em memória para reutilização instantânea
   const cacheSinteseRef = useRef<Map<string, RespostaSinteseIa>>(new Map());
-  const timerStreamingRef = useRef<number[]>([]);
   const gerarSinteseComIaRef = useRef<((forcarNovo?: boolean, dadosDiretos?: RelatorioDados) => Promise<void>) | null>(null);
 
   // Modais
@@ -183,6 +174,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     setDados(DADOS_RELATORIO_INICIAIS);
     setDadosTabela([]);
     setSinteseExecutivaIa(null);
+    setGerandoSinteseIa(false);
   };
 
   // Carregar escolas se vier vazio por prop
@@ -250,6 +242,8 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       return;
     }
     setErro(null);
+    setSinteseExecutivaIa(null);
+    setGerandoSinteseIa(true);
     setGatilhoExecucao((prev) => prev + 1);
   };
 
@@ -266,6 +260,8 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
 
       setCarregando(true);
       setErro(null);
+      setSinteseExecutivaIa(null);
+      setGerandoSinteseIa(true);
 
       const parametros = new URLSearchParams({ pagina: '1', porPagina: '100' });
       if (dataInicio) parametros.set('dataInicio', dataInicio);
@@ -562,126 +558,16 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     return alertas;
   }, [totalGeral, dados.porEspecialidade, dados.porEscola, picoGrafico, mediaGrafico]);
 
-  // Síntese Executiva Inteligente (Parecer Automatizado)
-  const sintesePadrao = useMemo<RespostaSinteseIa>(() => {
-    if (totalGeral === 0) {
-      return {
-        origem: 'ALGORITMO_LOCAL',
-        titulo: 'Síntese Executiva do Período — Gestão de Saúde Escolar',
-        resumo: 'Nenhum atendimento clínico foi registrado no intervalo e filtros selecionados. O painel permanece em aguardo de novos atendimentos da operação móvel.',
-        pontos: [],
-        recomendacao: 'Amplie os filtros de busca no cabeçalho para extrair os indicadores analíticos completos da rede.',
-        veioDoCache: false,
-      };
-    }
-
-    const dataIniFormatada = dataInicio ? formatarDataBrasileira(dataInicio) : 'Início';
-    const dataFimFormatada = dataFim ? formatarDataBrasileira(dataFim) : 'Atual';
-    const topEsp = dados.porEspecialidade[0];
-    const topEspNome = topEsp ? ESPECIALIDADE_LABELS[topEsp.especialidade as Especialidade] ?? topEsp.especialidade : 'Geral';
-    const topEspPct = topEsp ? Math.round((topEsp.total / totalGeral) * 100) : 0;
-    const topEscola = dados.porEscola[0]?.nome ?? 'Não identificada';
-    const totalEscolasAtendidas = dados.porEscola.length;
-    const picoTexto = picoGrafico ? ` O dia com maior atividade registrada foi ${formatarDataBrasileira(picoGrafico.data)}, atingindo ${picoGrafico.total} atendimentos.` : '';
-
-    const p1 = `No período analisado (${dataIniFormatada} a ${dataFimFormatada}), a operação móvel do Programa Saúde na Escola realizou ${totalGeral} consultas assistenciais, contemplando diretamente ${dados.pacientesUnicos ?? totalGeral} estudantes distintos em ${totalEscolasAtendidas} unidade(s) de ensino municipal. A regularidade operacional manteve uma média de ${dados.mediaDiaria ?? 0} consultas diárias.${picoTexto}`;
-    const p2 = `Sob a perspectiva do perfil epidemiológico da demanda, a especialidade de ${topEspNome} despontou como a principal frente clínica de intervenção, concentrando ${topEsp?.total ?? 0} consultas (${topEspPct}% de todo o volume apurado). A unidade escolar com maior fluxo registrado foi "${topEscola}", evidenciando a concentração assistencial nesta região.`;
-    const p3 = `A estratégia de atenção primária in loco alcançou alta resolutividade no período, proporcionando acesso médico e odontológico direto no ambiente pedagógico e minimizando o absenteísmo escolar de crianças e adolescentes.`;
-
-    const textoCompleto = `${p1}\n\n${p2}\n\n${p3}`;
-
-    const pontos = [
-      `Cobertura de Estudantes: ${dados.pacientesUnicos ?? totalGeral} alunos distintos atendidos com média estável de ${dados.mediaDiaria ?? 0} consultas/dia útil.`,
-      `Demanda Epidemiológica Líder: ${topEspNome} concentrou ${topEspPct}% de todas as intervenções realizadas pela equipe móvel.`,
-      `Polo de Maior Concentração: A unidade "${topEscola}" concentrou a maior demanda assistencial do período analisado.`,
-      `Capacidade e Regularidade: Circuito itinerante com cobertura ativa em ${totalEscolasAtendidas} escola(s) municipais.`,
-    ];
-
-    const recomendacao = `Recomenda-se dimensionar prioritariamente a escala de profissionais e a reposição de insumos clínicos para a especialidade de ${topEspNome} e para a unidade polo "${topEscola}". Sugere-se também programar visitas intensivas às escolas da rede que registraram menor volume de atendimentos no próximo ciclo móvel.`;
-
-    return {
-      origem: 'ALGORITMO_LOCAL',
-      titulo: 'Síntese Executiva e Parecer Clínico Operacional da Gestão',
-      resumo: textoCompleto,
-      pontos,
-      recomendacao,
-      veioDoCache: false,
-    };
-  }, [totalGeral, dataInicio, dataFim, dados, picoGrafico]);
-
-  const sinteseExecutiva = sinteseExecutivaIa ?? sintesePadrao;
-
-  const limparTimersStreaming = () => {
-    for (const timer of timerStreamingRef.current) {
-      window.clearTimeout(timer);
-    }
-    timerStreamingRef.current = [];
-  };
-
-  const concluirStreamingImediatamente = () => {
-    limparTimersStreaming();
-    setEstaEmStreaming(false);
-    if (sinteseExecutiva) {
-      setTextoResumoStreaming(sinteseExecutiva.resumo);
-      setDestaquesStreaming(sinteseExecutiva.pontos);
-      setTextoDiretrizStreaming(sinteseExecutiva.recomendacao);
-    }
-  };
-
-  const iniciarStreamingTexto = (dadosSintese: RespostaSinteseIa) => {
-    limparTimersStreaming();
-    setEstaEmStreaming(true);
-    setTextoResumoStreaming('');
-    setDestaquesStreaming([]);
-    setTextoDiretrizStreaming('');
-
-    const palavrasResumo = dadosSintese.resumo.split(' ');
-    let atrasoAcumulado = 0;
-    const passoTempo = Math.max(12, Math.min(26, Math.floor(1100 / (palavrasResumo.length || 1))));
-
-    // Digitação dinâmica do Resumo Executivo em tempo real
-    palavrasResumo.forEach((_, idx) => {
-      atrasoAcumulado += passoTempo;
-      const t = window.setTimeout(() => {
-        setTextoResumoStreaming(palavrasResumo.slice(0, idx + 1).join(' '));
-      }, atrasoAcumulado);
-      timerStreamingRef.current.push(t);
-    });
-
-    // Revelação progressiva dos Destaques Estratégicos
-    dadosSintese.pontos.forEach((ponto) => {
-      atrasoAcumulado += 130;
-      const t = window.setTimeout(() => {
-        setDestaquesStreaming((prev) => [...prev, ponto]);
-      }, atrasoAcumulado);
-      timerStreamingRef.current.push(t);
-    });
-
-    // Digitação dinâmica da Diretriz da Gestão
-    const palavrasDiretriz = dadosSintese.recomendacao.split(' ');
-    atrasoAcumulado += 90;
-    palavrasDiretriz.forEach((_, idx) => {
-      atrasoAcumulado += passoTempo;
-      const t = window.setTimeout(() => {
-        setTextoDiretrizStreaming(palavrasDiretriz.slice(0, idx + 1).join(' '));
-        if (idx === palavrasDiretriz.length - 1) {
-          setEstaEmStreaming(false);
-        }
-      }, atrasoAcumulado);
-      timerStreamingRef.current.push(t);
-    });
-  };
-
-  useEffect(() => {
-    return () => {
-      limparTimersStreaming();
-    };
-  }, []);
+  // Síntese Executiva estritamente por Inteligência Artificial (zero texto fixo/hardcoded prévio)
+  const sinteseExecutiva = sinteseExecutivaIa;
 
   const gerarSinteseComIa = async (forcarNovo = false, dadosDiretos?: RelatorioDados) => {
     const dadosBase = dadosDiretos ?? dados;
     const totalEfetivo = dadosDiretos ? dadosDiretos.total : totalGeral;
-    if (totalEfetivo === 0 || gerandoSinteseIa) return;
+    if (totalEfetivo === 0) {
+      setGerandoSinteseIa(false);
+      return;
+    }
 
     // Chave de cache baseada nas dimensões quantitativas e filtros
     const chaveCache = `${dataInicio}_${dataFim}_${escolaFiltro || 'todas'}_${especialidadeFiltro || 'todas'}_${profissionalFiltro || 'todos'}_${totalEfetivo}_${dadosBase.pacientesUnicos ?? 0}`;
@@ -691,11 +577,12 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       const itemCache = cacheSinteseRef.current.get(chaveCache)!;
       const itemComFlag = { ...itemCache, veioDoCache: true };
       setSinteseExecutivaIa(itemComFlag);
-      concluirStreamingImediatamente();
+      setGerandoSinteseIa(false);
       return;
     }
 
     setGerandoSinteseIa(true);
+    setSinteseExecutivaIa(null);
     try {
       const payload = {
         totalGeral: totalEfetivo,
@@ -725,23 +612,14 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         const itemPronto = { ...res, veioDoCache: false };
         cacheSinteseRef.current.set(chaveCache, itemPronto);
         setSinteseExecutivaIa(itemPronto);
-        iniciarStreamingTexto(itemPronto);
       }
     } catch (err) {
-      console.warn('Falha ao gerar síntese via Workers AI, mantendo parecer estruturado:', err);
+      console.warn('Falha ao gerar síntese via Workers AI:', err);
     } finally {
       setGerandoSinteseIa(false);
     }
   };
   gerarSinteseComIaRef.current = gerarSinteseComIa;
-
-  const copiarParecer = () => {
-    concluirStreamingImediatamente();
-    const textoCompleto = `${sinteseExecutiva.titulo}\n\n${sinteseExecutiva.resumo}\n\nDESTAQUES:\n${sinteseExecutiva.pontos.map((p) => `• ${p}`).join('\n')}\n\nDIRETRIZ:\n${sinteseExecutiva.recomendacao}`;
-    void navigator.clipboard.writeText(textoCompleto);
-    setCopiadoFeedback(true);
-    setTimeout(() => setCopiadoFeedback(false), 3000);
-  };
 
   // Configuração das Colunas da Tabela com Filtro Excel
   const colunasTabela = useMemo<ConfiguracaoColuna<RegistroTabela>[]>(
@@ -859,12 +737,15 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           dados.mediaDiaria ?? 0,
           picoGrafico ? `${picoGrafico.total} (${formatarDataBrasileira(picoGrafico.data)})` : 'N/A',
         ],
-        [],
-        ['=== 2. PARECER EXECUTIVO E DIRETRIZES DA GESTÃO ==='],
-        ['Resumo do Período:', sinteseExecutiva.resumo],
-        ['Diretriz da Coordenação:', sinteseExecutiva.recomendacao],
-        ...sinteseExecutiva.pontos.map((ponto, i) => [`Destaque Estratégico ${i + 1}:`, ponto]),
-        [],
+        ...(sinteseExecutiva
+          ? [
+              ['=== 2. PARECER EXECUTIVO E DIRETRIZES DA GESTÃO ==='],
+              ['Resumo do Período:', sinteseExecutiva.resumo],
+              ['Diretriz da Coordenação:', sinteseExecutiva.recomendacao],
+              ...sinteseExecutiva.pontos.map((ponto, i) => [`Destaque Estratégico ${i + 1}:`, ponto]),
+              [],
+            ]
+          : []),
         ['=== 3. DISTRIBUIÇÃO ANALÍTICA POR ESPECIALIDADE ==='],
         [
           'Especialidade',
@@ -1293,32 +1174,32 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-                Parecer Clínico & Síntese Executiva
+                Saúde em Movimento • Ações nas Escolas
               </span>
-              {estaEmStreaming ? (
+              {gerandoSinteseIa ? (
                 <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 animate-pulse">
                   <Sparkles className="h-3 w-3 animate-spin text-blue-600" />
-                  Gerando...
+                  Elaborando com IA...
                 </span>
-              ) : sinteseExecutiva.veioDoCache ? (
+              ) : sinteseExecutiva?.veioDoCache ? (
                 <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                   <Zap className="h-3 w-3 text-slate-500" />
                   Cache Local
                 </span>
-              ) : sinteseExecutiva.origem === 'CLOUDFLARE_WORKERS_AI' ? (
+              ) : sinteseExecutiva?.origem === 'CLOUDFLARE_WORKERS_AI' ? (
                 <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                   <Sparkles className="h-3 w-3 text-emerald-600" />
                   Workers AI • Llama 3
                 </span>
               ) : (
                 <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                  Consolidado
+                  Resumo Oficial
                 </span>
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2 mt-0.5">
               <h3 className="text-base font-extrabold tracking-tight text-slate-800">
-                {sinteseExecutiva.titulo}
+                {sinteseExecutiva?.titulo || 'Resumo das Ações de Saúde nas Escolas'}
               </h3>
               <span className="inline-flex items-center gap-1 text-xs text-slate-400 font-medium">
                 <Calendar className="h-3 w-3" />
@@ -1329,45 +1210,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
 
           {/* Ações Minimalistas */}
           <div className="flex items-center gap-2">
-            {estaEmStreaming && (
-              <button
-                type="button"
-                onClick={concluirStreamingImediatamente}
-                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
-              >
-                Pular digitação
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => void gerarSinteseComIa(true)}
-              disabled={gerandoSinteseIa || totalGeral === 0}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-              title="Regenera análise executiva aprofundada via Workers AI sem utilizar o cache local"
-            >
-              {gerandoSinteseIa ? (
-                <>
-                  <LoaderCircle className="h-3.5 w-3.5 animate-spin text-blue-600" />
-                  <span>Gerando...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-                  <span>Regenerar com IA</span>
-                </>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={copiarParecer}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95 cursor-pointer"
-            >
-              {copiadoFeedback ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-slate-500" />}
-              {copiadoFeedback ? 'Copiado!' : 'Copiar Parecer'}
-            </button>
-
             <button
               type="button"
               onClick={() => void handleExportarPlanilha()}
@@ -1380,58 +1222,53 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           </div>
         </div>
 
-        {/* Texto Editorial do Parecer (Sem caixas ou bordas pesadas) */}
-        <div className="text-[13px] md:text-[13.5px] leading-relaxed text-slate-600 font-normal whitespace-pre-line space-y-3">
-          {estaEmStreaming ? textoResumoStreaming : sinteseExecutiva.resumo}
-          {estaEmStreaming && textoResumoStreaming.length < (sinteseExecutiva.resumo?.length || 0) && (
-            <span className="inline-block w-1.5 h-3.5 bg-blue-600 animate-pulse ml-0.5 align-middle rounded-xs" />
-          )}
-        </div>
+        {/* Estado de Carregamento da IA — ZERO texto hardcoded exibido */}
+        {gerandoSinteseIa || !sinteseExecutiva ? (
+          <div className="py-8 flex flex-col items-center justify-center gap-3 text-center animate-fade-in">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 animate-spin border border-blue-100">
+              <Sparkles className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-800">Elaborando resumo com Inteligência Artificial...</p>
+              <p className="text-xs text-slate-400 mt-0.5">Organizando dados das escolas atendidas, consultas e especialidades do projeto</p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4 animate-fade-in">
+            {/* Texto Editorial do Parecer (Gerado pela IA) */}
+            <div className="text-[13px] md:text-[13.5px] leading-relaxed text-slate-600 font-normal whitespace-pre-line space-y-3">
+              {sinteseExecutiva.resumo}
+            </div>
 
-        {/* Destaques Analíticos em Cards Minimalistas Suaves */}
-        {((estaEmStreaming ? destaquesStreaming : sinteseExecutiva.pontos).length > 0) && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-            {(estaEmStreaming ? destaquesStreaming : sinteseExecutiva.pontos).map((ponto, i) => {
-              const partes = ponto.split(': ');
-              const tituloPonto = partes.length > 1 ? partes[0] : `Destaque ${i + 1}`;
-              const descricaoPonto = partes.length > 1 ? partes.slice(1).join(': ') : ponto;
+            {/* Destaques Analíticos em Cards Minimalistas Suaves */}
+            {sinteseExecutiva.pontos.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                {sinteseExecutiva.pontos.map((ponto, i) => {
+                  const partes = ponto.split(': ');
+                  const tituloPonto = partes.length > 1 ? partes[0] : `Destaque ${i + 1}`;
+                  const descricaoPonto = partes.length > 1 ? partes.slice(1).join(': ') : ponto;
 
-              return (
-                <div
-                  key={i}
-                  className="flex flex-col justify-between rounded-xl border border-slate-150 bg-slate-50/60 p-3.5 hover:bg-slate-50 transition-colors"
-                >
-                  <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 mb-1">
-                      {tituloPonto}
+                  return (
+                    <div
+                      key={i}
+                      className="flex flex-col justify-between rounded-xl border border-slate-150 bg-slate-50/60 p-3.5 hover:bg-slate-50 transition-colors"
+                    >
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 mb-1">
+                          {tituloPonto}
+                        </div>
+                        <p className="text-[11.5px] font-medium leading-relaxed text-slate-700">
+                          {descricaoPonto}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-[11.5px] font-medium leading-relaxed text-slate-700">
-                      {descricaoPonto}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
+
           </div>
         )}
-
-        {/* Diretriz da Coordenação — Estilo Suave e Limpo */}
-        <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 flex items-start gap-3">
-          <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-blue-700 shrink-0 mt-0.5">
-            <Target className="h-3.5 w-3.5" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[10.5px] font-black uppercase tracking-[0.14em] text-blue-800 mb-1">
-              Diretriz da Coordenação
-            </div>
-            <div className="text-xs md:text-[12.5px] leading-relaxed text-slate-700 font-medium">
-              {estaEmStreaming ? textoDiretrizStreaming : sinteseExecutiva.recomendacao}
-              {estaEmStreaming && textoDiretrizStreaming.length > 0 && textoDiretrizStreaming.length < (sinteseExecutiva.recomendacao?.length || 0) && (
-                <span className="inline-block w-1.5 h-3.5 bg-blue-600 animate-pulse ml-0.5 align-middle rounded-xs" />
-              )}
-            </div>
-          </div>
-        </div>
 
         {/* Rodapé LGPD & Governança Discreto */}
         <div className="flex items-center gap-2 pt-1 border-t border-slate-100 text-[10.5px] text-slate-400 font-medium">
@@ -1614,176 +1451,233 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         )}
       </div>
 
-      {/* ─── Cards de Distribuição e Produtividade ───── */}
-      <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-12">
-        {/* 1. Ranking de Especialidades (Reduzido para 3 colunas) */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-xs lg:col-span-3">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Distribuição por Especialidade</div>
-            <span className="text-[10px] font-bold text-slate-400">
-              {especialidadeFiltro
-                ? '1 filtrada'
-                : `${rankingEspecialidades.length} especialidades`}
-            </span>
-          </div>
-
-          <div className="space-y-3">
-            {rankingEspecialidades.map((item) => {
-              const paleta = paletaEspecialidade(item.especialidadeChave);
-              const Icone = paleta.icone;
-
-              return (
-                <div key={item.especialidadeChave} className="group">
-                  <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-700">
-                    <div className="flex items-center gap-1.5 truncate pr-1">
-                      <span className={`flex h-5 w-5 items-center justify-center rounded-full shrink-0 ${paleta.bgIcone}`}>
-                        <Icone className="h-3 w-3" />
-                      </span>
-                      <span className="font-bold text-slate-800 truncate text-[11.5px]">{item.especialidade}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[10px] text-slate-400">({item.pctTotal}%)</span>
-                      <span className="font-black text-slate-700">{item.atendimentos}</span>
-                    </div>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${maxBarraEsp > 0 ? (item.atendimentos / maxBarraEsp) * 100 : 0}%`,
-                        backgroundColor: paleta.corBarra,
-                      }}
-                    />
-                  </div>
+      {/* ─── Cards Analíticos Padronizados (Grid 2x2 Simétrico e Inteligente) ───── */}
+      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* 1. Especialidades */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="mb-4 flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-100/80">
+                  <Sparkles className="h-4 w-4" />
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 2. Status Operacional (Cada status em uma linha própria vertical) */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-xs lg:col-span-3">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Status Operacional</div>
-            <Activity className="h-3.5 w-3.5 text-slate-400" />
-          </div>
-          <div className="flex flex-col space-y-2">
-            {listaStatusOperacional.map(({ chave, rotulo, qtd }) => {
-              const estilo = obterEstiloStatusAtendimento(chave);
-              const pctStatus = totalGeral > 0 ? Math.round((qtd / totalGeral) * 100) : 0;
-              return (
-                <div
-                  key={chave}
-                  className="flex items-center justify-between rounded-xl bg-slate-50/80 px-3 py-2 border border-slate-100 hover:bg-slate-50 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full shrink-0 ${estilo.ponto}`} />
-                    <span className="text-xs font-semibold text-slate-700">{rotulo}</span>
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    Distribuição por Especialidade
                   </div>
-                  <div className="flex items-center gap-2">
-                    {totalGeral > 0 && qtd > 0 && (
-                      <span className="text-[10px] font-medium text-slate-400">({pctStatus}%)</span>
-                    )}
-                    <span className="inline-flex min-w-[24px] items-center justify-center rounded-lg bg-white px-2 py-0.5 text-xs font-black text-slate-800 shadow-2xs border border-slate-200/60 tabular-nums">
-                      {qtd}
-                    </span>
-                  </div>
+                  <div className="text-[11px] text-slate-400 font-medium">Demanda clínica consolidada</div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 3. Produtividade por Unidade Escolar (Aumentado para 6 colunas, espaço amplo para nomes grandes) */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-xs lg:col-span-6">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 flex items-center gap-1.5">
-              <span>Por Unidade Escolar</span>
-              <Building2 className="h-3.5 w-3.5 text-slate-400" />
+              </div>
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-200/60">
+                {especialidadeFiltro ? '1 filtrada' : `${rankingEspecialidades.length} especialidades`}
+              </span>
             </div>
-            <span className="text-[10px] font-bold text-slate-400">
-              {escolaFiltro ? '1 filtrada' : `${rankingEscolas.length} unidades`}
-            </span>
-          </div>
 
-          <div className="space-y-3.5 max-h-[320px] overflow-y-auto pr-1.5">
-            {rankingEscolas.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400 font-medium">Nenhuma escola cadastrada.</div>
-            ) : (
-              rankingEscolas.map((item) => {
-                const pctEscola = totalGeral > 0 ? Math.round((item.total / totalGeral) * 100) : 0;
+            <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+              {rankingEspecialidades.map((item) => {
+                const paleta = paletaEspecialidade(item.especialidadeChave);
+                const Icone = paleta.icone;
                 return (
-                  <div key={item.id} className="group">
-                    <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-700 gap-3">
-                      <span className="truncate font-semibold text-slate-800 text-[12px] flex-1" title={item.nome}>
-                        {item.nome}
-                      </span>
+                  <div key={item.especialidadeChave} className="group rounded-xl p-2 hover:bg-slate-50/80 transition-colors">
+                    <div className="mb-1.5 flex items-center justify-between text-xs font-semibold text-slate-700">
+                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                        <span className={`flex h-6 w-6 items-center justify-center rounded-full shrink-0 ${paleta.bgIcone}`}>
+                          <Icone className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="font-semibold text-slate-800 text-xs truncate">{item.especialidade}</span>
+                      </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {totalGeral > 0 && item.total > 0 && (
-                          <span className="text-[10px] text-slate-400 font-medium">({pctEscola}%)</span>
-                        )}
-                        <span className="font-black text-slate-800 tabular-nums">{item.total}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">({item.pctTotal}%)</span>
+                        <span className="inline-flex min-w-[24px] items-center justify-center rounded-lg bg-white px-2 py-0.5 text-xs font-black text-slate-800 shadow-2xs border border-slate-200/60 tabular-nums">
+                          {item.atendimentos}
+                        </span>
                       </div>
                     </div>
-                    <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                    <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-blue-700 to-indigo-600 transition-all duration-500"
-                        style={{ width: `${maxEscola > 0 ? (item.total / maxEscola) * 100 : 0}%` }}
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${maxBarraEsp > 0 ? (item.atendimentos / maxBarraEsp) * 100 : 0}%`,
+                          backgroundColor: paleta.corBarra,
+                        }}
                       />
                     </div>
                   </div>
                 );
-              })
-            )}
+              })}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* 4. Produtividade por Profissional (Linha própria balanceada em grid moderno) */}
-      <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4.5 shadow-xs">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 flex items-center gap-1.5">
-            <span>Por Profissional</span>
-            <Users className="h-3.5 w-3.5 text-slate-400" />
-          </div>
-          <span className="text-[10px] font-bold text-slate-400">
-            {profissionalFiltro ? '1 filtrado' : `${rankingProfissionais.length} profissionais`}
-          </span>
-        </div>
+        {/* 2. Status Operacional */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="mb-4 flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100/80">
+                  <Activity className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    Status Operacional
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-medium">Fluxo e ciclo assistencial</div>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-200/60">
+                {statusFiltro ? '1 filtrado' : `${listaStatusOperacional.length} etapas`}
+              </span>
+            </div>
 
-        {rankingProfissionais.length === 0 ? (
-          <div className="py-6 text-center text-xs text-slate-400">Nenhum profissional com atendimentos.</div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {rankingProfissionais.map((item) => {
-              const pctProf = totalGeral > 0 ? Math.round((item.total / totalGeral) * 100) : 0;
-              return (
-                <div
-                  key={item.id}
-                  className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 hover:bg-slate-50 hover:border-slate-200 transition-all"
-                >
-                  <div className="mb-1.5 flex items-center justify-between text-xs font-semibold text-slate-700 gap-2">
-                    <span className="truncate font-semibold text-slate-800 text-[12px] flex-1" title={item.nome}>
-                      {item.nome}
-                    </span>
+            <div className="grid grid-cols-2 gap-2.5">
+              {listaStatusOperacional.map(({ chave, rotulo, qtd }) => {
+                const estilo = obterEstiloStatusAtendimento(chave);
+                const pctStatus = totalGeral > 0 ? Math.round((qtd / totalGeral) * 100) : 0;
+                return (
+                  <div
+                    key={chave}
+                    className="flex items-center justify-between rounded-xl bg-slate-50/70 p-2.5 border border-slate-100 hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 min-w-0 pr-1">
+                      <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${estilo.ponto}`} />
+                      <span className="text-xs font-semibold text-slate-700 truncate" title={rotulo}>
+                        {rotulo}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {totalGeral > 0 && item.total > 0 && (
-                        <span className="text-[10px] text-slate-400 font-medium">({pctProf}%)</span>
+                      {totalGeral > 0 && qtd > 0 && (
+                        <span className="text-[10px] font-medium text-slate-400">({pctStatus}%)</span>
                       )}
-                      <span className="font-black text-slate-800 tabular-nums">{item.total}</span>
+                      <span className="inline-flex min-w-[24px] items-center justify-center rounded-lg bg-white px-2 py-0.5 text-xs font-black text-slate-800 shadow-2xs border border-slate-200/60 tabular-nums">
+                        {qtd}
+                      </span>
                     </div>
                   </div>
-                  <div className="h-1.5 rounded-full bg-slate-200/80 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-indigo-600 transition-all duration-500"
-                      style={{ width: `${maxProfissional > 0 ? (item.total / maxProfissional) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        )}
+        </div>
+
+        {/* 3. Produtividade por Unidade Escolar */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="mb-4 flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-50 text-sky-600 border border-sky-100/80">
+                  <Building2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    Por Unidade Escolar
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-medium">Distribuição por polo assistencial</div>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-200/60">
+                {escolaFiltro ? '1 filtrada' : `${rankingEscolas.length} unidades`}
+              </span>
+            </div>
+
+            <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+              {rankingEscolas.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400 font-medium">Nenhuma escola com atendimentos.</div>
+              ) : (
+                rankingEscolas.map((item) => {
+                  const pctEscola = totalGeral > 0 ? Math.round((item.total / totalGeral) * 100) : 0;
+                  return (
+                    <div key={item.id} className="group rounded-xl p-2 hover:bg-slate-50/80 transition-colors">
+                      <div className="mb-1.5 flex items-center justify-between text-xs font-semibold text-slate-700">
+                        <div className="flex items-center gap-2 min-w-0 pr-2">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full shrink-0 bg-sky-100/70 text-sky-700">
+                            <Building2 className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="font-semibold text-slate-800 text-xs truncate" title={item.nome}>
+                            {item.nome}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {totalGeral > 0 && item.total > 0 && (
+                            <span className="text-[10px] text-slate-400 font-medium">({pctEscola}%)</span>
+                          )}
+                          <span className="inline-flex min-w-[24px] items-center justify-center rounded-lg bg-white px-2 py-0.5 text-xs font-black text-slate-800 shadow-2xs border border-slate-200/60 tabular-nums">
+                            {item.total}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-[#0d4d7a] transition-all duration-500"
+                          style={{ width: `${maxEscola > 0 ? (item.total / maxEscola) * 100 : 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Produtividade por Profissional */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="mb-4 flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-50 text-purple-600 border border-purple-100/80">
+                  <Users className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    Por Profissional
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-medium">Produção clínica assistencial</div>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-200/60">
+                {profissionalFiltro ? '1 filtrado' : `${rankingProfissionais.length} profissionais`}
+              </span>
+            </div>
+
+            <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+              {rankingProfissionais.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400 font-medium">Nenhum profissional com atendimentos.</div>
+              ) : (
+                rankingProfissionais.map((item) => {
+                  const pctProf = totalGeral > 0 ? Math.round((item.total / totalGeral) * 100) : 0;
+                  return (
+                    <div key={item.id} className="group rounded-xl p-2 hover:bg-slate-50/80 transition-colors">
+                      <div className="mb-1.5 flex items-center justify-between text-xs font-semibold text-slate-700">
+                        <div className="flex items-center gap-2 min-w-0 pr-2">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full shrink-0 bg-purple-100/70 text-purple-700">
+                            <Users className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="font-semibold text-slate-800 text-xs truncate" title={item.nome}>
+                            {item.nome}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {totalGeral > 0 && item.total > 0 && (
+                            <span className="text-[10px] text-slate-400 font-medium">({pctProf}%)</span>
+                          )}
+                          <span className="inline-flex min-w-[24px] items-center justify-center rounded-lg bg-white px-2 py-0.5 text-xs font-black text-slate-800 shadow-2xs border border-slate-200/60 tabular-nums">
+                            {item.total}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-indigo-600 transition-all duration-500"
+                          style={{ width: `${maxProfissional > 0 ? (item.total / maxProfissional) * 100 : 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ─── Tabela 100% Funcional de Registros Clínicos ───── */}
@@ -2051,15 +1945,17 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
               </div>
 
               {/* Parecer Executivo */}
-              <div>
-                <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 mb-2 border-b border-slate-200 pb-1">
-                  2. Parecer Técnico da Coordenação
-                </h4>
-                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs leading-relaxed space-y-2">
-                  <p className="font-semibold text-slate-900">{sinteseExecutiva.resumo}</p>
-                  <p className="font-medium text-slate-700">{sinteseExecutiva.recomendacao}</p>
+              {sinteseExecutiva && (
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 mb-2 border-b border-slate-200 pb-1">
+                    2. Parecer Técnico da Coordenação
+                  </h4>
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs leading-relaxed space-y-2">
+                    <p className="font-semibold text-slate-900">{sinteseExecutiva.resumo}</p>
+                    <p className="font-medium text-slate-700">{sinteseExecutiva.recomendacao}</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Tabela de Especialidades */}
               <div>

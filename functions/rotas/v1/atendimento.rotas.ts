@@ -529,79 +529,93 @@ rotasAtendimento.post('/relatorio/sintese-ia', zValidator('json', sinteseIaSchem
   const dados = c.req.valid('json');
   const qtdEstudantes = dados.estudantesUnicos ?? dados.pacientesUnicos ?? dados.totalGeral;
 
-  // Função auxiliar de Fallback Algorítmico Local (robusto, rico e analítico para a Gestora)
+  // Função auxiliar de Fallback Algorítmico Local (profissional, humano e acessível para a Gestão)
   const gerarFallbackLocal = () => {
     if (dados.totalGeral === 0) {
       return {
         origem: 'ALGORITMO_LOCAL' as const,
-        titulo: 'Síntese Executiva do Período — Gestão de Saúde Escolar',
-        resumo: 'Nenhum atendimento clínico foi registrado no intervalo e filtros selecionados. O painel permanece em aguardo de novas consultas registradas pela equipe volante.',
+        titulo: 'Resumo das Ações de Saúde nas Escolas',
+        resumo: 'Nenhum atendimento foi registrado no intervalo e filtros selecionados para o projeto Escola Cidadã – Saúde em Movimento (parceria UnB, SESI-DF e Finatec). O sistema permanece pronto para receber os novos registros da equipe itinerante.',
         pontos: [
-          'Amostra Vazia: Sem registros assistenciais identificados com os critérios vigentes.',
-          'Orientação de Filtro: Recomenda-se expandir o período ou remover restrições de escola para consolidar métricas.',
+          'Aguardando Registros: Nenhum atendimento encontrado com os filtros atuais.',
+          'Dica de Consulta: Ajuste as datas ou escolas nos filtros acima para visualizar outros períodos.',
         ],
-        recomendacao: 'Ajuste os filtros de busca no cabeçalho para gerar o panorama analítico completo da rede.',
+        recomendacao: 'Amplie o período nos filtros do cabeçalho para consultar atendimentos de outras semanas da ação itinerante.',
       };
     }
 
     const topEsp = dados.porEspecialidade[0];
-    const topEspNome = topEsp?.especialidade ?? 'Geral';
-    const topEspPct = topEsp && dados.totalGeral > 0 ? Math.round((topEsp.total / dados.totalGeral) * 100) : 0;
-    const topEscola = dados.porEscola?.[0]?.nome ?? 'Unidades municipais';
+    const topEspNome = topEsp?.especialidade ?? 'Clínica Geral';
+    const topEspTotal = topEsp?.total ?? 0;
+    const topEspPct = topEsp && dados.totalGeral > 0 ? Math.round((topEspTotal / dados.totalGeral) * 100) : 0;
+    const topEscola = dados.porEscola?.[0]?.nome ?? 'escolas públicas da rede';
     const totalEscolasAtendidas = dados.porEscola?.length ?? 0;
-    const picoTexto = dados.pico ? ` O maior pico de atividade ocorreu em ${dados.pico.data} com ${dados.pico.total} atendimentos em um único dia.` : '';
 
-    const paragrafo1 = `No período avaliado (${dados.dataInicio || 'Início'} a ${dados.dataFim || 'Atual'}), a operação itinerante do Programa Saúde na Escola realizou ${dados.totalGeral} atendimentos assistenciais, contemplando diretamente ${qtdEstudantes} estudantes da rede municipal de ensino distribuídos em ${totalEscolasAtendidas} unidade(s) escolar(es). O ritmo operacional manteve uma média de ${dados.mediaDiaria} atendimentos diários.${picoTexto}`;
-    
-    const paragrafo2 = `Sob a ótica da demanda epidemiológica, a especialidade de ${topEspNome} despontou como a principal frente clínica de intervenção, concentrando ${topEsp?.total ?? 0} consultas (${topEspPct}% do volume geral do período). A unidade escolar com maior fluxo registrado foi "${topEscola}", evidenciando a necessidade de suporte continuado nessa região.`;
-    
-    const paragrafo3 = `A taxa de cobertura estudantil demonstra alta resolutividade nas escolas contempladas, com os atendimentos sendo prestados in loco e minimizando o absenteísmo escolar e a sobrecarga da atenção primária convencional.`;
+    // Concordância gramatical estrita para singular e plural
+    const textoAtendimentos = dados.totalGeral === 1 ? '1 atendimento' : `${dados.totalGeral} atendimentos`;
+    const textoEstudantes = qtdEstudantes === 1 ? '1 estudante' : `${qtdEstudantes} estudantes`;
+    const textoEscolas = totalEscolasAtendidas === 1 ? '1 escola pública' : `${totalEscolasAtendidas} escolas públicas`;
+    const textoMedia = dados.mediaDiaria === 1 ? '1 consulta por dia útil' : `${dados.mediaDiaria} consultas por dia útil`;
+    const textoPico = dados.pico
+      ? ` O dia de maior atividade foi em ${dados.pico.data}, com ${dados.pico.total === 1 ? '1 consulta realizada' : `${dados.pico.total} consultas realizadas`}.`
+      : '';
+
+    const paragrafo1 = `No período avaliado (${dados.dataInicio || 'Início'} a ${dados.dataFim || 'Atual'}), o projeto Escola Cidadã – Saúde em Movimento, realizado em parceria pela Universidade de Brasília (UnB), SESI-DF e Finatec, realizou ${textoAtendimentos}, acolhendo diretamente ${textoEstudantes} em ${textoEscolas} do Distrito Federal. As equipes mantiveram um ritmo constante de atendimento, com média de ${textoMedia}.${textoPico}`;
+
+    const paragrafo2 = `Entre as frentes de atendimento, a área de ${topEspNome} foi a mais procurada pelos jovens, somando ${topEspTotal === 1 ? '1 consulta' : `${topEspTotal} consultas`} (${topEspPct}% de todos os atendimentos do período). A unidade escolar com maior participação foi a "${topEscola}", demonstrando forte envolvimento da comunidade escolar com o cuidado preventivo e a promoção da saúde.`;
+
+    const paragrafo3 = `Ao levar os profissionais de saúde diretamente para dentro das escolas públicas, a ação itinerante facilita o acesso ao cuidado, ajuda a melhorar a autoestima e o rendimento escolar dos estudantes, proporcionando um alívio concreto e acolhimento para as famílias do DF.`;
 
     return {
       origem: 'ALGORITMO_LOCAL' as const,
-      titulo: 'Síntese Executiva e Parecer Clínico Operacional da Gestão',
+      titulo: 'Resumo das Ações de Saúde nas Escolas',
       resumo: `${paragrafo1}\n\n${paragrafo2}\n\n${paragrafo3}`,
       pontos: [
-        `Cobertura Estudantil: ${qtdEstudantes} alunos distintos atendidos em ${totalEscolasAtendidas} unidade(s) escolar(es), mantendo média de ${dados.mediaDiaria} consultas/dia.`,
-        `Demanda Líder: ${topEspNome} concentrou ${topEspPct}% de todas as intervenções realizadas pela equipe itinerante.`,
-        `Polo de Concentração: "${topEscola}" registrou o maior contingente assistencial entre as unidades visitadas.`,
-        `Capacidade e Regularidade: Operação com fluxo contínuo e pico registrado de ${dados.pico?.total ?? dados.totalGeral} consultas.`,
+        `Alcance dos Estudantes: ${textoEstudantes} acolhidos em ${textoEscolas}, com média de ${textoMedia}.`,
+        `Área Mais Procurada: ${topEspNome} liderou com ${topEspPct}% dos atendimentos da equipe itinerante.`,
+        `Escola em Destaque: "${topEscola}" registrou a maior participação no período.`,
+        `Cuidado nas Escolas: Ações no ambiente escolar que fortalecem a autoestima e o rendimento dos jovens.`,
       ],
-      recomendacao: `Priorizar o reabastecimento de insumos clínicos e odontológicos para as unidades com maior volume observado ("${topEscola}"), garantindo também a continuidade do cronograma móvel nas escolas periféricas que ainda apresentam menor índice de cobertura assistencial.`,
+      recomendacao: `Manter o cronograma itinerante e o apoio prioritário de insumos para a unidade "${topEscola}" e para os atendimentos de ${topEspNome}.`,
     };
   };
 
   // Se Cloudflare Workers AI estiver disponível no runtime
   if (c.env.AI && typeof c.env.AI.run === 'function') {
     try {
-      const promptSistema = `Você é a Consultora Sênior de Saúde Pública e Diretora Clínica do Programa Saúde Escolar Móvel (SEM), emitindo um parecer executivo oficial e aprofundado diretamente para a Gestora Geral da Secretaria de Saúde e Educação.
+      const promptSistema = `Você é a coordenadora do projeto "Escola Cidadã – Saúde em Movimento", parceria entre a Universidade de Brasília (UnB), o Serviço Social da Indústria do Distrito Federal (SESI-DF) e a Fundação de Empreendimentos Científicos e Tecnológicos (Finatec). O projeto leva atendimento de saúde (odontologia, oftalmologia, fonoaudiologia, nutrição e apoio psicossocial/emocional) a estudantes das escolas públicas do Distrito Federal.
 
-Sua missão é fornecer um panorama analítico de ALTO NÍVEL, DETALHADO, COMPLETO E ESTRATÉGICO com base nos dados estatísticos fornecidos.
+Sua missão é redigir um resumo executivo para a equipe de gestão e direção escolar.
 
-DIRETRIZES DE PRIVACIDADE E SEGURANÇA (LGPD - INEGOCIÁVEL):
-- É EXPRESSAMENTE PROIBIDO inventar, citar ou supor nomes de alunos, CPFs ou quaisquer dados pessoais. Trabalhe exclusivamente com números agregados de saúde pública.
+DIRETRIZES DE COMUNICAÇÃO (MUITO IMPORTANTE):
+1. Tom: Profissional, acolhedor, transparente e direto.
+2. Vocabulário acessível: Use palavras simples e claras. NÃO use jargões difíceis (evite termos herméticos como "demanda epidemiológica", "resolutividade", "absenteísmo escolar", "intervenção clínica").
+3. Impacto real: Mostre como o cuidado à saúde na escola melhora a autoestima, o desempenho nos estudos e traz alívio para as famílias.
+4. Gramática e Concordância: Respeite rigorosamente singular e plural (ex: "1 atendimento", "1 estudante", "1 consulta por dia").
+5. Privacidade (LGPD): Jamais invente ou mencione dados pessoais de alunos (nomes, CPFs). Trabalhe exclusivamente com os números consolidados informados.
 
-ESTRUTURA OBRIGATÓRIA DA RESPOSTA:
-Responda EXCLUSIVAMENTE em formato JSON puro, sem cercaduras markdown (sem \`\`\`json):
+ESTRUTURA OBRIGATÓRIA DA RESPOSTA (JSON PURO):
+Responda EXCLUSIVAMENTE em formato JSON sem cercaduras markdown:
 {
-  "titulo": "Síntese Executiva e Parecer Clínico Operacional da Gestão",
-  "resumo": "Análise aprofundada em 2 a 3 parágrafos formais e densos. Trate de: 1) Balanço quantitativo e alcance populacional de estudantes; 2) Perfil epidemiológico da especialidade líder e correlação clínica; 3) Análise da capacidade de campo, escolas polo e regularidade diária.",
+  "titulo": "Resumo das Ações de Saúde nas Escolas",
+  "resumo": "Texto corrido de 2 a 3 parágrafos claros e profissionais explicando: 1) O total de atendimentos e estudantes atendidos nas escolas públicas do DF pelo projeto Escola Cidadã – Saúde em Movimento (UnB, SESI-DF e Finatec); 2) A especialidade com maior procura e como ela ajuda a saúde dos jovens; 3) O ritmo das atividades itinerantes e o benefício do acolhimento na escola para o bem-estar e o aprendizado.",
   "pontos": [
-    "Cobertura e Alcance: detalhe com números de estudantes e média diária",
-    "Foco Epidemiológico: detalhe da especialidade líder e concentração assistencial",
-    "Logística de Polos Escolares: destaque das escolas polo atendidas",
-    "Ritmo Operacional: análise da estabilidade diária e picos registrados"
+    "Alcance dos Estudantes: detalhe com número de estudantes e média diária",
+    "Área Mais Procurada: especialidade mais atendida e percentual",
+    "Escola em Destaque: escola com maior participação",
+    "Cuidado nas Escolas: impacto positivo no bem-estar e no rendimento escolar"
   ],
-  "recomendacao": "Diretrizes e Ações da Gestão: plano prático para dimensionamento de insumos clínicos, escalonamento de equipes e roteamento do próximo ciclo itinerante."
+  "recomendacao": "Orientação prática para o próximo ciclo de visitas e reforço de insumos."
 }`;
 
-      const promptUsuario = `Dados Consolidados da Operação:
+      const promptUsuario = `Dados Consolidados das Ações no DF:
+- Projeto: Escola Cidadã – Saúde em Movimento (UnB / SESI-DF / Finatec)
 - Período: ${dados.dataInicio || 'Início'} até ${dados.dataFim || 'Atual'}
 - Atendimentos Totais: ${dados.totalGeral}
-- Estudantes Únicos Atendidos: ${qtdEstudantes}
+- Estudantes Atendidos: ${qtdEstudantes}
 - Média Diária: ${dados.mediaDiaria} consultas/dia útil ${dados.pico ? `(Pico de ${dados.pico.total} em ${dados.pico.data})` : ''}
-- Distribuição por Especialidade: ${dados.porEspecialidade.map((e) => `${e.especialidade}: ${e.total}`).join(', ') || 'Nenhuma'}
-- Unidades Escolares Atendidas: ${dados.porEscola?.slice(0, 8).map((e) => `${e.nome}: ${e.total}`).join(', ') || 'Não discriminado'}
+- Atendimentos por Especialidade: ${dados.porEspecialidade.map((e) => `${e.especialidade}: ${e.total}`).join(', ') || 'Nenhuma'}
+- Escolas Públicas Atendidas: ${dados.porEscola?.slice(0, 8).map((e) => `${e.nome}: ${e.total}`).join(', ') || 'Não discriminado'}
 - Status Operacional: ${JSON.stringify(dados.porStatus ?? {})}`;
 
       const timeoutMs = 9000;
@@ -624,14 +638,14 @@ Responda EXCLUSIVAMENTE em formato JSON puro, sem cercaduras markdown (sem \`\`\
       if (textoGerado) {
         textoGerado = textoGerado.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
         const parsed = JSON.parse(textoGerado);
-        if (parsed.resumo && Array.isArray(parsed.pontos) && parsed.recomendacao) {
+        if (parsed.resumo && Array.isArray(parsed.pontos)) {
           return c.json({
             origem: 'CLOUDFLARE_WORKERS_AI',
             modelo: '@cf/meta/llama-3-8b-instruct',
-            titulo: parsed.titulo || 'Síntese Executiva e Parecer Clínico Operacional da Gestão',
+            titulo: parsed.titulo || 'Resumo das Ações de Saúde nas Escolas',
             resumo: String(parsed.resumo),
             pontos: parsed.pontos.map((p: any) => String(p)),
-            recomendacao: String(parsed.recomendacao),
+            recomendacao: parsed.recomendacao ? String(parsed.recomendacao) : undefined,
           });
         }
       }
