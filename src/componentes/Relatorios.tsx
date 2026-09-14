@@ -134,8 +134,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   const [tooltipPosicao, setTooltipPosicao] = useState<{ x: number; y: number } | null>(null);
   const [profissionaisDisponiveis, setProfissionaisDisponiveis] = useState<Array<{ id: string; nome: string; especialidade?: string | null }>>([]);
 
-  const [relatorioGerado, setRelatorioGerado] = useState(true);
-  const [filtrosModificados, setFiltrosModificados] = useState(false);
+  const [relatorioGerado, setRelatorioGerado] = useState(false);
   const [copiadoFeedback, setCopiadoFeedback] = useState(false);
 
   // Modais
@@ -221,7 +220,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     setDataInicio(dataInicial);
     setDataFim(dataFinal);
     setPeriodoSelecionado(dias);
-    if (relatorioGerado) setFiltrosModificados(true);
+    setRelatorioGerado(false);
   };
 
   const handleGerarRelatorio = () => {
@@ -231,7 +230,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     }
     setErro(null);
     setRelatorioGerado(true);
-    setFiltrosModificados(false);
   };
 
   // Requisição dos dados do relatório
@@ -300,7 +298,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             encaminhamento: item.encaminhamentoExterno || 'Sem encaminhamento externo (resolvido na unidade)',
           }))
         );
-        setFiltrosModificados(false);
       } catch (erroApi) {
         if (!controlador.signal.aborted) {
           setDados({
@@ -561,7 +558,9 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     setErro(null);
 
     try {
-      const parametrosBase = new URLSearchParams({ dataInicio, dataFim, pagina: '1', porPagina: '100' });
+      const parametrosBase = new URLSearchParams({ pagina: '1', porPagina: '100' });
+      if (dataInicio) parametrosBase.set('dataInicio', dataInicio);
+      if (dataFim) parametrosBase.set('dataFim', dataFim);
       if (escolaFiltro) parametrosBase.set('escolaLocalId', escolaFiltro);
       if (especialidadeFiltro) parametrosBase.set('especialidade', especialidadeFiltro);
       if (statusFiltro) parametrosBase.set('status', statusFiltro);
@@ -798,7 +797,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   onChange={(evento) => {
                     setPeriodoSelecionado(null);
                     setDataInicio(evento.target.value);
-                    if (relatorioGerado) setFiltrosModificados(true);
+                    setRelatorioGerado(false);
                   }}
                   className="pointer-events-none absolute h-px w-px opacity-0"
                   aria-label="Data inicial"
@@ -827,7 +826,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   onChange={(evento) => {
                     setPeriodoSelecionado(null);
                     setDataFim(evento.target.value);
-                    if (relatorioGerado) setFiltrosModificados(true);
+                    setRelatorioGerado(false);
                   }}
                   className="pointer-events-none absolute h-px w-px opacity-0"
                   aria-label="Data final"
@@ -841,7 +840,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   valor={statusFiltro}
                   aoMudar={(val) => {
                     setStatusFiltro(val);
-                    if (relatorioGerado) setFiltrosModificados(true);
+                    setRelatorioGerado(false);
                   }}
                   placeholder="Todos os status"
                   tamanho="sm"
@@ -857,7 +856,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   valor={escolaFiltro}
                   aoMudar={(val) => {
                     setEscolaFiltro(val);
-                    if (relatorioGerado) setFiltrosModificados(true);
+                    setRelatorioGerado(false);
                   }}
                   placeholder="Todas as instituições"
                   tamanho="sm"
@@ -878,7 +877,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   valor={especialidadeFiltro}
                   aoMudar={(val) => {
                     setEspecialidadeFiltro(val);
-                    if (relatorioGerado) setFiltrosModificados(true);
+                    setRelatorioGerado(false);
                   }}
                   placeholder="Todas as especialidades"
                   tamanho="sm"
@@ -894,7 +893,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   valor={profissionalFiltro}
                   aoMudar={(val) => {
                     setProfissionalFiltro(val);
-                    if (relatorioGerado) setFiltrosModificados(true);
+                    setRelatorioGerado(false);
                   }}
                   placeholder="Todos os profissionais"
                   tamanho="sm"
@@ -951,7 +950,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                     setDataFim('');
                     setPeriodoSelecionado(null);
                     setErro(null);
-                    setFiltrosModificados(true);
+                    setErro(null);
                   }}
                   icone={<RotateCcw className="h-3.5 w-3.5" />}
                   className="text-slate-600 hover:text-rose-700 hover:bg-rose-50 border-slate-200"
@@ -966,14 +965,13 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   </div>
                 )}
                 <Botao
-                  variante={filtrosModificados ? 'destaque' : 'primario'}
+                  variante="primario"
                   tamanho="sm"
                   formato="pilula"
                   onClick={handleGerarRelatorio}
                   icone={<FileBarChart2 className="h-4 w-4" />}
-                  className={filtrosModificados ? 'ring-2 ring-blue-300 animate-pulse' : ''}
                 >
-                  {filtrosModificados ? 'Atualizar Relatório' : 'Atualizar Dados'}
+                  {relatorioGerado ? 'Atualizar Dados' : 'Gerar Relatório'}
                 </Botao>
               </div>
             </div>
@@ -995,7 +993,32 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         </div>
       )}
 
-      {/* ─── Painel de Ações e Cabeçalho do Relatório Oficial ───── */}
+      {/* ─── Placeholder: relatório não gerado ───── */}
+      {!relatorioGerado && !carregando && (
+        <div className="mt-4 flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 py-20 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600/10 text-blue-600">
+            <FileBarChart2 className="h-8 w-8" />
+          </div>
+          <div>
+            <p className="text-base font-extrabold text-slate-700">Relatório não gerado</p>
+            <p className="mt-1 text-sm text-slate-400">
+              Configure os filtros desejados e clique em <strong className="text-blue-700">Gerar Relatório</strong> para visualizar os dados.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleGerarRelatorio}
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 transition-colors"
+          >
+            <FileBarChart2 className="h-4 w-4" />
+            Gerar Relatório
+          </button>
+        </div>
+      )}
+
+      {/* ─── Painel do Relatório: só visível após clicar em Gerar ───── */}
+      {relatorioGerado && (
+        <>
       <div className="mt-4 rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
         <div className="flex flex-wrap items-center justify-between border-b border-slate-200 bg-gradient-to-r from-[#f8fafc] to-[#edf4fa] px-5 py-3.5 gap-3">
           <div className="flex items-center gap-3">
@@ -1014,15 +1037,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setMostrarModalImpressao(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
-            >
-              <Printer className="h-4 w-4 text-slate-500" />
-              Imprimir Relatório Oficial
-            </button>
-
             <button
               type="button"
               onClick={() => void handleExportarPlanilha()}
@@ -1540,6 +1554,9 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           </table>
         </div>
       </div>
+
+        </>
+      )}
 
       {/* ─── Modal de Detalhes Clínicos do Atendimento ───── */}
       {atendimentoSelecionado && (
