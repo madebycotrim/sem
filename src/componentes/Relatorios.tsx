@@ -23,6 +23,7 @@ import {
   FileText,
   Stethoscope,
   Smile,
+  Zap,
 } from 'lucide-react';
 import { utils, writeFile } from 'xlsx';
 import { requisicaoApi } from '../servicos/api.ts';
@@ -130,15 +131,26 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   const [relatorioGerado, setRelatorioGerado] = useState(false);
   const [gatilhoExecucao, setGatilhoExecucao] = useState(0);
   const [copiadoFeedback, setCopiadoFeedback] = useState(false);
-  const [sinteseExecutivaIa, setSinteseExecutivaIa] = useState<{
+  interface RespostaSinteseIa {
     origem?: string;
     modelo?: string;
     titulo: string;
     resumo: string;
     pontos: string[];
     recomendacao: string;
-  } | null>(null);
+    veioDoCache?: boolean;
+  }
+
+  const [sinteseExecutivaIa, setSinteseExecutivaIa] = useState<RespostaSinteseIa | null>(null);
   const [gerandoSinteseIa, setGerandoSinteseIa] = useState(false);
+  const [estaEmStreaming, setEstaEmStreaming] = useState(false);
+  const [textoResumoStreaming, setTextoResumoStreaming] = useState('');
+  const [destaquesStreaming, setDestaquesStreaming] = useState<string[]>([]);
+  const [textoDiretrizStreaming, setTextoDiretrizStreaming] = useState('');
+
+  // Cache inteligente em memória para reutilização instantânea
+  const cacheSinteseRef = useRef<Map<string, RespostaSinteseIa>>(new Map());
+  const timerStreamingRef = useRef<number[]>([]);
 
   // Modais
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState<RegistroTabela | null>(null);
@@ -545,14 +557,15 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   }, [totalGeral, dados.porEspecialidade, dados.porEscola, picoGrafico, mediaGrafico]);
 
   // Síntese Executiva Inteligente (Parecer Automatizado)
-  const sintesePadrao = useMemo(() => {
+  const sintesePadrao = useMemo<RespostaSinteseIa>(() => {
     if (totalGeral === 0) {
       return {
-        origem: 'ALGORITMO_LOCAL' as const,
+        origem: 'ALGORITMO_LOCAL',
         titulo: 'Síntese Executiva do Período',
         resumo: 'Nenhum registro encontrado no intervalo selecionado para compor o parecer executivo.',
         pontos: [],
         recomendacao: 'Amplie os filtros de busca para extrair indicadores de gestão.',
+        veioDoCache: false,
       };
     }
 
@@ -574,18 +587,99 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     const recomendacao = `Manter o planejamento do cronograma itinerante e o dimensionamento da equipe clínica conforme os polos escolares de maior demanda.`;
 
     return {
-      origem: 'ALGORITMO_LOCAL' as const,
+      origem: 'ALGORITMO_LOCAL',
       titulo: 'Síntese Executiva e Parecer Clínico Operacional',
       resumo: texto,
       pontos,
       recomendacao,
+      veioDoCache: false,
     };
   }, [totalGeral, dataInicio, dataFim, dados]);
 
   const sinteseExecutiva = sinteseExecutivaIa ?? sintesePadrao;
 
-  const gerarSinteseComIa = async () => {
+  const limparTimersStreaming = () => {
+    for (const timer of timerStreamingRef.current) {
+      window.clearTimeout(timer);
+    }
+    timerStreamingRef.current = [];
+  };
+
+  const concluirStreamingImediatamente = () => {
+    limparTimersStreaming();
+    setEstaEmStreaming(false);
+    if (sinteseExecutiva) {
+      setTextoResumoStreaming(sinteseExecutiva.resumo);
+      setDestaquesStreaming(sinteseExecutiva.pontos);
+      setTextoDiretrizStreaming(sinteseExecutiva.recomendacao);
+    }
+  };
+
+  const iniciarStreamingTexto = (dadosSintese: RespostaSinteseIa) => {
+    limparTimersStreaming();
+    setEstaEmStreaming(true);
+    setTextoResumoStreaming('');
+    setDestaquesStreaming([]);
+    setTextoDiretrizStreaming('');
+
+    const palavrasResumo = dadosSintese.resumo.split(' ');
+    let atrasoAcumulado = 0;
+    const passoTempo = Math.max(12, Math.min(26, Math.floor(1100 / (palavrasResumo.length || 1))));
+
+    // Digitação dinâmica do Resumo Executivo em tempo real
+    palavrasResumo.forEach((_, idx) => {
+      atrasoAcumulado += passoTempo;
+      const t = window.setTimeout(() => {
+        setTextoResumoStreaming(palavrasResumo.slice(0, idx + 1).join(' '));
+      }, atrasoAcumulado);
+      timerStreamingRef.current.push(t);
+    });
+
+    // Revelação progressiva dos Destaques Estratégicos
+    dadosSintese.pontos.forEach((ponto) => {
+      atrasoAcumulado += 130;
+      const t = window.setTimeout(() => {
+        setDestaquesStreaming((prev) => [...prev, ponto]);
+      }, atrasoAcumulado);
+      timerStreamingRef.current.push(t);
+    });
+
+    // Digitação dinâmica da Diretriz da Gestão
+    const palavrasDiretriz = dadosSintese.recomendacao.split(' ');
+    atrasoAcumulado += 90;
+    palavrasDiretriz.forEach((_, idx) => {
+      atrasoAcumulado += passoTempo;
+      const t = window.setTimeout(() => {
+        setTextoDiretrizStreaming(palavrasDiretriz.slice(0, idx + 1).join(' '));
+        if (idx === palavrasDiretriz.length - 1) {
+          setEstaEmStreaming(false);
+        }
+      }, atrasoAcumulado);
+      timerStreamingRef.current.push(t);
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      limparTimersStreaming();
+    };
+  }, []);
+
+  const gerarSinteseComIa = async (forcarNovo = false) => {
     if (totalGeral === 0 || gerandoSinteseIa) return;
+
+    // Chave de cache baseada nas dimensões quantitativas e filtros
+    const chaveCache = `${dataInicio}_${dataFim}_${escolaFiltro || 'todas'}_${especialidadeFiltro || 'todas'}_${profissionalFiltro || 'todos'}_${totalGeral}_${dados.pacientesUnicos ?? 0}`;
+
+    // Reutilização instantânea de cache se não foi solicitada regeneração forçada
+    if (!forcarNovo && cacheSinteseRef.current.has(chaveCache)) {
+      const itemCache = cacheSinteseRef.current.get(chaveCache)!;
+      const itemComFlag = { ...itemCache, veioDoCache: true };
+      setSinteseExecutivaIa(itemComFlag);
+      concluirStreamingImediatamente();
+      return;
+    }
+
     setGerandoSinteseIa(true);
     try {
       const payload = {
@@ -607,20 +701,16 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         porStatus: dados.porStatus ?? {},
       };
 
-      const res = await requisicaoApi<{
-        origem: string;
-        modelo?: string;
-        titulo: string;
-        resumo: string;
-        pontos: string[];
-        recomendacao: string;
-      }>('/atendimentos/relatorio/sintese-ia', {
+      const res = await requisicaoApi<RespostaSinteseIa>('/atendimentos/relatorio/sintese-ia', {
         metodo: 'POST',
         corpo: payload,
       });
 
       if (res && res.resumo && Array.isArray(res.pontos)) {
-        setSinteseExecutivaIa(res);
+        const itemPronto = { ...res, veioDoCache: false };
+        cacheSinteseRef.current.set(chaveCache, itemPronto);
+        setSinteseExecutivaIa(itemPronto);
+        iniciarStreamingTexto(itemPronto);
       }
     } catch (err) {
       console.warn('Falha ao gerar síntese via Workers AI, mantendo parecer estruturado:', err);
@@ -630,6 +720,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   };
 
   const copiarParecer = () => {
+    concluirStreamingImediatamente();
     const textoCompleto = `${sinteseExecutiva.titulo}\n\n${sinteseExecutiva.resumo}\n\nDESTAQUES:\n${sinteseExecutiva.pontos.map((p) => `• ${p}`).join('\n')}\n\nDIRETRIZ:\n${sinteseExecutiva.recomendacao}`;
     void navigator.clipboard.writeText(textoCompleto);
     setCopiadoFeedback(true);
@@ -1275,7 +1366,17 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   <span className="text-[11px] font-black uppercase tracking-[0.14em] text-blue-950">
                     {sinteseExecutiva.titulo}
                   </span>
-                  {sinteseExecutiva.origem === 'CLOUDFLARE_WORKERS_AI' ? (
+                  {estaEmStreaming ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-purple-300 bg-purple-50 px-2 py-0.5 text-[10px] font-bold text-purple-800 animate-pulse">
+                      <Sparkles className="h-3 w-3 text-purple-600 animate-spin" />
+                      Transmitindo em Tempo Real...
+                    </span>
+                  ) : sinteseExecutiva.veioDoCache ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-800" title="Recuperado instantaneamente do cache local">
+                      <Zap className="h-3 w-3 text-sky-600" />
+                      Cache Instantâneo • Llama 3
+                    </span>
+                  ) : sinteseExecutiva.origem === 'CLOUDFLARE_WORKERS_AI' ? (
                     <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
                       <Sparkles className="h-3 w-3 text-emerald-600" />
                       Cloudflare Workers AI • Llama 3
@@ -1293,17 +1394,28 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             </div>
 
             <div className="flex items-center gap-2">
+              {estaEmStreaming && (
+                <button
+                  type="button"
+                  onClick={concluirStreamingImediatamente}
+                  className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1.5 text-xs font-semibold text-purple-700 hover:bg-purple-100 transition cursor-pointer shadow-2xs"
+                  title="Exibe o texto completo imediatamente sem aguardar a digitação"
+                >
+                  Pular digitação
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={() => void gerarSinteseComIa()}
+                onClick={() => void gerarSinteseComIa(!!sinteseExecutivaIa)}
                 disabled={gerandoSinteseIa || totalGeral === 0}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:from-blue-800 hover:to-indigo-900 transition cursor-pointer disabled:opacity-50"
-                title="Gera síntese executiva profunda via Cloudflare Workers AI sem envio de dados pessoais de estudantes"
+                title="Gera síntese executiva profunda via Cloudflare Workers AI com resposta transmitida em tempo real"
               >
                 {gerandoSinteseIa ? (
                   <>
                     <LoaderCircle className="h-3.5 w-3.5 animate-spin text-white" />
-                    <span>Processando IA...</span>
+                    <span>Conectando IA...</span>
                   </>
                 ) : (
                   <>
@@ -1325,12 +1437,17 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs space-y-3 text-xs leading-relaxed text-slate-700">
-            <p className="font-medium text-slate-800 text-[13px]">{sinteseExecutiva.resumo}</p>
+            <p className="font-medium text-slate-800 text-[13px] min-h-[1.5em]">
+              {estaEmStreaming ? textoResumoStreaming : sinteseExecutiva.resumo}
+              {estaEmStreaming && textoResumoStreaming.length < (sinteseExecutiva.resumo?.length || 0) && (
+                <span className="inline-block w-1.5 h-3.5 bg-blue-600 animate-pulse ml-0.5 align-middle rounded-xs" />
+              )}
+            </p>
 
-            {sinteseExecutiva.pontos.length > 0 && (
+            {((estaEmStreaming ? destaquesStreaming : sinteseExecutiva.pontos).length > 0) && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
-                {sinteseExecutiva.pontos.map((ponto, i) => (
-                  <div key={i} className="flex items-start gap-2 rounded-lg bg-slate-50 p-2.5 border border-slate-100">
+                {(estaEmStreaming ? destaquesStreaming : sinteseExecutiva.pontos).map((ponto, i) => (
+                  <div key={i} className="flex items-start gap-2 rounded-lg bg-slate-50 p-2.5 border border-slate-100 transition-all duration-200">
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-600 mt-1.5 shrink-0" />
                     <span className="text-[11px] font-medium text-slate-700">{ponto}</span>
                   </div>
@@ -1338,9 +1455,14 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
               </div>
             )}
 
-            <div className="flex items-start gap-2 pt-1 border-t border-slate-100 text-slate-600">
+            <div className="flex items-start gap-2 pt-1 border-t border-slate-100 text-slate-600 min-h-[1.5em]">
               <span className="text-[11px] font-black uppercase text-blue-700 shrink-0">Diretriz da Gestão:</span>
-              <span className="text-[11px] font-medium text-slate-700">{sinteseExecutiva.recomendacao}</span>
+              <span className="text-[11px] font-medium text-slate-700">
+                {estaEmStreaming ? textoDiretrizStreaming : sinteseExecutiva.recomendacao}
+                {estaEmStreaming && textoDiretrizStreaming.length > 0 && textoDiretrizStreaming.length < (sinteseExecutiva.recomendacao?.length || 0) && (
+                  <span className="inline-block w-1.5 h-3.5 bg-indigo-600 animate-pulse ml-0.5 align-middle rounded-xs" />
+                )}
+              </span>
             </div>
 
             <div className="pt-1 text-[10px] text-slate-400 font-medium italic">
