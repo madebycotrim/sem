@@ -146,7 +146,16 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
   });
 });
 
-rotasAuth.post('/alterar-senha', middlewareAutenticacao, zValidator('json', alterarSenhaSchema), async (c) => {
+rotasAuth.post(
+  '/alterar-senha',
+  middlewareAutenticacao,
+  zValidator('json', alterarSenhaSchema, (result, c) => {
+    if (!result.success) {
+      const primeiraMensagem = result.error.issues[0]?.message || 'A nova senha deve ter pelo menos 8 caracteres com maiúscula, minúscula, número e símbolo.';
+      return c.json({ erro: primeiraMensagem, detalhes: result.error.flatten().fieldErrors }, 400);
+    }
+  }),
+  async (c) => {
   const usuarioLogado = c.get('usuario');
   const dados = c.req.valid('json');
   const db = getDb(c.env.DB);

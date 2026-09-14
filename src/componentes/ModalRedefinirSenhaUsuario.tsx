@@ -1,11 +1,11 @@
 import { useState, type FC, useEffect } from 'react';
 import { Modal, BotaoModal, ModalSecao } from './Modal.tsx';
-import { Check, Copy, KeyRound, RefreshCw, ShieldAlert, CircleAlert, CheckCircle2 } from 'lucide-react';
+import { Check, Copy, KeyRound, RefreshCw, ShieldAlert, CircleAlert, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { PERFIL_ACESSO_LABELS } from '../../compartilhado/index.ts';
 import { requisicaoApi } from '../servicos/api.ts';
 import type { UsuarioItem } from './Usuarios.tsx';
-import { gerarSenhaTemporariaSegura, REGEX_SENHA_SEGURA } from '../utilitarios/geradorSenha.ts';
+import { gerarSenhaTemporariaSegura } from '../utilitarios/geradorSenha.ts';
 
 interface ModalRedefinirSenhaProps {
   aberto: boolean;
@@ -24,6 +24,7 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
   const [salvo, setSalvo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [giros, setGiros] = useState(0);
+  const [mostrarSenha, setMostrarSenha] = useState(true);
 
   const gerarSenha = (animar = true) => {
     const pass = gerarSenhaTemporariaSegura(10);
@@ -41,6 +42,7 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
       gerarSenha(false);
       setSalvo(false);
       setErro(null);
+      setMostrarSenha(true);
     }
   }, [aberto]);
 
@@ -52,7 +54,20 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
     }
   };
 
-  const senhaValida = senhaGerada.trim().length >= 8 && REGEX_SENHA_SEGURA.test(senhaGerada.trim());
+  const regras = {
+    tamanhoMinimo: senhaGerada.trim().length >= 8,
+    temMaiuscula: /[A-Z]/.test(senhaGerada),
+    temMinuscula: /[a-z]/.test(senhaGerada),
+    temNumero: /\d/.test(senhaGerada),
+    temEspecial: /[^a-zA-Z\d\s]/.test(senhaGerada),
+  };
+
+  const senhaValida =
+    regras.tamanhoMinimo &&
+    regras.temMaiuscula &&
+    regras.temMinuscula &&
+    regras.temNumero &&
+    regras.temEspecial;
 
   const handleSalvar = async () => {
     if (!usuario || !senhaValida) return;
@@ -226,9 +241,9 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
                   </button>
                 </div>
                 <div className="flex gap-2">
-                  <div className="relative flex-1">
+                  <div className="relative flex-1 flex items-center">
                     <input
-                      type="text"
+                      type={mostrarSenha ? 'text' : 'password'}
                       value={senhaGerada}
                       onChange={(e) => {
                         setSenhaGerada(e.target.value);
@@ -236,14 +251,26 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
                         setSalvo(false);
                         setErro(null);
                       }}
-                      placeholder="Digite ou gere uma senha..."
-                      className="w-full h-11 px-4 text-[14px] font-bold font-mono tracking-wider text-slate-800 bg-white border border-slate-200/90 rounded-xl outline-none transition-all duration-150 focus:border-blue-500 focus:ring-3 focus:ring-blue-100"
+                      placeholder="Ex: Sem@2026!"
+                      className={`w-full h-11 pl-4 pr-11 text-[14px] font-bold font-mono tracking-wider text-slate-800 bg-white border rounded-xl outline-none transition-all duration-150 ${
+                        senhaValida
+                          ? 'border-emerald-300 focus:border-emerald-500 focus:ring-3 focus:ring-emerald-100'
+                          : 'border-slate-200/90 focus:border-blue-500 focus:ring-3 focus:ring-blue-100'
+                      }`}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setMostrarSenha((v) => !v)}
+                      title={mostrarSenha ? 'Ocultar senha' : 'Ver senha'}
+                      className="absolute right-2 p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                    >
+                      {mostrarSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                   <button
                     type="button"
                     onClick={copiarSenha}
-                    className={`h-11 px-4 text-xs font-bold rounded-xl border transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                    className={`h-11 px-4 text-xs font-bold rounded-xl border transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0 ${
                       copiado
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200/90'
@@ -253,17 +280,102 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
                     {copiado ? 'Copiado' : 'Copiar'}
                   </button>
                 </div>
-                {senhaValida ? (
-                  <p className="text-[11px] font-bold text-emerald-600 flex items-center gap-1 mt-1 px-1">
-                    <Check className="w-3.5 h-3.5" />
-                    Mínimo de 8 caracteres atingido ({senhaGerada.length})
-                  </p>
-                ) : (
-                  <p className="text-[11px] font-bold text-amber-600 flex items-center gap-1 mt-1 px-1">
-                    <CircleAlert className="w-3.5 h-3.5" />
-                    A senha deve ter no mínimo 8 caracteres (atualmente {senhaGerada.length})
-                  </p>
-                )}
+
+                {/* ─── Pílulas de Requisitos de Senha Segura ─── */}
+                <div className="mt-1.5 space-y-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                    <div
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] border transition-colors ${
+                        regras.tamanhoMinimo
+                          ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200/90 font-medium'
+                          : 'bg-slate-50 text-slate-500 border-slate-200/80'
+                      }`}
+                    >
+                      {regras.tamanhoMinimo ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 stroke-[2.5]" />
+                      ) : (
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mx-1" />
+                      )}
+                      <span>Mín. 8 caracteres ({senhaGerada.trim().length}/8)</span>
+                    </div>
+
+                    <div
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] border transition-colors ${
+                        regras.temMaiuscula
+                          ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200/90 font-medium'
+                          : 'bg-slate-50 text-slate-500 border-slate-200/80'
+                      }`}
+                    >
+                      {regras.temMaiuscula ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 stroke-[2.5]" />
+                      ) : (
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mx-1" />
+                      )}
+                      <span>1 Maiúscula (A-Z)</span>
+                    </div>
+
+                    <div
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] border transition-colors ${
+                        regras.temMinuscula
+                          ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200/90 font-medium'
+                          : 'bg-slate-50 text-slate-500 border-slate-200/80'
+                      }`}
+                    >
+                      {regras.temMinuscula ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 stroke-[2.5]" />
+                      ) : (
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mx-1" />
+                      )}
+                      <span>1 Minúscula (a-z)</span>
+                    </div>
+
+                    <div
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] border transition-colors ${
+                        regras.temNumero
+                          ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200/90 font-medium'
+                          : 'bg-slate-50 text-slate-500 border-slate-200/80'
+                      }`}
+                    >
+                      {regras.temNumero ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 stroke-[2.5]" />
+                      ) : (
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mx-1" />
+                      )}
+                      <span>1 Número (0-9)</span>
+                    </div>
+
+                    <div
+                      className={`col-span-2 sm:col-span-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] border transition-colors ${
+                        regras.temEspecial
+                          ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200/90 font-medium'
+                          : 'bg-slate-50 text-slate-500 border-slate-200/80'
+                      }`}
+                    >
+                      {regras.temEspecial ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 stroke-[2.5]" />
+                      ) : (
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mx-1" />
+                      )}
+                      <span>1 Símbolo Especial (!@#$%&*...)</span>
+                    </div>
+                  </div>
+
+                  {senhaValida ? (
+                    <p className="text-[11.5px] font-semibold text-emerald-700 flex items-center gap-1.5 pt-0.5 px-0.5">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                      <span>Senha segura e em total conformidade com a política de acesso.</span>
+                    </p>
+                  ) : (
+                    <p className="text-[11.5px] font-medium text-amber-700 flex items-center gap-1.5 pt-0.5 px-0.5">
+                      <CircleAlert className="w-4 h-4 shrink-0 text-amber-500" />
+                      <span>
+                        {!regras.tamanhoMinimo && senhaGerada.trim().length > 0
+                          ? `Falta ${8 - senhaGerada.trim().length} caractere(s) para atingir o tamanho mínimo de 8.`
+                          : 'Cumpra todos os requisitos destacados acima para habilitar o salvamento.'}
+                      </span>
+                    </p>
+                  )}
+                </div>
               </div>
             </ModalSecao>
 

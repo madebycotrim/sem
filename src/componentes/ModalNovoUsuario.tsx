@@ -136,6 +136,15 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
   const especialidadeAtual = watch('especialidade');
   const ehProfissionalSaude = perfilAtual === PerfilAcesso.PROFISSIONAL_SAUDE;
 
+  const senhaAtual = watch('senhaTemporaria') || '';
+  const regrasSenha = useMemo(() => ({
+    tamanhoMinimo: senhaAtual.trim().length >= 8,
+    temMaiuscula: /[A-Z]/.test(senhaAtual),
+    temMinuscula: /[a-z]/.test(senhaAtual),
+    temNumero: /\d/.test(senhaAtual),
+    temEspecial: /[^a-zA-Z\d\s]/.test(senhaAtual),
+  }), [senhaAtual]);
+
   useEffect(() => {
     if (aberto) {
       setErroGeral(null);
@@ -341,13 +350,82 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
                        </button>
                      </div>
                    </div>
-                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px] text-slate-500 font-medium">
-                     <span className="flex items-center gap-1">• Mín. 8 caracteres</span>
-                     <span className="flex items-center gap-1">• 1 Maiúscula</span>
-                     <span className="flex items-center gap-1">• 1 Minúscula</span>
-                     <span className="flex items-center gap-1">• 1 Número</span>
-                     <span className="flex items-center gap-1">• 1 Símbolo</span>
-                   </div>
+                    <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                      <div
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10.5px] border transition-colors ${
+                          regrasSenha.tamanhoMinimo
+                            ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200/90 font-medium'
+                            : 'bg-slate-50 text-slate-500 border-slate-200/80'
+                        }`}
+                      >
+                        {regrasSenha.tamanhoMinimo ? (
+                          <Check className="w-3 h-3 text-emerald-600 shrink-0 stroke-[2.5]" />
+                        ) : (
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mx-0.5" />
+                        )}
+                        <span>Mín. 8 caracteres ({senhaAtual.trim().length}/8)</span>
+                      </div>
+
+                      <div
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10.5px] border transition-colors ${
+                          regrasSenha.temMaiuscula
+                            ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200/90 font-medium'
+                            : 'bg-slate-50 text-slate-500 border-slate-200/80'
+                        }`}
+                      >
+                        {regrasSenha.temMaiuscula ? (
+                          <Check className="w-3 h-3 text-emerald-600 shrink-0 stroke-[2.5]" />
+                        ) : (
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mx-0.5" />
+                        )}
+                        <span>1 Maiúscula (A-Z)</span>
+                      </div>
+
+                      <div
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10.5px] border transition-colors ${
+                          regrasSenha.temMinuscula
+                            ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200/90 font-medium'
+                            : 'bg-slate-50 text-slate-500 border-slate-200/80'
+                        }`}
+                      >
+                        {regrasSenha.temMinuscula ? (
+                          <Check className="w-3 h-3 text-emerald-600 shrink-0 stroke-[2.5]" />
+                        ) : (
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mx-0.5" />
+                        )}
+                        <span>1 Minúscula (a-z)</span>
+                      </div>
+
+                      <div
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10.5px] border transition-colors ${
+                          regrasSenha.temNumero
+                            ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200/90 font-medium'
+                            : 'bg-slate-50 text-slate-500 border-slate-200/80'
+                        }`}
+                      >
+                        {regrasSenha.temNumero ? (
+                          <Check className="w-3 h-3 text-emerald-600 shrink-0 stroke-[2.5]" />
+                        ) : (
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mx-0.5" />
+                        )}
+                        <span>1 Número (0-9)</span>
+                      </div>
+
+                      <div
+                        className={`col-span-2 sm:col-span-2 flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10.5px] border transition-colors ${
+                          regrasSenha.temEspecial
+                            ? 'bg-emerald-50/80 text-emerald-800 border-emerald-200/90 font-medium'
+                            : 'bg-slate-50 text-slate-500 border-slate-200/80'
+                        }`}
+                      >
+                        {regrasSenha.temEspecial ? (
+                          <Check className="w-3 h-3 text-emerald-600 shrink-0 stroke-[2.5]" />
+                        ) : (
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0 mx-0.5" />
+                        )}
+                        <span>1 Símbolo Especial (!@#$%&*...)</span>
+                      </div>
+                    </div>
                  </ModalCampo>
               </div>
             )}
