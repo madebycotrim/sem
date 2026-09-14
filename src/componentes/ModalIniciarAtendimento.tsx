@@ -14,7 +14,6 @@ import {
 import { type Especialidade } from '../../compartilhado/index.ts';
 import { EspecialidadeBadge, obterEstiloEspecialidade } from './EspecialidadeVisual.tsx';
 import { censurarCpf } from './TabelaPacientes.tsx';
-import { formatarConselhoERegistro } from './FilaDoDia.tsx';
 
 export interface DadosAtendimento {
   itemId: string;
@@ -200,16 +199,8 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Profissional responsável</p>
-              <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                <p className="text-[12.5px] font-bold text-slate-700 truncate">{dados.profissional?.replace(/^Dr\.\s*/i, '') || 'Não informado'}</p>
-                {(() => {
-                  const conselhoReg = formatarConselhoERegistro(dados.profissionalRegistro, dados.profissionalConselho, dados.especialidade);
-                  return conselhoReg ? (
-                    <span className="text-[11px] font-mono text-slate-400">
-                      ({conselhoReg})
-                    </span>
-                  ) : null;
-                })()}
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="text-[12.5px] font-bold text-slate-700 truncate">{dados.profissional?.replace(/^(Dr\.ª?|Dra?\.?)\s*/i, '') || 'Não informado'}</p>
                 <EspecialidadeBadge especialidade={dados.especialidade} compacto />
               </div>
             </div>
