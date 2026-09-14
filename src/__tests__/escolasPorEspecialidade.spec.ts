@@ -129,4 +129,54 @@ describe('Escolas - Distribuição por Especialidade abaixo de Total de Atendime
     expect(totalAtendimentosCalculado).toBe(0);
     expect(ativas).toHaveLength(0);
   });
+
+  it('deve retornar todas as 5 especialidades em todas, mesmo que o total seja 0', () => {
+    const { todas, ativas } = calcularMetricasEscola(
+      escolaMock,
+      atendimentosMock
+    );
+
+    // Deve conter todas as 5 especialidades do catálogo
+    expect(todas).toHaveLength(5);
+    const ids = todas.map((e) => e.id);
+    expect(ids).toContain('ODONTOLOGIA');
+    expect(ids).toContain('PSICOLOGIA');
+    expect(ids).toContain('OFTALMOLOGIA');
+    expect(ids).toContain('AUDIOMETRIA');
+    expect(ids).toContain('NUTRICAO');
+
+    // As ativas continuam sendo apenas as que têm total > 0
+    expect(ativas).toHaveLength(2);
+
+    // As não atendidas nesta escola devem ter total === 0
+    const oftalmo = todas.find((e) => e.id === 'OFTALMOLOGIA');
+    const audio = todas.find((e) => e.id === 'AUDIOMETRIA');
+    const nutri = todas.find((e) => e.id === 'NUTRICAO');
+
+    expect(oftalmo?.total).toBe(0);
+    expect(audio?.total).toBe(0);
+    expect(nutri?.total).toBe(0);
+
+    // As atendidas devem ter seus totais preservados
+    const odonto = todas.find((e) => e.id === 'ODONTOLOGIA');
+    const psico = todas.find((e) => e.id === 'PSICOLOGIA');
+    expect(odonto?.total).toBe(1);
+    expect(psico?.total).toBe(1);
+  });
+
+  it('deve retornar todas as 5 especialidades com total 0 para escola sem atendimentos', () => {
+    const escolaZerada: EscolaPolo = {
+      id: 'escola-zero',
+      nome: 'ESCOLA NOVA',
+      regiao: 'TAGUATINGA / DF',
+      endereco: 'QUADRA 1',
+      alunosMatriculados: 50,
+      totalAtendimentos: 0,
+    };
+
+    const { todas } = calcularMetricasEscola(escolaZerada, []);
+
+    expect(todas).toHaveLength(5);
+    expect(todas.every((e) => e.total === 0)).toBe(true);
+  });
 });

@@ -43,6 +43,7 @@ import {
   BarraFiltrosAtivos,
   type ConfiguracaoColuna,
 } from './tabelaExcel/index.ts';
+import { formatarConselhoERegistro } from './FilaDoDia.tsx';
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import { Botao } from './Botao.tsx';
 import { SeletorFiltroUniversal } from './SeletorFiltroUniversal.tsx';
@@ -80,6 +81,8 @@ interface AtendimentoRelatorio {
   criadoEm: string;
   escolaLocal: string;
   profissional: string;
+  profissionalRegistro?: string | null;
+  profissionalConselho?: string | null;
   resumo: string | null;
   procedimentos: string | null;
   insumosUtilizados: string | null;
@@ -94,6 +97,7 @@ interface RegistroTabela {
   cpf: string;
   especialidade: string;
   profissional: string;
+  registroConselho?: string;
   instituicao: string;
   turno: string;
   status: string;
@@ -296,6 +300,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             cpf: item.pacienteCpf || 'Não informado',
             especialidade: item.especialidade,
             profissional: item.profissional || 'Não informado',
+            registroConselho: formatarConselhoERegistro(item.profissionalRegistro || undefined, item.profissionalConselho || undefined, item.especialidade as any) || 'Não informado',
             instituicao: item.escolaLocal || 'Não informado',
             turno: item.turno ? TURNO_LABELS[item.turno as keyof typeof TURNO_LABELS] ?? item.turno : 'Não informado',
             status: item.status || StatusAtendimento.CONCLUIDO,
@@ -720,6 +725,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         Turno: item.turno ? TURNO_LABELS[item.turno as keyof typeof TURNO_LABELS] ?? item.turno : 'Não informado',
         Situação: item.status ? STATUS_ATENDIMENTO_LABELS[item.status as StatusAtendimento] ?? item.status : 'Concluído',
         Profissional: item.profissional || 'Não informado',
+        'Conselho e Registro': formatarConselhoERegistro(item.profissionalRegistro || undefined, item.profissionalConselho || undefined, item.especialidade as any) || 'Não informado',
         'Unidade Escolar': item.escolaLocal || 'Não informado',
         'Resumo Clínico / Queixa': item.resumo || 'Sem observações',
         'Procedimentos Realizados': item.procedimentos || 'Padrão realizado',

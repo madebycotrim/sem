@@ -400,7 +400,7 @@ rotasAtendimento.get('/:id', async (c) => {
     where: eq(atendimentos.id, id),
     with: {
       escolaLocal: { columns: { nome: true } },
-      usuario: { columns: { nomeCompleto: true } },
+      usuario: { columns: { nomeCompleto: true, conselhoProfissional: true, registroProfissional: true } },
     },
   });
 
@@ -566,7 +566,7 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
       orderBy: [desc(atendimentos.criadoEm)],
       with: {
         escolaLocal: { columns: { nome: true } },
-        usuario: { columns: { nomeCompleto: true } },
+        usuario: { columns: { nomeCompleto: true, conselhoProfissional: true, registroProfissional: true } },
         paciente: { columns: { nomeEnc: true, dekCifrada: true, ivPii: true, tagPii: true, turma: true } },
       },
     }),
@@ -618,6 +618,9 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
         encaminhamentoExterno: a.encaminhamentoExterno,
         escolaLocal: a.escolaLocal?.nome ?? 'Desconhecida',
         profissional: a.usuario?.nomeCompleto ?? 'Desconhecido',
+        profissionalNome: a.usuario?.nomeCompleto ?? 'Desconhecido',
+        profissionalConselho: a.usuario?.conselhoProfissional ?? null,
+        profissionalRegistro: a.usuario?.registroProfissional ?? null,
         criadoEm: a.criadoEm,
       };
     })

@@ -5,15 +5,18 @@ import { Modal, BotaoModal } from './Modal.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
 import type { ItemAtendimentoLista } from './Atendimentos.tsx';
 import {
+  Activity,
   Apple,
   Brain,
   Building2,
   ChevronDown,
   Ear,
   Eye,
+  GraduationCap,
   MapPin,
   Pencil,
   Smile,
+  Stethoscope,
   Trash2,
   X,
   type LucideIcon,
@@ -102,17 +105,19 @@ export const calcularMetricasEscola = (
     }
   }
 
-  const ativas = ESPECIALIDADES_CATALOGO.map((esp) => ({
+  const todas = ESPECIALIDADES_CATALOGO.map((esp) => ({
     ...esp,
     total: contagem[esp.id] || 0,
-  })).filter((esp) => esp.total > 0);
+  }));
+
+  const ativas = todas.filter((esp) => esp.total > 0);
 
   const totalAtendimentosCalculado = Math.max(
     escola.totalAtendimentos ?? 0,
     ativas.reduce((acc, curr) => acc + curr.total, 0)
   );
 
-  return { ativas, totalAtendimentosCalculado };
+  return { ativas, todas, totalAtendimentosCalculado };
 };
 
 export const Escolas: FC<EscolasProps> = ({
@@ -181,7 +186,15 @@ export const Escolas: FC<EscolasProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtradas.map((escola) => {
             const estaAtiva = escola.id === escolaAtivaId || escola.status === 'ESTACIONADA_HOJE';
-            const { ativas: especialidadesAtivas, totalAtendimentosCalculado } = calcularMetricasEscola(escola, atendimentos);
+            const { todas: todasEspecialidades, totalAtendimentosCalculado } = calcularMetricasEscola(escola, atendimentos);
+
+            // Ordena com especialidades ativas primeiro (decrescente por volume) seguidas das zeradas
+            const especialidadesOrdenadas = [...todasEspecialidades].sort((a, b) => {
+              if (b.total !== a.total) {
+                return b.total - a.total;
+              }
+              return 0;
+            });
             return (
               <div
                 key={escola.id}
@@ -215,43 +228,89 @@ export const Escolas: FC<EscolasProps> = ({
                     <span className="text-slate-500">{escola.endereco}</span>
                   </p>
 
-                  {/* Métricas: Estudantes & Atendimentos com Por Especialidade logo abaixo de Total de Atendimentos */}
-                  <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50/80 border border-slate-100 rounded-2xl text-xs mb-3.5 items-start">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total de Estudantes</span>
-                      <p className="font-semibold text-slate-800 mt-0.5">{escola.alunosMatriculados || 0} estudantes</p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total de Atendimentos</span>
-                      <p className="font-semibold text-slate-800 mt-0.5">{totalAtendimentosCalculado} atendimentos</p>
+                  {/* Painel de Métricas da Escola */}
+                  <div className="p-3.5 bg-slate-50/75 border border-slate-200/80 rounded-2xl mb-3.5 flex flex-col gap-3 shadow-2xs">
+                    {/* Linha dos 2 Indicadores Principais (KPIs) */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {/* Total de Estudantes */}
+                      <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs transition-all hover:border-slate-300/80">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                          <GraduationCap className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block leading-none">
+                            Total de Estudantes
+                          </span>
+                          <div className="flex items-baseline gap-1 mt-1">
+                            <span className="text-sm font-extrabold text-slate-800 font-mono leading-none">
+                              {escola.alunosMatriculados || 0}
+                            </span>
+                            <span className="text-[10px] font-medium text-slate-500">
+                              {(escola.alunosMatriculados || 0) === 1 ? 'estudante' : 'estudantes'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
 
-                      {/* A BAIXO DE TOTAL DE ATENDIMENTO: Por Especialidade */}
-                      <div className="mt-2.5 pt-2 border-t border-slate-200/70">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                      {/* Total de Atendimentos */}
+                      <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs transition-all hover:border-slate-300/80">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                          <Stethoscope className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block leading-none">
+                            Total de Atendimentos
+                          </span>
+                          <div className="flex items-baseline gap-1 mt-1">
+                            <span className="text-sm font-extrabold text-slate-800 font-mono leading-none">
+                              {totalAtendimentosCalculado}
+                            </span>
+                            <span className="text-[10px] font-medium text-slate-500">
+                              {totalAtendimentosCalculado === 1 ? 'atendimento' : 'atendimentos'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* A BAIXO DE TOTAL DE ATENDIMENTO: Por Especialidade (Todas as 5 Especialidades Visíveis) */}
+                    <div className="pt-2.5 border-t border-slate-200/70">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                          <Activity className="w-3 h-3 text-blue-500" />
                           Por Especialidade
                         </span>
-                        {especialidadesAtivas.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {especialidadesAtivas.map((esp) => {
-                              const Icone = esp.icone;
-                              return (
-                                <span
-                                  key={esp.id}
-                                  title={`${esp.nome}: ${esp.total} atendimento(s) nesta instituição`}
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border shadow-2xs transition-all hover:scale-105 select-none ${esp.fundo} ${esp.borda} ${esp.texto}`}
-                                >
-                                  <Icone className="w-3 h-3 shrink-0" />
-                                  <span>{esp.nome}:</span>
-                                  <span className="font-extrabold">{esp.total}</span>
-                                </span>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-slate-400 font-medium italic">
-                            {totalAtendimentosCalculado > 0 ? 'Sem divisão' : 'Nenhum atendimento'}
-                          </span>
-                        )}
+                        <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                          {todasEspecialidades.filter((e) => e.total > 0).length} ativas de 5
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {especialidadesOrdenadas.map((esp) => {
+                          const temAtendimento = esp.total > 0;
+                          const Icone = esp.icone;
+                          return (
+                            <span
+                              key={esp.id}
+                              title={`${esp.nome}: ${esp.total} atendimento(s) nesta instituição`}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10.5px] font-semibold border transition-all duration-150 select-none ${
+                                temAtendimento
+                                  ? `${esp.fundo} ${esp.borda} ${esp.texto} shadow-2xs hover:scale-105 cursor-default`
+                                  : 'bg-white/80 border-slate-200/90 text-slate-400 hover:border-slate-300 hover:text-slate-600 cursor-default'
+                              }`}
+                            >
+                              <Icone className={`w-3.5 h-3.5 shrink-0 ${temAtendimento ? esp.texto : 'text-slate-400'}`} />
+                              <span>{esp.nome}:</span>
+                              <span
+                                className={`font-mono text-[10px] font-extrabold ${
+                                  temAtendimento ? 'px-1 py-0.2 rounded bg-white/90 text-slate-900 shadow-2xs border border-black/5' : 'text-slate-400'
+                                }`}
+                              >
+                                {esp.total}
+                              </span>
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

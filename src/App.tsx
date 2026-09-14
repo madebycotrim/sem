@@ -363,14 +363,17 @@ export function App() {
         );
         if (ativo && primeiraPagina?.dados) {
           const dados = [primeiraPagina, ...respostasRestantes].flatMap((resposta) => resposta.dados);
-          const listaMapeada: ItemAtendimentoLista[] = dados.map((d) => ({
+          const listaMapeada: ItemAtendimentoLista[] = dados.map((d: any) => ({
             id: String(d.id),
             pacienteId: String(d.pacienteId),
             pacienteNome: String(d.pacienteNome || 'Paciente'),
+            pacienteCpf: d.pacienteCpf ? String(d.pacienteCpf) : undefined,
             especialidade: d.especialidade as ItemAtendimentoLista['especialidade'],
             turno: d.turno as ItemAtendimentoLista['turno'],
             escolaNome: String(d.escolaNome || d.escolaLocal || 'Não informada'),
             profissionalNome: String(d.profissionalNome || d.profissional || 'Profissional de Saúde'),
+            profissionalConselho: d.profissionalConselho ? String(d.profissionalConselho) : undefined,
+            profissionalRegistro: d.profissionalRegistro ? String(d.profissionalRegistro) : undefined,
             resumo: String(d.resumo || ''),
             criadoEm: String(d.criadoEm || new Date().toISOString()),
             entradaFilaEm: d.entradaFilaEm ? String(d.entradaFilaEm) : undefined,
@@ -695,10 +698,13 @@ export function App() {
             id,
             pacienteId: itemFila.pacienteId || id,
             pacienteNome: itemFila.pacienteNome,
+            pacienteCpf: itemFila.cpf,
             especialidade: itemFila.especialidade,
             turno: itemFila.turno || Turno.MANHA,
             escolaNome: itemFila.escolaNome || 'Não informada',
             profissionalNome: itemFila.profissional || 'Profissional de Saúde',
+            profissionalConselho: itemFila.profissionalConselho,
+            profissionalRegistro: itemFila.profissionalRegistro,
             resumo: itemFila.anotacoes || '',
             criadoEm: new Date().toISOString(),
             status,
@@ -826,6 +832,9 @@ export function App() {
           status: existente.status || statusFinal,
           resumo: f.anotacoes || existente.resumo,
           profissionalNome: f.profissional || existente.profissionalNome,
+          profissionalConselho: f.profissionalConselho || existente.profissionalConselho,
+          profissionalRegistro: f.profissionalRegistro || existente.profissionalRegistro,
+          pacienteCpf: f.cpf || existente.pacienteCpf,
           escolaNome: f.escolaNome || existente.escolaNome,
         });
       } else {
@@ -833,10 +842,13 @@ export function App() {
           id: chave,
           pacienteId: f.pacienteId || chave,
           pacienteNome: f.pacienteNome,
+          pacienteCpf: f.cpf,
           especialidade: f.especialidade,
           turno: f.turno || Turno.MANHA,
           escolaNome: f.escolaNome || 'Não informada',
           profissionalNome: f.profissional || 'Profissional de Saúde',
+          profissionalConselho: f.profissionalConselho,
+          profissionalRegistro: f.profissionalRegistro,
           resumo: f.anotacoes || '',
           criadoEm,
           status: statusFinal,

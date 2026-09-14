@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { ItemAtendimentoLista } from '../componentes/Atendimentos.tsx';
 import type { ItemPaciente } from '../componentes/TabelaPacientes.tsx';
-import { formatarSubtituloPaciente } from '../componentes/TabelaPacientes.tsx';
+import { formatarSubtituloPaciente, censurarCpf } from '../componentes/TabelaPacientes.tsx';
+import { formatarConselhoERegistro } from '../componentes/FilaDoDia.tsx';
 
 describe('Atendimentos - Truncamento de Nome Profissional e Hover Card de Paciente', () => {
   const pacienteMock: ItemPaciente = {
@@ -166,6 +167,92 @@ describe('Atendimentos - Truncamento de Nome Profissional e Hover Card de Pacien
     // Todas as 3 consultas devem aparecer sem restrição
     expect(dadosFiltrados.length).toBe(3);
     expect(dadosFiltrados.map((c) => c.id)).toEqual(['c-1', 'c-2', 'c-3']);
+  });
+
+  it('deve exibir CPF mascarado abaixo do nome do paciente com proteção LGPD e tratar fallback', () => {
+    // 1. Paciente com CPF informado
+    const cpfBruto1: string = '12345678900';
+    const cpfValido1 = cpfBruto1 && cpfBruto1 !== 'Não informado' && cpfBruto1.replace(/\D/g, '').length > 0;
+    const cpfFormatado1 = cpfValido1 ? censurarCpf(cpfBruto1) : null;
+    const textoExibicao1 = cpfFormatado1 ? `CPF: ${cpfFormatado1}` : 'CPF não informado';
+
+    expect(textoExibicao1).toBe('CPF: 123.***.***-00');
+
+    // 2. Paciente sem CPF ou não informado
+    const cpfBruto2: string | undefined = undefined;
+    const cpfValido2 = cpfBruto2 && cpfBruto2 !== 'Não informado' && (cpfBruto2 as string).replace(/\D/g, '').length > 0;
+    const cpfFormatado2 = cpfValido2 ? censurarCpf(cpfBruto2) : null;
+    const textoExibicao2 = cpfFormatado2 ? `CPF: ${cpfFormatado2}` : 'CPF não informado';
+
+    expect(textoExibicao2).toBe('CPF não informado');
+
+    // 3. Paciente com CPF já mascarado vindo da API
+    const cpfBruto3: string = '042.***.***-91';
+    const cpfValido3 = cpfBruto3 && cpfBruto3 !== 'Não informado' && cpfBruto3.replace(/\D/g, '').length > 0;
+    const cpfFormatado3 = cpfValido3 ? censurarCpf(cpfBruto3) : null;
+    const textoExibicao3 = cpfFormatado3 ? `CPF: ${cpfFormatado3}` : 'CPF não informado';
+
+    expect(textoExibicao3).toBe('CPF: 042.***.***-91');
+  });
+
+  it('deve exibir conselho e registro profissional abaixo do nome do profissional e inferir conselho pela especialidade', () => {
+    // 1. Profissional com conselho e registro explícitos
+    const cr1 = formatarConselhoERegistro('4898', 'CRESS', 'PSICOLOGIA' as any);
+    expect(cr1).toBe('CRESS-DF 4898');
+
+    // 2. Profissional com registro mas sem conselho direto (inferido pela especialidade)
+    const crAudiometria = formatarConselhoERegistro('3333', undefined, 'AUDIOMETRIA' as any);
+    expect(crAudiometria).toBe('CRFA-DF 3333');
+
+    const crOdonto = formatarConselhoERegistro('9999', undefined, 'ODONTOLOGIA' as any);
+    expect(crOdonto).toBe('CRO-DF 9999');
+
+    // 3. Profissional sem registro nem conselho
+    const crVazio = formatarConselhoERegistro(undefined, undefined, undefined);
+    expect(crVazio || 'Não informado').toBe('Não informado');
+  });
+
+  it('deve encontrar correspondência de profissional por nome ou id para extrair conselho e registro', () => {
+    const listaProfissionais = [
+      {
+        id: 'prof-01',
+        nome: 'ANA CLAUDIA FERNANDES MEIRELES LEITAO',
+        registro: '4898',
+        conselho: 'CRESS',
+      },
+      {
+        id: 'prof-02',
+        nome: 'ANA CRISTINA RABELO PAIVA',
+        registro: '12345',
+        conselho: 'CRFA',
+      },
+    ];
+
+    const consulta: ItemAtendimentoLista = {
+      ...atendimentoMock,
+      profissionalNome: 'ANA CLAUDIA FERNANDES MEIRELES', // Versão truncada/abreviada
+    };
+
+    const profEncontrado = listaProfissionais.find(
+      (p) =>
+        (consulta.profissionalId && p.id === consulta.profissionalId) ||
+        (p.nome && consulta.profissionalNome && (
+          p.nome.trim().toLowerCase() === consulta.profissionalNome.trim().toLowerCase() ||
+          p.nome.trim().toLowerCase().startsWith(consulta.profissionalNome.trim().toLowerCase()) ||
+          consulta.profissionalNome.trim().toLowerCase().startsWith(p.nome.trim().toLowerCase())
+        ))
+    );
+
+    expect(profEncontrado).toBeDefined();
+    expect(profEncontrado?.id).toBe('prof-01');
+
+    const cr = formatarConselhoERegistro(
+      consulta.profissionalRegistro || profEncontrado?.registro,
+      consulta.profissionalConselho || profEncontrado?.conselho,
+      consulta.especialidade
+    );
+
+    expect(cr).toBe('CRESS-DF 4898');
   });
 });
 

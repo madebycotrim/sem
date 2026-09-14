@@ -17,7 +17,8 @@ import { StatusAtendimentoBadge } from './StatusAtendimentoBadge.tsx';
 import { ModalIniciarAtendimento, type DadosAtendimento } from './ModalIniciarAtendimento.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
 import { CardHoverPaciente } from './CardHoverPaciente.tsx';
-import { type ItemPaciente, calcularIdade } from './TabelaPacientes.tsx';
+import { type ItemPaciente, calcularIdade, censurarCpf } from './TabelaPacientes.tsx';
+import { formatarConselhoERegistro } from './FilaDoDia.tsx';
 
 export interface ItemAtendimentoLista {
   id: string;
@@ -25,10 +26,13 @@ export interface ItemAtendimentoLista {
   escolaId?: string;
   profissionalId?: string;
   pacienteNome: string;
+  pacienteCpf?: string;
   especialidade: Especialidade;
   turno: Turno;
   escolaNome: string;
   profissionalNome: string;
+  profissionalRegistro?: string;
+  profissionalConselho?: string;
   resumo?: string;
   criadoEm: string;
   entradaFilaEm?: string;
@@ -50,7 +54,7 @@ export interface AtendimentosProps {
   ehAdmin?: boolean;
   pacientes?: ItemPaciente[];
   escolas?: Array<{ id: string; nome: string }>;
-  profissionais?: Array<{ id: string; nome: string; registro?: string; registroConselho?: string; conselho?: string }>;
+  profissionais?: Array<{ id: string; nome: string; registro?: string; registroConselho?: string; conselho?: string; conselhoProfissional?: string; registroProfissional?: string }>;
   aoVerHistoricoPaciente?: (paciente: ItemPaciente) => void;
 }
 
@@ -368,11 +372,36 @@ export const Atendimentos: FC<AtendimentosProps> = ({
     dados: dadosBase,
     colunas: colunasConfig,
     buscaGeral: busca,
-    funcaoBuscaGeral: (item, termo) =>
-      item.pacienteNome.toLowerCase().includes(termo) ||
-      item.profissionalNome.toLowerCase().includes(termo) ||
-      item.escolaNome.toLowerCase().includes(termo) ||
-      Boolean(item.resumo && item.resumo.toLowerCase().includes(termo)),
+    funcaoBuscaGeral: (item, termo) => {
+      const paciente = pacientes.find(
+        (p) => (item.pacienteId && p.id === item.pacienteId) || (p.nome && item.pacienteNome && p.nome.trim().toLowerCase() === item.pacienteNome.trim().toLowerCase())
+      );
+      const prof = profissionais.find(
+        (p) =>
+          (item.profissionalId && p.id === item.profissionalId) ||
+          (p.nome && item.profissionalNome && (
+            p.nome.trim().toLowerCase() === item.profissionalNome.trim().toLowerCase() ||
+            p.nome.trim().toLowerCase().startsWith(item.profissionalNome.trim().toLowerCase()) ||
+            item.profissionalNome.trim().toLowerCase().startsWith(p.nome.trim().toLowerCase())
+          ))
+      );
+      const cpfLimpo = (item.pacienteCpf || paciente?.cpf || '').replace(/\D/g, '');
+      const termoNumerico = termo.replace(/\D/g, '');
+      const reg = (item.profissionalRegistro || prof?.registro || (prof as any)?.registroProfissional || '').toLowerCase();
+      const cons = (item.profissionalConselho || prof?.conselho || (prof as any)?.conselhoProfissional || '').toLowerCase();
+      const cr = (formatarConselhoERegistro(reg, cons, item.especialidade) || '').toLowerCase();
+
+      return (
+        item.pacienteNome.toLowerCase().includes(termo) ||
+        item.profissionalNome.toLowerCase().includes(termo) ||
+        item.escolaNome.toLowerCase().includes(termo) ||
+        Boolean(item.resumo && item.resumo.toLowerCase().includes(termo)) ||
+        (termoNumerico.length >= 3 && cpfLimpo.includes(termoNumerico)) ||
+        reg.includes(termo) ||
+        cons.includes(termo) ||
+        cr.includes(termo)
+      );
+    },
   });
 
   const { dadosFiltrados, temAlgumFiltroAtivo } = filtroExcel;
@@ -633,18 +662,41 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                 dadosPaginados.map((item) => {
                   const pacienteEncontrado = pacientes.find(
                     (p) =>
-                      p.id === item.pacienteId ||
+                      (item.pacienteId && p.id === item.pacienteId) ||
                       (p.nome && item.pacienteNome && p.nome.trim().toLowerCase() === item.pacienteNome.trim().toLowerCase())
                   );
                   const pacienteCompleto: ItemPaciente = pacienteEncontrado || {
                     id: item.pacienteId || item.id,
                     nome: item.pacienteNome,
+                    cpf: item.pacienteCpf,
                     dataNascimento: '',
                     escolaNome: item.escolaNome || 'Não informada',
                     termoConsentimentoStatus: 'PENDENTE',
                     atendimentosCount: 1,
                     criadoEm: item.criadoEm || new Date().toISOString(),
                   };
+
+                  const cpfBruto = item.pacienteCpf || pacienteEncontrado?.cpf || pacienteCompleto.cpf;
+                  const cpfValido = cpfBruto && cpfBruto !== 'Não informado' && cpfBruto.replace(/\D/g, '').length > 0;
+                  const cpfFormatado = cpfValido ? censurarCpf(cpfBruto) : null;
+
+                  const profEncontrado = profissionais.find(
+                    (p) =>
+                      (item.profissionalId && p.id === item.profissionalId) ||
+                      (p.nome && item.profissionalNome && (
+                        p.nome.trim().toLowerCase() === item.profissionalNome.trim().toLowerCase() ||
+                        p.nome.trim().toLowerCase().startsWith(item.profissionalNome.trim().toLowerCase()) ||
+                        item.profissionalNome.trim().toLowerCase().startsWith(p.nome.trim().toLowerCase())
+                      ))
+                  );
+
+                  const registroProf = item.profissionalRegistro || profEncontrado?.registro || (profEncontrado as any)?.registroProfissional;
+                  const conselhoProf = item.profissionalConselho || profEncontrado?.conselho || (profEncontrado as any)?.conselhoProfissional;
+                  const conselhoRegistro = formatarConselhoERegistro(
+                    registroProf,
+                    conselhoProf,
+                    item.especialidade
+                  );
 
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/70 transition-colors group border-b border-slate-100 last:border-0">
@@ -657,21 +709,34 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                             <button
                               type="button"
                               onClick={() => aoVerHistoricoPaciente?.(pacienteCompleto)}
-                              className="text-left font-semibold text-slate-900 uppercase tracking-tight text-xs cursor-pointer select-none no-underline"
+                              className="text-left font-semibold text-slate-900 uppercase tracking-tight text-xs cursor-pointer select-none no-underline hover:text-blue-600 transition-colors"
                               title="Clique para abrir o Histórico Clínico deste paciente"
                             >
                               {item.pacienteNome}
                             </button>
+                            <span className="text-[11px] font-mono text-slate-500 font-normal mt-0.5 block">
+                              {cpfFormatado ? `CPF: ${cpfFormatado}` : 'CPF não informado'}
+                            </span>
                           </div>
                         </CardHoverPaciente>
                       </td>
                       <td className="py-3 px-3.5 text-slate-600 font-medium max-w-[180px] xl:max-w-[220px]">
-                        <span
-                          className="block truncate max-w-[180px] xl:max-w-[220px] text-xs font-semibold text-slate-800 uppercase tracking-tight"
-                          title={item.profissionalNome}
-                        >
-                          {item.profissionalNome}
-                        </span>
+                        <div className="flex flex-col text-left">
+                          <span
+                            className="block truncate max-w-[180px] xl:max-w-[220px] text-xs font-semibold text-slate-800 uppercase tracking-tight"
+                            title={item.profissionalNome}
+                          >
+                            {item.profissionalNome}
+                          </span>
+                          <span
+                            className={`text-[11px] font-mono mt-0.5 block truncate max-w-[180px] xl:max-w-[220px] ${
+                              conselhoRegistro ? 'text-slate-500 font-normal' : 'text-slate-400 italic font-normal'
+                            }`}
+                            title={conselhoRegistro || 'Registro não informado'}
+                          >
+                            {conselhoRegistro || 'Não informado'}
+                          </span>
+                        </div>
                       </td>
                     <td className="py-3 px-3.5">
                       <EspecialidadeBadge especialidade={item.especialidade} compacto />
