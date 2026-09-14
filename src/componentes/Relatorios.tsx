@@ -23,6 +23,7 @@ import {
   Zap,
   ShieldCheck,
   Target,
+  Users,
 } from 'lucide-react';
 import { utils, writeFile } from 'xlsx';
 import { requisicaoApi } from '../servicos/api.ts';
@@ -43,7 +44,7 @@ import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import { Botao } from './Botao.tsx';
 import { SeletorFiltroUniversal } from './SeletorFiltroUniversal.tsx';
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
-import { StatusAtendimentoBadge } from './StatusAtendimentoBadge.tsx';
+import { StatusAtendimentoBadge, obterEstiloStatusAtendimento } from './StatusAtendimentoBadge.tsx';
 
 export interface RelatoriosProps {
   escolas?: Array<{ id: string; nome: string }>;
@@ -1669,20 +1670,20 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         )}
       </div>
 
-      {/* ─── 4 Cards de Distribuição e Produtividade ───── */}
-      <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-4">
-        {/* 1. Ranking de Especialidades */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs lg:col-span-2">
+      {/* ─── Cards de Distribuição e Produtividade ───── */}
+      <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-12">
+        {/* 1. Ranking de Especialidades (Reduzido para 3 colunas) */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-xs lg:col-span-3">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Distribuição por Especialidade</div>
             <span className="text-[10px] font-bold text-slate-400">
               {especialidadeFiltro
-                ? '1 especialidade filtrada'
+                ? '1 filtrada'
                 : `${rankingEspecialidades.length} especialidades`}
             </span>
           </div>
 
-          <div className="space-y-3.5">
+          <div className="space-y-3">
             {rankingEspecialidades.map((item) => {
               const paleta = paletaEspecialidade(item.especialidadeChave);
               const Icone = paleta.icone;
@@ -1690,18 +1691,18 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
               return (
                 <div key={item.especialidadeChave} className="group">
                   <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-700">
-                    <div className="flex items-center gap-2">
-                      <span className={`flex h-6 w-6 items-center justify-center rounded-full ${paleta.bgIcone}`}>
-                        <Icone className="h-3.5 w-3.5" />
+                    <div className="flex items-center gap-1.5 truncate pr-1">
+                      <span className={`flex h-5 w-5 items-center justify-center rounded-full shrink-0 ${paleta.bgIcone}`}>
+                        <Icone className="h-3 w-3" />
                       </span>
-                      <span className="font-bold text-slate-800">{item.especialidade}</span>
+                      <span className="font-bold text-slate-800 truncate text-[11.5px]">{item.especialidade}</span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <span className="text-[10px] text-slate-400">({item.pctTotal}%)</span>
                       <span className="font-black text-slate-700">{item.atendimentos}</span>
                     </div>
                   </div>
-                  <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                  <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-500"
                       style={{
@@ -1716,24 +1717,41 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           </div>
         </div>
 
-        {/* 2. Status Operacional */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+        {/* 2. Status Operacional (Cada status em uma linha própria vertical) */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-xs lg:col-span-3">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Status Operacional</div>
             <Activity className="h-3.5 w-3.5 text-slate-400" />
           </div>
-          <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-            {listaStatusOperacional.map(({ chave, rotulo, qtd }) => (
-              <div key={chave} className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1 border border-slate-100">
-                <span className="text-slate-500 truncate">{rotulo}</span>
-                <span className="font-black text-slate-800">{qtd}</span>
-              </div>
-            ))}
+          <div className="flex flex-col space-y-2">
+            {listaStatusOperacional.map(({ chave, rotulo, qtd }) => {
+              const estilo = obterEstiloStatusAtendimento(chave);
+              const pctStatus = totalGeral > 0 ? Math.round((qtd / totalGeral) * 100) : 0;
+              return (
+                <div
+                  key={chave}
+                  className="flex items-center justify-between rounded-xl bg-slate-50/80 px-3 py-2 border border-slate-100 hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${estilo.ponto}`} />
+                    <span className="text-xs font-semibold text-slate-700">{rotulo}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {totalGeral > 0 && qtd > 0 && (
+                      <span className="text-[10px] font-medium text-slate-400">({pctStatus}%)</span>
+                    )}
+                    <span className="inline-flex min-w-[24px] items-center justify-center rounded-lg bg-white px-2 py-0.5 text-xs font-black text-slate-800 shadow-2xs border border-slate-200/60 tabular-nums">
+                      {qtd}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* 3. Produtividade por Unidade Escolar */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+        {/* 3. Produtividade por Unidade Escolar (Aumentado para 6 colunas, espaço amplo para nomes grandes) */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-xs lg:col-span-6">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 flex items-center gap-1.5">
               <span>Por Unidade Escolar</span>
@@ -1744,62 +1762,84 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             </span>
           </div>
 
-          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+          <div className="space-y-3.5 max-h-[320px] overflow-y-auto pr-1.5">
             {rankingEscolas.length === 0 ? (
-              <div className="py-6 text-center text-xs text-slate-400">Nenhuma escola cadastrada.</div>
+              <div className="py-8 text-center text-xs text-slate-400 font-medium">Nenhuma escola cadastrada.</div>
             ) : (
-              rankingEscolas.map((item) => (
-                <div key={item.id}>
-                  <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-700">
-                    <span className="truncate font-medium text-slate-700 max-w-[170px]" title={item.nome}>
-                      {item.nome}
-                    </span>
-                    <span className="font-black text-slate-800">{item.total}</span>
+              rankingEscolas.map((item) => {
+                const pctEscola = totalGeral > 0 ? Math.round((item.total / totalGeral) * 100) : 0;
+                return (
+                  <div key={item.id} className="group">
+                    <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-700 gap-3">
+                      <span className="truncate font-semibold text-slate-800 text-[12px] flex-1" title={item.nome}>
+                        {item.nome}
+                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {totalGeral > 0 && item.total > 0 && (
+                          <span className="text-[10px] text-slate-400 font-medium">({pctEscola}%)</span>
+                        )}
+                        <span className="font-black text-slate-800 tabular-nums">{item.total}</span>
+                      </div>
+                    </div>
+                    <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-blue-700 to-indigo-600 transition-all duration-500"
+                        style={{ width: `${maxEscola > 0 ? (item.total / maxEscola) * 100 : 0}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-[#0d4d7a] transition-all duration-500"
-                      style={{ width: `${maxEscola > 0 ? (item.total / maxEscola) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
+      </div>
 
-        {/* 4. Produtividade por Profissional */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Por Profissional</div>
-            <span className="text-[10px] font-bold text-slate-400">
-              {profissionalFiltro ? '1 filtrado' : `${rankingProfissionais.length} profissionais`}
-            </span>
+      {/* 4. Produtividade por Profissional (Linha própria balanceada em grid moderno) */}
+      <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4.5 shadow-xs">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 flex items-center gap-1.5">
+            <span>Por Profissional</span>
+            <Users className="h-3.5 w-3.5 text-slate-400" />
           </div>
+          <span className="text-[10px] font-bold text-slate-400">
+            {profissionalFiltro ? '1 filtrado' : `${rankingProfissionais.length} profissionais`}
+          </span>
+        </div>
 
-          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-            {rankingProfissionais.length === 0 ? (
-              <div className="py-6 text-center text-xs text-slate-400">Nenhum profissional com atendimentos.</div>
-            ) : (
-              rankingProfissionais.map((item) => (
-                <div key={item.id}>
-                  <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-700">
-                    <span className="truncate font-medium text-slate-700 max-w-[170px]" title={item.nome}>
+        {rankingProfissionais.length === 0 ? (
+          <div className="py-6 text-center text-xs text-slate-400">Nenhum profissional com atendimentos.</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {rankingProfissionais.map((item) => {
+              const pctProf = totalGeral > 0 ? Math.round((item.total / totalGeral) * 100) : 0;
+              return (
+                <div
+                  key={item.id}
+                  className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 hover:bg-slate-50 hover:border-slate-200 transition-all"
+                >
+                  <div className="mb-1.5 flex items-center justify-between text-xs font-semibold text-slate-700 gap-2">
+                    <span className="truncate font-semibold text-slate-800 text-[12px] flex-1" title={item.nome}>
                       {item.nome}
                     </span>
-                    <span className="font-black text-slate-800">{item.total}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {totalGeral > 0 && item.total > 0 && (
+                        <span className="text-[10px] text-slate-400 font-medium">({pctProf}%)</span>
+                      )}
+                      <span className="font-black text-slate-800 tabular-nums">{item.total}</span>
+                    </div>
                   </div>
-                  <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div className="h-1.5 rounded-full bg-slate-200/80 overflow-hidden">
                     <div
                       className="h-full rounded-full bg-indigo-600 transition-all duration-500"
                       style={{ width: `${maxProfissional > 0 ? (item.total / maxProfissional) * 100 : 0}%` }}
                     />
                   </div>
                 </div>
-              ))
-            )}
+              );
+            })}
           </div>
-        </div>
+        )}
       </div>
 
       {/* ─── Tabela 100% Funcional de Registros Clínicos ───── */}
