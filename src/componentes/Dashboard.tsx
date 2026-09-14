@@ -280,7 +280,7 @@ export const Dashboard: FC<DashboardProps> = ({
                   Registrar atendimento
                 </h4>
                 <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
-                  Documente a consulta, os procedimentos realizados e os encaminhamentos necessários.
+                  Documente a consulta e os procedimentos clínicos realizados.
                 </p>
                 <span className="inline-block mt-2.5 text-[10.5px] font-bold text-emerald-600">
                   Preencher ficha →

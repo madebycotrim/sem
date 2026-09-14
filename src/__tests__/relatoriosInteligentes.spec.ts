@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   filtroAtendimentoSchema,
   StatusAtendimento,
+  STATUS_ATENDIMENTO_LABELS,
   Turno,
   Especialidade,
+  ESPECIALIDADE_LABELS,
 } from '../../compartilhado/index.js';
 import { utils } from 'xlsx';
 
@@ -51,25 +53,13 @@ describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () 
     });
   });
 
-  describe('Cálculo de Agregados Inteligentes e Resolutividade', () => {
-    it('deve calcular taxa de resolutividade e taxa de encaminhamento corretamente', () => {
+  describe('Cálculo de Agregados Operacionais e Médias', () => {
+    it('deve calcular média diária corretamente', () => {
       const total = 100;
-      const encaminhamentos = 18;
-      const taxaEncaminhamento = Math.round((encaminhamentos / total) * 100);
-      const taxaResolutividade = 100 - taxaEncaminhamento;
+      const diasComAtendimento = 5;
+      const mediaDiaria = Math.round((total / diasComAtendimento) * 10) / 10;
 
-      expect(taxaEncaminhamento).toBe(18);
-      expect(taxaResolutividade).toBe(82);
-    });
-
-    it('deve calcular 100% de resolutividade quando não houver encaminhamentos externos', () => {
-      const total = 45;
-      const encaminhamentos = 0;
-      const taxaEncaminhamento = total > 0 ? Math.round((encaminhamentos / total) * 100) : 0;
-      const taxaResolutividade = total > 0 ? 100 - taxaEncaminhamento : 100;
-
-      expect(taxaEncaminhamento).toBe(0);
-      expect(taxaResolutividade).toBe(100);
+      expect(mediaDiaria).toBe(20);
     });
 
     it('deve identificar corretamente o pico operacional em uma série temporal', () => {
@@ -91,7 +81,7 @@ describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () 
   });
 
   describe('Geração de Planilha Multi-Abas: Dashboard e Dados Brutos (xlsx)', () => {
-    it('deve estruturar a Página 1 como Dashboard e a Página 2 como Dados Brutos', () => {
+    it('deve estruturar a Página 1 como Dashboard e a Página 2 como Dados Brutos sem campos de encaminhamento ou resolutividade', () => {
       const planilha = utils.book_new();
 
       const linhasDashboard = [
@@ -100,13 +90,13 @@ describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () 
         ['Período:', '01/09/2026 a 14/09/2026'],
         [],
         ['=== 1. INDICADORES-CHAVE DE GESTÃO (KPIs) ==='],
-        ['Total Atendimentos', 'Alunos Únicos', 'Resolutividade In Loco', 'Encaminhamentos'],
-        [100, 85, '82%', 18],
+        ['Total Atendimentos', 'Alunos Únicos', 'Média Diária', 'Pico Operacional'],
+        [100, 85, 20, '38 (04/09/2026)'],
         [],
         ['=== 2. DISTRIBUIÇÃO ANALÍTICA POR ESPECIALIDADE ==='],
-        ['Especialidade', 'Total', 'Encaminhamentos', 'Taxa Encaminhamento (%)'],
-        ['Odontologia', 45, 8, '18%'],
-        ['Oftalmologia', 55, 10, '18%'],
+        ['Especialidade', 'Total de Consultas', 'Participação no Volume Geral (%)'],
+        ['Odontologia', 45, '45%'],
+        ['Oftalmologia', 55, '55%'],
       ];
 
       const cabecalhosDadosBrutos = [
@@ -118,12 +108,7 @@ describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () 
         'Especialidade',
         'Situação / Status',
         'Profissional de Saúde',
-        'Conselho e Registro',
         'Unidade Escolar',
-        'Resumo Clínico / Queixa',
-        'Procedimentos Realizados',
-        'Insumos Utilizados',
-        'Encaminhamento Externo',
       ];
 
       const linhasDadosBrutosMatriz = [
@@ -137,12 +122,7 @@ describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () 
           'Odontologia',
           'Concluído',
           'Dr. Roberto',
-          'CRO-DF 1234',
           'Escola Ayrton Senna',
-          'Avaliação de cárie',
-          'Restauração',
-          'Resina composta',
-          'Não encaminhado (resolvido)',
         ],
       ];
 
@@ -156,7 +136,13 @@ describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () 
       expect(planilha.Sheets['Dashboard']).toBeDefined();
       expect(planilha.Sheets['Dados Brutos']).toBeDefined();
       expect(abaDadosBrutos['A1'].v).toBe('ID do Atendimento');
-      expect(abaDadosBrutos['N1'].v).toBe('Encaminhamento Externo');
+      expect(abaDadosBrutos['I1'].v).toBe('Unidade Escolar');
+      expect(cabecalhosDadosBrutos).toHaveLength(9);
+      expect(cabecalhosDadosBrutos).not.toContain('Resumo Clínico / Queixa');
+      expect(cabecalhosDadosBrutos).not.toContain('Procedimentos Realizados');
+      expect(cabecalhosDadosBrutos).not.toContain('Insumos Utilizados');
+      expect(cabecalhosDadosBrutos).not.toContain('Encaminhamento Externo');
+      expect(cabecalhosDadosBrutos).not.toContain('Conselho e Registro');
     });
 
     it('deve garantir cabeçalhos completos na Página 2 mesmo com lista vazia de atendimentos', () => {
@@ -169,24 +155,19 @@ describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () 
         'Especialidade',
         'Situação / Status',
         'Profissional de Saúde',
-        'Conselho e Registro',
         'Unidade Escolar',
-        'Resumo Clínico / Queixa',
-        'Procedimentos Realizados',
-        'Insumos Utilizados',
-        'Encaminhamento Externo',
       ];
 
       const matrizVazia = [
         cabecalhos,
-        ['Nenhum atendimento registrado no banco de dados para os filtros selecionados.', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
+        ['Nenhum atendimento registrado no banco de dados para os filtros selecionados.', '-', '-', '-', '-', '-', '-', '-', '-'],
       ];
 
       const aba = utils.aoa_to_sheet(matrizVazia);
       expect(aba['A1'].v).toBe('ID do Atendimento');
       expect(aba['B1'].v).toBe('Data e Hora');
       expect(aba['C1'].v).toBe('Aluno / Paciente');
-      expect(aba['N1'].v).toBe('Encaminhamento Externo');
+      expect(aba['I1'].v).toBe('Unidade Escolar');
       expect(aba['A2'].v).toContain('Nenhum atendimento registrado');
     });
   });
@@ -215,10 +196,10 @@ describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () 
 
     it('qualquer alteração nos filtros deve ocultar o relatório e zerar dados em memória', () => {
       let relatorioGerado = true;
-      let dados = { total: 42, totalEncaminhamentos: 5 };
+      let dados = { total: 42 };
       let dadosTabela = [{ id: '1', paciente: 'João' }];
 
-      const DADOS_INICIAIS = { total: 0, totalEncaminhamentos: 0 };
+      const DADOS_INICIAIS = { total: 0 };
 
       const ocultarRelatorioPorAlteracaoFiltro = () => {
         relatorioGerado = false;
@@ -243,6 +224,182 @@ describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () 
       relatorioGerado = true;
       ocultarRelatorioPorAlteracaoFiltro();
       expect(relatorioGerado).toBe(false);
+    });
+  });
+
+  describe('Exibição Completa de Métricas com e sem Filtros (Especialidades, Status, Unidade Escolar)', () => {
+    const dadosBrutosMock = {
+      porEspecialidade: [
+        { especialidade: 'ODONTOLOGIA', total: 1 },
+      ],
+      porStatus: {
+        AGENDADO: 1,
+      },
+      porEscola: [
+        { id: 'esc-1', nome: 'CEMEIT DE TAGUATINGA', total: 1 },
+      ],
+    };
+
+    const escolasCadastradasMock = [
+      { id: 'esc-1', nome: 'CEMEIT DE TAGUATINGA' },
+      { id: 'esc-2', nome: 'CENTRO DE ENSINO FUNDAMENTAL 01' },
+      { id: 'esc-3', nome: 'ESCOLA CLASSE 04' },
+    ];
+
+    it('sem filtro de especialidade: deve exibir TODAS as especialidades do sistema mesmo com total zero', () => {
+      const mapaDados = new Map<string, { total: number }>();
+      dadosBrutosMock.porEspecialidade.forEach((item) => mapaDados.set(item.especialidade, item));
+
+      const todasEspecialidades = Object.keys(ESPECIALIDADE_LABELS) as Especialidade[];
+      const metricasEspecialidade = todasEspecialidades.map((chave) => {
+        const item = mapaDados.get(chave);
+        return {
+          especialidadeChave: chave,
+          especialidade: ESPECIALIDADE_LABELS[chave],
+          atendimentos: item?.total ?? 0,
+        };
+      });
+
+      expect(metricasEspecialidade).toHaveLength(Object.keys(ESPECIALIDADE_LABELS).length);
+      const odonto = metricasEspecialidade.find((m) => m.especialidadeChave === 'ODONTOLOGIA');
+      const oftalmo = metricasEspecialidade.find((m) => m.especialidadeChave === 'OFTALMOLOGIA');
+      const audio = metricasEspecialidade.find((m) => m.especialidadeChave === 'AUDIOMETRIA');
+
+      expect(odonto?.atendimentos).toBe(1);
+      expect(oftalmo?.atendimentos).toBe(0);
+      expect(audio?.atendimentos).toBe(0);
+    });
+
+    it('com filtro de especialidade: deve exibir SOMENTE a especialidade filtrada', () => {
+      const especialidadeFiltro = 'ODONTOLOGIA';
+      const encontrada = dadosBrutosMock.porEspecialidade.find((e) => e.especialidade === especialidadeFiltro);
+
+      const metricasFiltradas = [
+        {
+          especialidadeChave: especialidadeFiltro,
+          especialidade: ESPECIALIDADE_LABELS[especialidadeFiltro as Especialidade],
+          atendimentos: encontrada?.total ?? 0,
+        },
+      ];
+
+      expect(metricasFiltradas).toHaveLength(1);
+      expect(metricasFiltradas[0].especialidadeChave).toBe('ODONTOLOGIA');
+      expect(metricasFiltradas[0].atendimentos).toBe(1);
+    });
+
+    it('sem filtro de status: deve exibir TODOS os status operacionais mesmo com contagem zero', () => {
+      const todosStatus = Object.entries(STATUS_ATENDIMENTO_LABELS).map(([chave, rotulo]) => ({
+        chave,
+        rotulo,
+        qtd: dadosBrutosMock.porStatus[chave as keyof typeof dadosBrutosMock.porStatus] ?? 0,
+      }));
+
+      expect(todosStatus).toHaveLength(Object.keys(STATUS_ATENDIMENTO_LABELS).length);
+      expect(todosStatus.find((s) => s.chave === 'AGENDADO')?.qtd).toBe(1);
+      expect(todosStatus.find((s) => s.chave === 'CONCLUIDO')?.qtd).toBe(0);
+      expect(todosStatus.find((s) => s.chave === 'CANCELADO')?.qtd).toBe(0);
+      expect(todosStatus.find((s) => s.chave === 'FALTOU')?.qtd).toBe(0);
+    });
+
+    it('com filtro de status: deve exibir SOMENTE o status filtrado', () => {
+      const statusFiltro = 'AGENDADO';
+      const statusFiltrado = [
+        {
+          chave: statusFiltro,
+          rotulo: STATUS_ATENDIMENTO_LABELS[statusFiltro as StatusAtendimento],
+          qtd: dadosBrutosMock.porStatus[statusFiltro as keyof typeof dadosBrutosMock.porStatus] ?? 0,
+        },
+      ];
+
+      expect(statusFiltrado).toHaveLength(1);
+      expect(statusFiltrado[0].chave).toBe('AGENDADO');
+      expect(statusFiltrado[0].qtd).toBe(1);
+    });
+
+    it('sem filtro de escola: deve exibir TODAS as escolas cadastradas na rede mesmo com atendimentos zero', () => {
+      const mapa = new Map<string, { id: string; nome: string; total: number }>();
+      escolasCadastradasMock.forEach((e) => mapa.set(e.id, { id: e.id, nome: e.nome, total: 0 }));
+      dadosBrutosMock.porEscola.forEach((e) => {
+        const item = mapa.get(e.id);
+        if (item) item.total = e.total;
+      });
+
+      const rankingEscolas = Array.from(mapa.values());
+      expect(rankingEscolas).toHaveLength(3);
+      expect(rankingEscolas.find((e) => e.nome === 'CEMEIT DE TAGUATINGA')?.total).toBe(1);
+      expect(rankingEscolas.find((e) => e.nome === 'CENTRO DE ENSINO FUNDAMENTAL 01')?.total).toBe(0);
+      expect(rankingEscolas.find((e) => e.nome === 'ESCOLA CLASSE 04')?.total).toBe(0);
+    });
+
+    it('com filtro de escola: deve exibir SOMENTE a escola filtrada', () => {
+      const escolaFiltro = 'esc-1';
+      const encontrada = dadosBrutosMock.porEscola.find((e) => e.id === escolaFiltro);
+      const resultado = [
+        {
+          id: escolaFiltro,
+          nome: encontrada?.nome || 'Escola',
+          total: encontrada?.total ?? 0,
+        },
+      ];
+
+      expect(resultado).toHaveLength(1);
+      expect(resultado[0].id).toBe('esc-1');
+      expect(resultado[0].nome).toBe('CEMEIT DE TAGUATINGA');
+      expect(resultado[0].total).toBe(1);
+    });
+  });
+
+  describe('Síntese Executiva e Parecer Clínico com Cloudflare Workers AI', () => {
+    it('deve garantir que o payload para a IA contenha estritamente dados estatísticos agregados sem PII de alunos', () => {
+      const payloadIa = {
+        totalGeral: 42,
+        estudantesUnicos: 38,
+        mediaDiaria: 14,
+        pico: { data: '2026-09-10', total: 20 },
+        dataInicio: '2026-09-01',
+        dataFim: '2026-09-14',
+        porEspecialidade: [
+          { especialidade: 'ODONTOLOGIA', total: 25, pct: 60 },
+          { especialidade: 'OFTALMOLOGIA', total: 17, pct: 40 },
+        ],
+        porEscola: [
+          { nome: 'CEMEIT DE TAGUATINGA', total: 30 },
+          { nome: 'CENTRO DE ENSINO FUNDAMENTAL 01', total: 12 },
+        ],
+        porStatus: { CONCLUIDO: 40, EM_ANDAMENTO: 2 },
+      };
+
+      const jsonString = JSON.stringify(payloadIa);
+
+      // Verificação estrita de ausência de campos e dados pessoais de alunos
+      expect(jsonString).not.toContain('cpf');
+      expect(jsonString).not.toContain('nomeAluno');
+      expect(jsonString).not.toContain('paciente');
+      expect(jsonString).not.toContain('matricula');
+      expect(jsonString).not.toContain('prontuario');
+      expect(payloadIa.totalGeral).toBe(42);
+      expect(payloadIa.estudantesUnicos).toBe(38);
+      expect(payloadIa.porEspecialidade).toHaveLength(2);
+    });
+
+    it('deve formatar corretamente a estrutura do parecer de fallback ou resposta do modelo', () => {
+      const parecerExemplo = {
+        origem: 'CLOUDFLARE_WORKERS_AI',
+        modelo: '@cf/meta/llama-3-8b-instruct',
+        titulo: 'Síntese Executiva e Parecer Clínico Operacional',
+        resumo: 'No período de 01/09/2026 a 14/09/2026 foram realizados 42 atendimentos para 38 estudantes distintos.',
+        pontos: [
+          'Cobertura Populacional: 38 estudantes atendidos com média de 14 consultas/dia.',
+          'Foco Epidemiológico: Odontologia lidera a demanda com 60% do volume.',
+          'Capacidade Operacional: 2 unidades escolares atendidas no cronograma móvel.',
+        ],
+        recomendacao: 'Manter dimensionamento prioritário de insumos odontológicos.',
+      };
+
+      expect(parecerExemplo.titulo).toBe('Síntese Executiva e Parecer Clínico Operacional');
+      expect(parecerExemplo.pontos).toHaveLength(3);
+      expect(parecerExemplo.resumo).toContain('42 atendimentos');
+      expect(parecerExemplo.recomendacao).toBeDefined();
     });
   });
 });

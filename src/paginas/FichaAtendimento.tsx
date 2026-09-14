@@ -47,7 +47,6 @@ export function FichaAtendimento({
       resumo: '',
       procedimentos: '',
       insumosUtilizados: '',
-      encaminhamentoExterno: '',
     },
   });
 
@@ -88,7 +87,6 @@ export function FichaAtendimento({
       resumo: sanitizar(dados.resumo ?? 'Check-in realizado. Prontuário aguardando atendimento.'),
       procedimentos: dados.procedimentos ? sanitizar(dados.procedimentos) : undefined,
       insumosUtilizados: dados.insumosUtilizados ? sanitizar(dados.insumosUtilizados) : undefined,
-      encaminhamentoExterno: dados.encaminhamentoExterno ? sanitizar(dados.encaminhamentoExterno) : undefined,
     };
 
     try {
@@ -113,7 +111,6 @@ export function FichaAtendimento({
       resumo: '',
       procedimentos: '',
       insumosUtilizados: '',
-      encaminhamentoExterno: '',
     });
 
     if (aoVoltar) {
@@ -251,15 +248,6 @@ export function FichaAtendimento({
                 {...register('insumosUtilizados')}
               />
             </div>
-
-            <CampoTextarea
-              id="encaminhamentoExterno"
-              rotulo="Encaminhamento Externo (se aplicável)"
-              erro={errors.encaminhamentoExterno?.message}
-              linhas={2}
-              placeholder="Ex: Encaminhado para UBS de referência / Especialidade oftalmológica..."
-              {...register('encaminhamentoExterno')}
-            />
           </div>
         </div>
 

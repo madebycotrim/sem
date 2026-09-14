@@ -38,6 +38,7 @@ const envSchema = z.object({
 
   DB: z.any().optional(), // Cloudflare D1 Database binding
   ASSETS: z.any().optional(), // Cloudflare Pages static assets binding
+  AI: z.any().optional(), // Cloudflare Workers AI binding
 });
 
 export type Env = z.infer<typeof envSchema>;

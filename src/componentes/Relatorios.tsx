@@ -20,9 +20,7 @@ import {
   Activity,
   Building2,
   User,
-  ShieldCheck,
   FileText,
-  ArrowUpRight,
   Stethoscope,
   Smile,
 } from 'lucide-react';
@@ -53,14 +51,11 @@ export interface RelatoriosProps {
 
 interface RelatorioDados {
   total: number;
-  totalEncaminhamentos: number;
-  taxaEncaminhamento?: number;
-  taxaResolutividade?: number;
   pacientesUnicos?: number;
   mediaDiaria?: number;
   picoAtendimento?: { data: string; total: number } | null;
   porStatus?: Record<string, number>;
-  porEspecialidade: Array<{ especialidade: string; total: number; encaminhamentos: number }>;
+  porEspecialidade: Array<{ especialidade: string; total: number }>;
   porEscola: Array<{ id: string; nome: string; total: number }>;
   porProfissional: Array<{ id: string; nome: string; total: number }>;
   serie: Record<string, number>;
@@ -82,7 +77,6 @@ interface AtendimentoRelatorio {
   resumo: string | null;
   procedimentos: string | null;
   insumosUtilizados: string | null;
-  encaminhamentoExterno: string | null;
 }
 
 interface RegistroTabela {
@@ -99,7 +93,6 @@ interface RegistroTabela {
   resumo: string;
   procedimentos: string;
   insumos: string;
-  encaminhamento: string;
 }
 
 const formatarDataBrasileira = (data: string) => {
@@ -137,6 +130,15 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   const [relatorioGerado, setRelatorioGerado] = useState(false);
   const [gatilhoExecucao, setGatilhoExecucao] = useState(0);
   const [copiadoFeedback, setCopiadoFeedback] = useState(false);
+  const [sinteseExecutivaIa, setSinteseExecutivaIa] = useState<{
+    origem?: string;
+    modelo?: string;
+    titulo: string;
+    resumo: string;
+    pontos: string[];
+    recomendacao: string;
+  } | null>(null);
+  const [gerandoSinteseIa, setGerandoSinteseIa] = useState(false);
 
   // Modais
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState<RegistroTabela | null>(null);
@@ -147,9 +149,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
 
   const DADOS_RELATORIO_INICIAIS: RelatorioDados = {
     total: 0,
-    totalEncaminhamentos: 0,
-    taxaEncaminhamento: 0,
-    taxaResolutividade: 100,
     pacientesUnicos: 0,
     mediaDiaria: 0,
     picoAtendimento: null,
@@ -170,6 +169,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     setRelatorioGerado(false);
     setDados(DADOS_RELATORIO_INICIAIS);
     setDadosTabela([]);
+    setSinteseExecutivaIa(null);
   };
 
   // Carregar escolas se vier vazio por prop
@@ -272,9 +272,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
 
         setDados({
           total: respostaRelatorio.total ?? 0,
-          totalEncaminhamentos: respostaRelatorio.totalEncaminhamentos ?? 0,
-          taxaEncaminhamento: respostaRelatorio.taxaEncaminhamento ?? 0,
-          taxaResolutividade: respostaRelatorio.taxaResolutividade ?? 100,
           pacientesUnicos: respostaRelatorio.pacientesUnicos ?? 0,
           mediaDiaria: respostaRelatorio.mediaDiaria ?? 0,
           picoAtendimento: respostaRelatorio.picoAtendimento ?? null,
@@ -303,7 +300,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             resumo: item.resumo || 'Sem observações registradas',
             procedimentos: item.procedimentos || 'Procedimento padrão realizado',
             insumos: item.insumosUtilizados || 'Nenhum insumo específico registrado',
-            encaminhamento: item.encaminhamentoExterno || 'Sem encaminhamento externo (resolvido na unidade)',
           }))
         );
 
@@ -327,23 +323,124 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   // Cálculos Derivados e Inteligência Analítica
   const totalGeral = dados.total || 0;
 
-  const metricasEspecialidade = useMemo(
-    () =>
-      (dados.porEspecialidade || []).map((item) => {
-        const rotulo = ESPECIALIDADE_LABELS[item.especialidade as Especialidade] ?? item.especialidade;
-        const pctTotal = totalGeral > 0 ? Math.round((item.total / totalGeral) * 100) : 0;
-        const taxaEnc = item.total > 0 ? Math.round((item.encaminhamentos / item.total) * 100) : 0;
-        return {
-          especialidadeChave: item.especialidade,
+  const metricasEspecialidade = useMemo(() => {
+    // Se houver filtro específico de especialidade, exibe somente ela
+    if (especialidadeFiltro) {
+      const encontrada = (dados.porEspecialidade || []).find(
+        (item) => item.especialidade === especialidadeFiltro
+      );
+      const rotulo = ESPECIALIDADE_LABELS[especialidadeFiltro as Especialidade] ?? especialidadeFiltro;
+      const total = encontrada?.total ?? 0;
+      const pctTotal = totalGeral > 0 ? Math.round((total / totalGeral) * 100) : 0;
+
+      return [
+        {
+          especialidadeChave: especialidadeFiltro,
           especialidade: rotulo,
-          atendimentos: item.total,
-          encaminhamentos: item.encaminhamentos,
+          atendimentos: total,
           pctTotal,
-          taxaEnc,
-        };
-      }),
-    [dados.porEspecialidade, totalGeral],
-  );
+        },
+      ];
+    }
+
+    // Sem filtro de especialidade: exibe TODAS as especialidades cadastradas no sistema, mesmo com zero
+    const mapaDados = new Map<string, { total: number }>();
+    (dados.porEspecialidade || []).forEach((item) => {
+      mapaDados.set(item.especialidade, item);
+    });
+
+    const todasEspecialidades = Object.keys(ESPECIALIDADE_LABELS) as Especialidade[];
+
+    const lista = todasEspecialidades.map((chave) => {
+      const item = mapaDados.get(chave);
+      const rotulo = ESPECIALIDADE_LABELS[chave] ?? chave;
+      const total = item?.total ?? 0;
+      const pctTotal = totalGeral > 0 ? Math.round((total / totalGeral) * 100) : 0;
+
+      return {
+        especialidadeChave: chave,
+        especialidade: rotulo,
+        atendimentos: total,
+        pctTotal,
+      };
+    });
+
+    return lista.sort((a, b) => {
+      if (b.atendimentos !== a.atendimentos) {
+        return b.atendimentos - a.atendimentos;
+      }
+      return a.especialidade.localeCompare(b.especialidade);
+    });
+  }, [dados.porEspecialidade, especialidadeFiltro, totalGeral]);
+
+  const listaStatusOperacional = useMemo(() => {
+    // Se houver filtro específico de status, exibe apenas ele
+    if (statusFiltro) {
+      const rotulo = STATUS_ATENDIMENTO_LABELS[statusFiltro as StatusAtendimento] ?? statusFiltro;
+      const qtd = dados.porStatus?.[statusFiltro] ?? 0;
+      return [{ chave: statusFiltro, rotulo, qtd }];
+    }
+
+    // Sem filtro: exibe TODOS os status operacionais cadastrados, mesmo com zero
+    return (Object.entries(STATUS_ATENDIMENTO_LABELS) as [StatusAtendimento, string][]).map(
+      ([chave, rotulo]) => {
+        const qtd = dados.porStatus?.[chave] ?? 0;
+        return { chave, rotulo, qtd };
+      }
+    );
+  }, [dados.porStatus, statusFiltro]);
+
+  const rankingEscolas = useMemo(() => {
+    // Se houver filtro específico de escola, exibe apenas a escola filtrada
+    if (escolaFiltro) {
+      const encontrada = (dados.porEscola || []).find((e) => e.id === escolaFiltro);
+      const nomeEscola =
+        encontrada?.nome ||
+        escolasLocais.find((e) => e.id === escolaFiltro)?.nome ||
+        'Unidade Escolar Selecionada';
+      const total = encontrada?.total ?? 0;
+      return [{ id: escolaFiltro, nome: nomeEscola, total }];
+    }
+
+    // Sem filtro de escola: exibe TODAS as escolas cadastradas em escolasLocais, mesmo com zero atendimentos
+    const mapaEscolas = new Map<string, { id: string; nome: string; total: number }>();
+
+    for (const esc of escolasLocais) {
+      mapaEscolas.set(esc.id, { id: esc.id, nome: esc.nome, total: 0 });
+    }
+
+    for (const esc of dados.porEscola || []) {
+      const existente = mapaEscolas.get(esc.id);
+      if (existente) {
+        existente.total = esc.total;
+        if (esc.nome) existente.nome = esc.nome;
+      } else {
+        mapaEscolas.set(esc.id, { id: esc.id, nome: esc.nome, total: esc.total });
+      }
+    }
+
+    const lista = Array.from(mapaEscolas.values());
+
+    return lista.sort((a, b) => {
+      if (b.total !== a.total) {
+        return b.total - a.total;
+      }
+      return a.nome.localeCompare(b.nome);
+    });
+  }, [dados.porEscola, escolaFiltro, escolasLocais]);
+
+  const rankingProfissionais = useMemo(() => {
+    if (profissionalFiltro) {
+      const encontrado = (dados.porProfissional || []).find((p) => p.id === profissionalFiltro);
+      const nomeProf =
+        encontrado?.nome ||
+        profissionaisDisponiveis.find((p) => p.id === profissionalFiltro)?.nome ||
+        'Profissional Selecionado';
+      const total = encontrado?.total ?? 0;
+      return [{ id: profissionalFiltro, nome: nomeProf, total }];
+    }
+    return dados.porProfissional || [];
+  }, [dados.porProfissional, profissionalFiltro, profissionaisDisponiveis]);
 
   const linhaDoTempo = useMemo(() => {
     const entradas = Object.entries(dados.serie || {}).sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime());
@@ -356,8 +453,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   }, [dados.serie]);
 
   const rankingEspecialidades = metricasEspecialidade;
-  const rankingProfissionais = dados.porProfissional || [];
-  const rankingEscolas = dados.porEscola || [];
 
   const maxBarraEsp = Math.max(...rankingEspecialidades.map((i) => i.atendimentos), 1);
   const maxProfissional = Math.max(...rankingProfissionais.map((i) => i.total), 1);
@@ -424,23 +519,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       }
     }
 
-    // 2. Taxa de Encaminhamento
-    const taxaEnc = dados.taxaEncaminhamento ?? (totalGeral > 0 ? Math.round((dados.totalEncaminhamentos / totalGeral) * 100) : 0);
-    if (taxaEnc >= 25) {
-      alertas.push({
-        tipo: 'urgente',
-        titulo: 'Elevado Índice de Encaminhamentos Externos',
-        texto: `${taxaEnc}% dos pacientes (${dados.totalEncaminhamentos}) necessitaram de suporte fora da unidade. Sugere-se reforço de insumos especializados.`,
-      });
-    } else if (taxaEnc <= 12 && totalGeral >= 15) {
-      alertas.push({
-        tipo: 'sucesso',
-        titulo: 'Alta Eficiência Resolutiva Local',
-        texto: `${100 - taxaEnc}% dos casos foram resolvidos integralmente in loco pelo programa itinerante.`,
-      });
-    }
-
-    // 3. Pico de Demanda
+    // 2. Pico de Demanda
     if (picoGrafico && mediaGrafico > 0 && picoGrafico.total >= mediaGrafico * 1.6) {
       alertas.push({
         tipo: 'alerta',
@@ -449,7 +528,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       });
     }
 
-    // 4. Unidade Polo com Maior Carga
+    // 3. Unidade Polo com Maior Carga
     if (dados.porEscola.length > 1) {
       const topEscola = dados.porEscola[0];
       const topPct = Math.round((topEscola.total / totalGeral) * 100);
@@ -463,12 +542,13 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     }
 
     return alertas;
-  }, [totalGeral, dados.porEspecialidade, dados.taxaEncaminhamento, dados.totalEncaminhamentos, dados.porEscola, picoGrafico, mediaGrafico]);
+  }, [totalGeral, dados.porEspecialidade, dados.porEscola, picoGrafico, mediaGrafico]);
 
   // Síntese Executiva Inteligente (Parecer Automatizado)
-  const sinteseExecutiva = useMemo(() => {
+  const sintesePadrao = useMemo(() => {
     if (totalGeral === 0) {
       return {
+        origem: 'ALGORITMO_LOCAL' as const,
         titulo: 'Síntese Executiva do Período',
         resumo: 'Nenhum registro encontrado no intervalo selecionado para compor o parecer executivo.',
         pontos: [],
@@ -478,32 +558,76 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
 
     const dataIniFormatada = dataInicio ? formatarDataBrasileira(dataInicio) : 'Início';
     const dataFimFormatada = dataFim ? formatarDataBrasileira(dataFim) : 'Atual';
-    const taxaRes = dados.taxaResolutividade ?? (100 - (dados.taxaEncaminhamento ?? 0));
     const topEsp = dados.porEspecialidade[0];
     const topEspNome = topEsp ? ESPECIALIDADE_LABELS[topEsp.especialidade as Especialidade] ?? topEsp.especialidade : 'N/A';
     const topEspPct = topEsp ? Math.round((topEsp.total / totalGeral) * 100) : 0;
     const topEscola = dados.porEscola[0]?.nome ?? 'Não identificada';
 
-    const texto = `No período de ${dataIniFormatada} a ${dataFimFormatada}, a operação itinerante de saúde escolar realizou ${totalGeral} atendimentos para ${dados.pacientesUnicos ?? totalGeral} estudantes em ${dados.porEscola.length} escola(s). A resolutividade clínica alcançou ${taxaRes}%, com emissão de ${dados.totalEncaminhamentos} encaminhamento(s) externo(s). A especialidade mais requisitada foi ${topEspNome} (${topEsp?.total ?? 0} consultas, representando ${topEspPct}% do volume geral).`;
+    const texto = `No período de ${dataIniFormatada} a ${dataFimFormatada}, a operação itinerante de saúde escolar realizou ${totalGeral} atendimentos para ${dados.pacientesUnicos ?? totalGeral} estudantes em ${dados.porEscola.length} escola(s). A especialidade mais requisitada foi ${topEspNome} (${topEsp?.total ?? 0} consultas, representando ${topEspPct}% do volume geral).`;
 
     const pontos = [
       `Cobertura de Alunos: ${dados.pacientesUnicos ?? totalGeral} estudantes distintos atendidos com média de ${dados.mediaDiaria ?? 0} consultas/dia útil.`,
-      `Taxa de Resolutividade: ${taxaRes}% dos casos solucionados no local sem sobrecarga da rede secundária.`,
       `Foco de Demanda: ${topEspNome} liderou com ${topEspPct}% das intervenções, seguido pela unidade "${topEscola}".`,
+      `Cobertura Escolar: Atendimento clínico distribuído em ${dados.porEscola.length} unidade(s) de ensino municipal.`,
     ];
 
-    const recomendacao =
-      (dados.taxaEncaminhamento ?? 0) > 20
-        ? `Recomenda-se reforço de insumos específicos de ${topEspNome} nas próximas visitas para reduzir encaminhamentos externos.`
-        : `A equipe itinerante apresentou excelente índice de resolutividade in loco (${taxaRes}%); manter cronograma das unidades polos.`;
+    const recomendacao = `Manter o planejamento do cronograma itinerante e o dimensionamento da equipe clínica conforme os polos escolares de maior demanda.`;
 
     return {
+      origem: 'ALGORITMO_LOCAL' as const,
       titulo: 'Síntese Executiva e Parecer Clínico Operacional',
       resumo: texto,
       pontos,
       recomendacao,
     };
   }, [totalGeral, dataInicio, dataFim, dados]);
+
+  const sinteseExecutiva = sinteseExecutivaIa ?? sintesePadrao;
+
+  const gerarSinteseComIa = async () => {
+    if (totalGeral === 0 || gerandoSinteseIa) return;
+    setGerandoSinteseIa(true);
+    try {
+      const payload = {
+        totalGeral,
+        estudantesUnicos: dados.pacientesUnicos ?? totalGeral,
+        mediaDiaria: dados.mediaDiaria ?? 0,
+        pico: picoGrafico ? { data: picoGrafico.data, total: picoGrafico.total } : null,
+        dataInicio,
+        dataFim,
+        porEspecialidade: rankingEspecialidades.map((e) => ({
+          especialidade: e.especialidade,
+          total: e.atendimentos,
+          pct: e.pctTotal,
+        })),
+        porEscola: rankingEscolas.map((e) => ({
+          nome: e.nome,
+          total: e.total,
+        })),
+        porStatus: dados.porStatus ?? {},
+      };
+
+      const res = await requisicaoApi<{
+        origem: string;
+        modelo?: string;
+        titulo: string;
+        resumo: string;
+        pontos: string[];
+        recomendacao: string;
+      }>('/atendimentos/relatorio/sintese-ia', {
+        metodo: 'POST',
+        corpo: payload,
+      });
+
+      if (res && res.resumo && Array.isArray(res.pontos)) {
+        setSinteseExecutivaIa(res);
+      }
+    } catch (err) {
+      console.warn('Falha ao gerar síntese via Workers AI, mantendo parecer estruturado:', err);
+    } finally {
+      setGerandoSinteseIa(false);
+    }
+  };
 
   const copiarParecer = () => {
     const textoCompleto = `${sinteseExecutiva.titulo}\n\n${sinteseExecutiva.resumo}\n\nDESTAQUES:\n${sinteseExecutiva.pontos.map((p) => `• ${p}`).join('\n')}\n\nDIRETRIZ:\n${sinteseExecutiva.recomendacao}`;
@@ -619,18 +743,12 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         [
           'Total de Atendimentos',
           'Alunos Únicos Atendidos',
-          'Taxa de Resolutividade In Loco',
-          'Encaminhamentos Externos',
-          'Taxa de Encaminhamento Externo',
           'Média Diária de Atendimentos',
           'Pico Operacional (Data)',
         ],
         [
           primeiraPagina.total ?? atendimentos.length,
           dados.pacientesUnicos ?? atendimentos.length,
-          `${dados.taxaResolutividade ?? 100}%`,
-          dados.totalEncaminhamentos,
-          `${dados.taxaEncaminhamento ?? 0}%`,
           dados.mediaDiaria ?? 0,
           picoGrafico ? `${picoGrafico.total} (${formatarDataBrasileira(picoGrafico.data)})` : 'N/A',
         ],
@@ -644,26 +762,23 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         [
           'Especialidade',
           'Total de Consultas',
-          'Encaminhamentos Externos',
-          'Taxa de Encaminhamento (%)',
           'Participação no Volume Geral (%)',
         ],
         ...(metricasEspecialidade.length > 0
           ? metricasEspecialidade.map((item) => [
               item.especialidade,
               item.atendimentos,
-              item.encaminhamentos,
-              `${item.taxaEnc}%`,
               `${item.pctTotal}%`,
             ])
-          : [['Todas as Especialidades', 0, 0, '0%', '0%']]),
+          : [['Todas as Especialidades', 0, '0%']]),
         [],
         ['=== 4. SITUAÇÃO OPERACIONAL DOS ATENDIMENTOS ==='],
         ['Situação / Status', 'Quantidade de Atendimentos', 'Participação no Total (%)'],
-        ...Object.entries(STATUS_ATENDIMENTO_LABELS).map(([chave, rotulo]) => {
-          const qtd = dados.porStatus?.[chave] ?? 0;
-          return [rotulo, qtd, totalGeral > 0 ? `${Math.round((qtd / totalGeral) * 100)}%` : '0%'];
-        }),
+        ...listaStatusOperacional.map(({ rotulo, qtd }) => [
+          rotulo,
+          qtd,
+          totalGeral > 0 ? `${Math.round((qtd / totalGeral) * 100)}%` : '0%',
+        ]),
         [],
         ['=== 5. PRODUTIVIDADE POR UNIDADE ESCOLAR ==='],
         ['Unidade Escolar', 'Total de Atendimentos', 'Participação no Total (%)'],
@@ -704,12 +819,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         'Especialidade',
         'Situação / Status',
         'Profissional de Saúde',
-        'Conselho e Registro',
         'Unidade Escolar',
-        'Resumo Clínico / Queixa',
-        'Procedimentos Realizados',
-        'Insumos Utilizados',
-        'Encaminhamento Externo',
       ];
 
       const linhasDadosBrutosMatriz: (string | number)[][] = [
@@ -727,22 +837,12 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             ESPECIALIDADE_LABELS[item.especialidade as Especialidade] ?? item.especialidade ?? 'Não informada',
             item.status ? STATUS_ATENDIMENTO_LABELS[item.status as StatusAtendimento] ?? item.status : 'Concluído',
             item.profissional || 'Não informado',
-            formatarConselhoERegistro(item.profissionalRegistro || undefined, item.profissionalConselho || undefined, item.especialidade as any) || 'Não informado',
             item.escolaLocal || 'Não informado',
-            item.resumo || 'Sem observações registradas',
-            item.procedimentos || 'Procedimento padrão realizado',
-            item.insumosUtilizados || 'Nenhum insumo específico registrado',
-            item.encaminhamentoExterno || 'Não encaminhado (resolvido na unidade)',
           ]);
         });
       } else {
         linhasDadosBrutosMatriz.push([
           'Nenhum atendimento registrado no banco de dados para os filtros selecionados.',
-          '-',
-          '-',
-          '-',
-          '-',
-          '-',
           '-',
           '-',
           '-',
@@ -777,16 +877,11 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         { wch: 22 }, // Especialidade
         { wch: 18 }, // Situação / Status
         { wch: 28 }, // Profissional de Saúde
-        { wch: 24 }, // Conselho e Registro
         { wch: 32 }, // Unidade Escolar
-        { wch: 45 }, // Resumo Clínico / Queixa
-        { wch: 40 }, // Procedimentos Realizados
-        { wch: 35 }, // Insumos Utilizados
-        { wch: 45 }, // Encaminhamento Externo
       ];
 
       abaDadosBrutos['!autofilter'] = {
-        ref: `A1:N${Math.max(2, linhasDadosBrutosMatriz.length)}`,
+        ref: `A1:I${Math.max(2, linhasDadosBrutosMatriz.length)}`,
       };
 
       // Página 1: Análise Completa como Dashboard
@@ -1115,9 +1210,9 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           </div>
         </div>
 
-        {/* ─── 5 Cards de KPIs Estratégicos ───── */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 p-5 bg-white">
-          {/* Card 1: Total */}
+        {/* ─── 4 Cards de KPIs Estratégicos ───── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 p-5 bg-white">
+          {/* Card 1: Total de Atendimentos */}
           <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/70 to-white p-4 text-[#0d4d7a] shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-700">Total Atendimentos</span>
@@ -1125,36 +1220,23 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             </div>
             <div className="mt-2 text-3xl font-black tracking-tight text-slate-900">{totalGeral}</div>
             <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-slate-500">
-              <User className="h-3.5 w-3.5 text-blue-600" />
-              <span>{dados.pacientesUnicos ?? totalGeral} alunos únicos</span>
+              <span>{rankingEspecialidades.length} especialidades ativas</span>
             </div>
           </div>
 
-          {/* Card 2: Resolutividade */}
+          {/* Card 2: Alunos Únicos Atendidos */}
           <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/70 to-white p-4 text-emerald-800 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">Resolutividade In Loco</span>
-              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">Alunos Únicos</span>
+              <User className="h-4 w-4 text-emerald-600" />
             </div>
-            <div className="mt-2 text-3xl font-black tracking-tight text-emerald-950">{dados.taxaResolutividade ?? 100}%</div>
+            <div className="mt-2 text-3xl font-black tracking-tight text-emerald-950">{dados.pacientesUnicos ?? totalGeral}</div>
             <div className="mt-1 text-[11px] font-semibold text-emerald-700 truncate">
-              {totalGeral - dados.totalEncaminhamentos} casos concluídos no local
+              Estudantes distintos atendidos
             </div>
           </div>
 
-          {/* Card 3: Encaminhamentos */}
-          <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50/70 to-white p-4 text-amber-900 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">Encaminhamentos</span>
-              <ArrowUpRight className="h-4 w-4 text-amber-600" />
-            </div>
-            <div className="mt-2 text-3xl font-black tracking-tight text-amber-950">{dados.totalEncaminhamentos}</div>
-            <div className="mt-1 text-[11px] font-semibold text-amber-700">
-              {dados.taxaEncaminhamento ?? 0}% do volume total
-            </div>
-          </div>
-
-          {/* Card 4: Média Diária */}
+          {/* Card 3: Média Diária */}
           <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50/70 to-white p-4 text-purple-900 shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black uppercase tracking-[0.16em] text-purple-700">Média Diária</span>
@@ -1166,8 +1248,8 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             </div>
           </div>
 
-          {/* Card 5: Especialidade Líder */}
-          <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-white p-4 text-indigo-900 shadow-2xs col-span-2 sm:col-span-1">
+          {/* Card 4: Especialidade Líder */}
+          <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-white p-4 text-indigo-900 shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">Demanda Principal</span>
               <Stethoscope className="h-4 w-4 text-indigo-600" />
@@ -1181,29 +1263,65 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           </div>
         </div>
 
-        {/* ─── Síntese Executiva Inteligente (Gerada por Algoritmo Clínico) ───── */}
+        {/* ─── Síntese Executiva Inteligente (Gerada por Algoritmo Clínico / Cloudflare Workers AI) ───── */}
         <div className="border-t border-slate-200 bg-gradient-to-br from-[#f8fafc] via-[#f1f5f9] to-[#edf2f7] p-5">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-700 text-white">
-                <Sparkles className="h-4 w-4" />
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-700 to-indigo-800 text-white shadow-xs">
+                <Sparkles className="h-4 w-4 text-amber-300" />
               </div>
               <div>
-                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-blue-900">
-                  {sinteseExecutiva.titulo}
-                </span>
-                <span className="text-[10px] text-slate-500 ml-2 font-medium">Análise gerada automaticamente com base nos dados consolidados</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-blue-950">
+                    {sinteseExecutiva.titulo}
+                  </span>
+                  {sinteseExecutiva.origem === 'CLOUDFLARE_WORKERS_AI' ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                      <Sparkles className="h-3 w-3 text-emerald-600" />
+                      Cloudflare Workers AI • Llama 3
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                      Algoritmo Clínico Estruturado
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-slate-500 font-medium">
+                  Parecer automatizado baseado exclusivamente em estatísticas consolidadas da operação itinerante.
+                </div>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={copiarParecer}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
-            >
-              {copiadoFeedback ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-slate-500" />}
-              {copiadoFeedback ? 'Parecer Copiado!' : 'Copiar Parecer Executivo'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void gerarSinteseComIa()}
+                disabled={gerandoSinteseIa || totalGeral === 0}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:from-blue-800 hover:to-indigo-900 transition cursor-pointer disabled:opacity-50"
+                title="Gera síntese executiva profunda via Cloudflare Workers AI sem envio de dados pessoais de estudantes"
+              >
+                {gerandoSinteseIa ? (
+                  <>
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin text-white" />
+                    <span>Processando IA...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                    <span>{sinteseExecutivaIa ? 'Regenerar com Workers AI' : 'Gerar Parecer com Workers AI'}</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={copiarParecer}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
+              >
+                {copiadoFeedback ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-slate-500" />}
+                {copiadoFeedback ? 'Parecer Copiado!' : 'Copiar Parecer Executivo'}
+              </button>
+            </div>
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs space-y-3 text-xs leading-relaxed text-slate-700">
@@ -1223,6 +1341,10 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             <div className="flex items-start gap-2 pt-1 border-t border-slate-100 text-slate-600">
               <span className="text-[11px] font-black uppercase text-blue-700 shrink-0">Diretriz da Gestão:</span>
               <span className="text-[11px] font-medium text-slate-700">{sinteseExecutiva.recomendacao}</span>
+            </div>
+
+            <div className="pt-1 text-[10px] text-slate-400 font-medium italic">
+              * Conformidade e Privacidade: A síntese executiva utiliza estritamente dados quantitativos agregados. Nenhuma informação individual ou PII de estudante é processada por modelos de inteligência artificial.
             </div>
           </div>
         </div>
@@ -1406,7 +1528,11 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Distribuição por Especialidade</div>
-            <span className="text-[10px] font-bold text-slate-400">{rankingEspecialidades.length} especialidades ativas</span>
+            <span className="text-[10px] font-bold text-slate-400">
+              {especialidadeFiltro
+                ? '1 especialidade filtrada'
+                : `${rankingEspecialidades.length} especialidades`}
+            </span>
           </div>
 
           <div className="space-y-3.5">
@@ -1432,14 +1558,10 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                     <div
                       className="h-full rounded-full transition-all duration-500"
                       style={{
-                        width: `${(item.atendimentos / maxBarraEsp) * 100}%`,
+                        width: `${maxBarraEsp > 0 ? (item.atendimentos / maxBarraEsp) * 100 : 0}%`,
                         backgroundColor: paleta.corBarra,
                       }}
                     />
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400 px-0.5">
-                    <span>Encaminhamentos: {item.encaminhamentos}</span>
-                    <span>Taxa externa: {item.taxaEnc}%</span>
                   </div>
                 </div>
               );
@@ -1454,31 +1576,32 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             <Activity className="h-3.5 w-3.5 text-slate-400" />
           </div>
           <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-            {Object.entries(STATUS_ATENDIMENTO_LABELS).map(([chave, rotulo]) => {
-              const qtd = dados.porStatus?.[chave] ?? 0;
-              if (qtd === 0 && chave !== 'CONCLUIDO') return null;
-              return (
-                <div key={chave} className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1 border border-slate-100">
-                  <span className="text-slate-500 truncate">{rotulo}</span>
-                  <span className="font-black text-slate-800">{qtd}</span>
-                </div>
-              );
-            })}
+            {listaStatusOperacional.map(({ chave, rotulo, qtd }) => (
+              <div key={chave} className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1 border border-slate-100">
+                <span className="text-slate-500 truncate">{rotulo}</span>
+                <span className="font-black text-slate-800">{qtd}</span>
+              </div>
+            ))}
           </div>
         </div>
 
         {/* 3. Produtividade por Unidade Escolar */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
           <div className="mb-3 flex items-center justify-between">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Por Unidade Escolar</div>
-            <Building2 className="h-3.5 w-3.5 text-slate-400" />
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 flex items-center gap-1.5">
+              <span>Por Unidade Escolar</span>
+              <Building2 className="h-3.5 w-3.5 text-slate-400" />
+            </div>
+            <span className="text-[10px] font-bold text-slate-400">
+              {escolaFiltro ? '1 filtrada' : `${rankingEscolas.length} unidades`}
+            </span>
           </div>
 
           <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
             {rankingEscolas.length === 0 ? (
-              <div className="py-6 text-center text-xs text-slate-400">Nenhuma escola com atendimentos.</div>
+              <div className="py-6 text-center text-xs text-slate-400">Nenhuma escola cadastrada.</div>
             ) : (
-              rankingEscolas.slice(0, 6).map((item) => (
+              rankingEscolas.map((item) => (
                 <div key={item.id}>
                   <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-700">
                     <span className="truncate font-medium text-slate-700 max-w-[170px]" title={item.nome}>
@@ -1489,7 +1612,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
                     <div
                       className="h-full rounded-full bg-[#0d4d7a] transition-all duration-500"
-                      style={{ width: `${(item.total / maxEscola) * 100}%` }}
+                      style={{ width: `${maxEscola > 0 ? (item.total / maxEscola) * 100 : 0}%` }}
                     />
                   </div>
                 </div>
@@ -1502,14 +1625,16 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Por Profissional</div>
-            <User className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-[10px] font-bold text-slate-400">
+              {profissionalFiltro ? '1 filtrado' : `${rankingProfissionais.length} profissionais`}
+            </span>
           </div>
 
           <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
             {rankingProfissionais.length === 0 ? (
               <div className="py-6 text-center text-xs text-slate-400">Nenhum profissional com atendimentos.</div>
             ) : (
-              rankingProfissionais.slice(0, 6).map((item) => (
+              rankingProfissionais.map((item) => (
                 <div key={item.id}>
                   <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-700">
                     <span className="truncate font-medium text-slate-700 max-w-[170px]" title={item.nome}>
@@ -1520,7 +1645,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
                     <div
                       className="h-full rounded-full bg-indigo-600 transition-all duration-500"
-                      style={{ width: `${(item.total / maxProfissional) * 100}%` }}
+                      style={{ width: `${maxProfissional > 0 ? (item.total / maxProfissional) * 100 : 0}%` }}
                     />
                   </div>
                 </div>
@@ -1719,20 +1844,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   {atendimentoSelecionado.insumos}
                 </div>
               </div>
-
-              {/* Bloco 6: Encaminhamento Externo */}
-              <div>
-                <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider block mb-1">
-                  Encaminhamento Externo
-                </span>
-                <div className={`rounded-xl border p-3 leading-relaxed ${
-                  atendimentoSelecionado.encaminhamento.includes('Sem encaminhamento')
-                    ? 'border-emerald-200 bg-emerald-50/60 text-emerald-900'
-                    : 'border-amber-200 bg-amber-50/80 text-amber-900 font-semibold'
-                }`}>
-                  {atendimentoSelecionado.encaminhamento}
-                </div>
-              </div>
             </div>
 
             {/* Rodapé Modal */}
@@ -1798,12 +1909,12 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                     <div className="text-2xl font-black text-slate-900 mt-1">{dados.pacientesUnicos ?? totalGeral}</div>
                   </div>
                   <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                    <div className="text-[10px] font-bold text-slate-500 uppercase">Resolutividade In Loco</div>
-                    <div className="text-2xl font-black text-emerald-700 mt-1">{dados.taxaResolutividade ?? 100}%</div>
+                    <div className="text-[10px] font-bold text-slate-500 uppercase">Média Diária</div>
+                    <div className="text-2xl font-black text-purple-700 mt-1">{dados.mediaDiaria ?? 0}</div>
                   </div>
                   <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                    <div className="text-[10px] font-bold text-slate-500 uppercase">Encaminhamentos</div>
-                    <div className="text-2xl font-black text-amber-700 mt-1">{dados.totalEncaminhamentos}</div>
+                    <div className="text-[10px] font-bold text-slate-500 uppercase">Escolas Atendidas</div>
+                    <div className="text-2xl font-black text-blue-700 mt-1">{dados.porEscola.length}</div>
                   </div>
                 </div>
               </div>
@@ -1829,7 +1940,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                     <tr>
                       <th className="p-2 border-b border-slate-200">Especialidade</th>
                       <th className="p-2 border-b border-slate-200 text-right">Consultas</th>
-                      <th className="p-2 border-b border-slate-200 text-right">Encaminhamentos</th>
                       <th className="p-2 border-b border-slate-200 text-right">% Volume</th>
                     </tr>
                   </thead>
@@ -1838,7 +1948,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                       <tr key={item.especialidadeChave} className="border-b border-slate-100">
                         <td className="p-2 font-semibold">{item.especialidade}</td>
                         <td className="p-2 text-right font-bold">{item.atendimentos}</td>
-                        <td className="p-2 text-right">{item.encaminhamentos} ({item.taxaEnc}%)</td>
                         <td className="p-2 text-right font-semibold">{item.pctTotal}%</td>
                       </tr>
                     ))}
