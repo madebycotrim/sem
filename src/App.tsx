@@ -157,13 +157,7 @@ export function App() {
   }, []);
   const [secaoAtiva, setSecaoAtiva] = useState<SecaoMenu>(obterSecaoInicial);
   const [pacienteHistoricoDrawer, setPacienteHistoricoDrawer] = useState<ItemPaciente | null>(null);
-  const [escolaAtivaId, setEscolaAtivaId] = useState<string>(() => {
-    try {
-      return localStorage.getItem('catraki_escola_ativa_id') || '';
-    } catch {
-      return '';
-    }
-  });
+  const [escolaAtivaId, setEscolaAtivaId] = useState<string>('');
 
   // Sincronização Automática em Segundo Plano com a API Catraki
   const [statusSincronizacaoCatraki, setStatusSincronizacaoCatraki] = useState<{
@@ -195,36 +189,21 @@ export function App() {
   const [escolasGlobais, setEscolasGlobais] = useState<EscolaPolo[]>([]);
   const [profissionais, setProfissionais] = useState<ItemProfissionalTriagem[]>([]);
 
-  // Fila do Dia Compartilhada e Centralizada
-  const [fila, setFila] = useState<ItemFila[]>(() => {
-    try {
-      const salvo = localStorage.getItem('catraki_fila_do_dia');
-      if (salvo) return JSON.parse(salvo);
-    } catch {}
-    return [];
-  });
+  // Fila do Dia Compartilhada e Centralizada (estado puro em memória sincronizado com a API)
+  const [fila, setFila] = useState<ItemFila[]>([]);
 
   const handleAtualizarFila = (novaFila: ItemFila[]) => {
     setFila(novaFila);
-    try {
-      localStorage.setItem('catraki_fila_do_dia', JSON.stringify(novaFila));
-    } catch {}
   };
 
   useEffect(() => {
     const escolaEstacionada = escolasGlobais.find((e) => e.status === 'ESTACIONADA_HOJE');
     if (escolaEstacionada) {
       setEscolaAtivaId(escolaEstacionada.id);
-      try {
-        localStorage.setItem('catraki_escola_ativa_id', escolaEstacionada.id);
-      } catch {}
     } else if (escolaAtivaId) {
       const existeAinda = escolasGlobais.some((e) => e.id === escolaAtivaId);
       if (escolasGlobais.length > 0 && !existeAinda) {
         setEscolaAtivaId('');
-        try {
-          localStorage.removeItem('catraki_escola_ativa_id');
-        } catch {}
       }
     }
   }, [escolasGlobais]);
@@ -270,6 +249,9 @@ export function App() {
     return () => window.removeEventListener('hashchange', escutarHashChange);
   }, []);
 
+  const [gatilhoRecarregar, setGatilhoRecarregar] = useState(0);
+  const recarregarDados = () => setGatilhoRecarregar((v) => v + 1);
+
   useEffect(() => {
     if (!autenticado) return;
     let ativo = true;
@@ -286,7 +268,7 @@ export function App() {
     };
     carregarEscolas();
     return () => { ativo = false; };
-  }, [autenticado]);
+  }, [autenticado, gatilhoRecarregar]);
 
   useEffect(() => {
     if (!autenticado) return;
@@ -301,7 +283,7 @@ export function App() {
     };
     carregarProfissionais();
     return () => { ativo = false; };
-  }, [autenticado]);
+  }, [autenticado, gatilhoRecarregar]);
 
   const mostrarToast = (texto: string, tipo: 'sucesso' | 'info' | 'erro') => {
     setToastNotificacao({ texto, tipo });
@@ -336,16 +318,10 @@ export function App() {
       ativo = false;
       window.clearInterval(intervalo);
     };
-  }, [autenticado]);
+  }, [autenticado, gatilhoRecarregar]);
 
-  // Lista de Atendimentos
-  const [atendimentos, setAtendimentos] = useState<ItemAtendimentoLista[]>(() => {
-    try {
-      const salvo = localStorage.getItem('catraki_atendimentos_local');
-      if (salvo) return JSON.parse(salvo);
-    } catch {}
-    return [];
-  });
+  // Lista de Atendimentos (estado puro em memória diretamente alimentado pela API)
+  const [atendimentos, setAtendimentos] = useState<ItemAtendimentoLista[]>([]);
   const [carregandoAtendimentos, setCarregandoAtendimentos] = useState(true);
 
   useEffect(() => {
@@ -381,16 +357,7 @@ export function App() {
             profissionalId: d.usuarioId ? String(d.usuarioId) : undefined,
             status: d.status as ItemAtendimentoLista['status'],
           }));
-          setAtendimentos((anteriores) => {
-            const mapa = new Map<string, ItemAtendimentoLista>();
-            anteriores.forEach((item) => mapa.set(item.id, item));
-            listaMapeada.forEach((item) => mapa.set(item.id, item));
-            const combinada = Array.from(mapa.values());
-            try {
-              localStorage.setItem('catraki_atendimentos_local', JSON.stringify(combinada));
-            } catch {}
-            return combinada;
-          });
+          setAtendimentos(listaMapeada);
         }
       } catch (erro) {
         if (ativo) {
@@ -406,7 +373,7 @@ export function App() {
       ativo = false;
       window.clearInterval(intervalo);
     };
-  }, [autenticado]);
+  }, [autenticado, gatilhoRecarregar]);
 
   useEffect(() => {
     if (!autenticado || carregandoAtendimentos) return;
@@ -459,16 +426,7 @@ export function App() {
       };
     });
 
-    setFila((filaAtual) => {
-      const mapaFila = new Map<string, ItemFila>();
-      filaAtual.forEach((item) => mapaFila.set(item.id, item));
-      filaPersistida.forEach((item) => mapaFila.set(item.id, item));
-      const combinada = Array.from(mapaFila.values());
-      try {
-        localStorage.setItem('catraki_fila_do_dia', JSON.stringify(combinada));
-      } catch {}
-      return combinada;
-    });
+    setFila(filaPersistida);
   }, [autenticado, carregandoAtendimentos, atendimentos, pacientes, escolasGlobais, profissionais]);
 
   const handleSalvarAtendimento = (novoAtendimento: ItemAtendimentoLista) => {
@@ -476,22 +434,17 @@ export function App() {
       const index = lista.findIndex(
         (a) => a.id === novoAtendimento.id || (novoAtendimento.pacienteId && a.pacienteId === novoAtendimento.pacienteId && a.especialidade === novoAtendimento.especialidade)
       );
-      let nova: ItemAtendimentoLista[];
       if (index >= 0) {
-        nova = [...lista];
+        const nova = [...lista];
         nova[index] = { ...nova[index], ...novoAtendimento };
-      } else {
-        nova = [novoAtendimento, ...lista];
+        return nova;
       }
-      try {
-        localStorage.setItem('catraki_atendimentos_local', JSON.stringify(nova));
-      } catch {}
-      return nova;
+      return [novoAtendimento, ...lista];
     });
 
     // Sincroniza também a fila local em tempo real
-    setFila((prev) => {
-      const novaFila = prev.map((item) => {
+    setFila((prev) =>
+      prev.map((item) => {
         const mesmoAtendimento = item.atendimentoId === novoAtendimento.id || item.id === novoAtendimento.id;
         const mesmoPaciente = Boolean(
           novoAtendimento.pacienteId &&
@@ -507,12 +460,8 @@ export function App() {
           };
         }
         return item;
-      });
-      try {
-        localStorage.setItem('catraki_fila_do_dia', JSON.stringify(novaFila));
-      } catch {}
-      return novaFila;
-    });
+      })
+    );
 
     mostrarToast('Atendimento e prontuário salvos no banco com sucesso!', 'sucesso');
   };
@@ -714,9 +663,6 @@ export function App() {
           nova = lista;
         }
       }
-      try {
-        localStorage.setItem('catraki_atendimentos_local', JSON.stringify(nova));
-      } catch {}
       return nova;
     });
 
@@ -731,17 +677,13 @@ export function App() {
     };
     const statusFilaConvertido = statusFilaMap[status];
     if (statusFilaConvertido) {
-      setFila((prev) => {
-        const novaFila = prev.map((item) =>
+      setFila((prev) =>
+        prev.map((item) =>
           item.id === id || item.atendimentoId === id
             ? { ...item, status: statusFilaConvertido }
             : item
-        );
-        try {
-          localStorage.setItem('catraki_fila_do_dia', JSON.stringify(novaFila));
-        } catch {}
-        return novaFila;
-      });
+        )
+      );
     }
 
     try {
@@ -813,19 +755,6 @@ export function App() {
       const existente = mapa.get(chave);
       const statusFinal = statusMap[f.status] || StatusAtendimento.AGENDADO;
 
-      let criadoEm = existente?.criadoEm;
-      if (!criadoEm && f.dataChegada) {
-        const partes = f.dataChegada.split('/');
-        if (partes.length === 3) {
-          const [d, m, y] = partes;
-          const hora = f.horarioChegada || '00:00';
-          criadoEm = `${y}-${m}-${d}T${hora}:00`;
-        }
-      }
-      if (!criadoEm) {
-        criadoEm = new Date().toISOString();
-      }
-
       if (existente) {
         mapa.set(chave, {
           ...existente,
@@ -836,22 +765,6 @@ export function App() {
           profissionalRegistro: f.profissionalRegistro || existente.profissionalRegistro,
           pacienteCpf: f.cpf || existente.pacienteCpf,
           escolaNome: f.escolaNome || existente.escolaNome,
-        });
-      } else {
-        mapa.set(chave, {
-          id: chave,
-          pacienteId: f.pacienteId || chave,
-          pacienteNome: f.pacienteNome,
-          pacienteCpf: f.cpf,
-          especialidade: f.especialidade,
-          turno: f.turno || Turno.MANHA,
-          escolaNome: f.escolaNome || 'Não informada',
-          profissionalNome: f.profissional || 'Profissional de Saúde',
-          profissionalConselho: f.profissionalConselho,
-          profissionalRegistro: f.profissionalRegistro,
-          resumo: f.anotacoes || '',
-          criadoEm,
-          status: statusFinal,
         });
       }
     });
@@ -1101,7 +1014,6 @@ export function App() {
                 atendimentos={atendimentos}
                 pacientes={pacientes}
                 escolas={escolasGlobais}
-                fila={fila}
               />
             );
           }
@@ -1117,17 +1029,11 @@ export function App() {
                   setEscolaAtivaId(id);
                   if (id) {
                     try {
-                      localStorage.setItem('catraki_escola_ativa_id', id);
-                    } catch {}
-                    try {
                       await requisicaoApi(`/escolas/${id}/ativar`, { metodo: 'POST' });
                     } catch (erro) {
                       console.error('Erro ao salvar instituição ativa no servidor:', erro);
                     }
                   } else {
-                    try {
-                      localStorage.removeItem('catraki_escola_ativa_id');
-                    } catch {}
                     try {
                       await requisicaoApi('/escolas/desativar/todas', { metodo: 'POST' });
                     } catch (erro) {
@@ -1235,6 +1141,7 @@ export function App() {
         aoFechar={() => setConsoleBootstrapAberto(false)}
         aoConcluir={() => {
           setConsoleBootstrapAberto(false);
+          recarregarDados();
           setToastNotificacao({ texto: 'Exclusão definitiva concluída.', tipo: 'sucesso' });
         }}
       />

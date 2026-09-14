@@ -16,7 +16,8 @@ export function setDb(instancia: AppDatabase | null): void {
  * Retorna o cliente Drizzle ORM tipado e configurado para o Cloudflare D1.
  */
 export function getDb(dbBinding: any): AppDatabase {
-  if (dbMockado) {
+  // Proteção estrita: mock só pode existir durante testes unitários locais
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test' && dbMockado) {
     return dbMockado;
   }
 

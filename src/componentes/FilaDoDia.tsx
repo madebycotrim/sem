@@ -132,15 +132,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   const [confirmandoReativacaoId, setConfirmandoReativacaoId] = useState<string | null>(null);
   const [erroOperacao, setErroOperacao] = useState<string | null>(null);
 
-  const [filaLocal, setFilaLocal] = useState<ItemFila[]>(() => {
-    try {
-      const salvo = localStorage.getItem('catraki_fila_do_dia');
-      if (salvo) {
-        return JSON.parse(salvo);
-      }
-    } catch {}
-    return [];
-  });
+  const [filaLocal, setFilaLocal] = useState<ItemFila[]>([]);
 
   const fila = filaProp ?? filaLocal;
 
@@ -271,9 +263,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
 
     setFilaLocal((prev) => {
       const novaLista = [novoItemFila, ...prev.filter((i) => i.id !== novoItemFila.id)];
-      try {
-        localStorage.setItem('catraki_fila_do_dia', JSON.stringify(novaLista));
-      } catch {}
       aoAtualizarFila?.(novaLista);
       return novaLista;
     });
@@ -295,9 +284,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         const novaLista = base.map((filaItem) =>
           filaItem.id === id ? { ...filaItem, status } : filaItem
         );
-        try {
-          localStorage.setItem('catraki_fila_do_dia', JSON.stringify(novaLista));
-        } catch {}
         aoAtualizarFila?.(novaLista);
         return novaLista;
       });
@@ -457,9 +443,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
             }
           : f
       );
-      try {
-        localStorage.setItem('catraki_fila_do_dia', JSON.stringify(novaLista));
-      } catch {}
       aoAtualizarFila?.(novaLista);
       return novaLista;
     });

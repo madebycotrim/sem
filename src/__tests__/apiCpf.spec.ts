@@ -7,32 +7,6 @@ import {
   normalizarCpf,
 } from '../servicos/apiCpf.ts';
 
-// Mock do localStorage para testes
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => {
-      store[key] = value.toString();
-    },
-    removeItem: (key: string) => {
-      delete store[key];
-    },
-    clear: () => {
-      store = {};
-    },
-    get length() {
-      return Object.keys(store).length;
-    },
-    key: (index: number) => Object.keys(store)[index] || null,
-  };
-})();
-
-Object.defineProperty(global, 'localStorage', {
-  value: localStorageMock,
-  writable: true,
-});
-
 // CPFs de teste matematicamente válidos (algoritmo Módulo 11 da Receita Federal)
 const CPF_VALIDO_1 = '52998224725'; // D1=2, D2=5
 const CPF_VALIDO_2 = '11144477735'; // D1=3, D2=5
@@ -41,7 +15,6 @@ const CPF_VALIDO_3 = '00000000191'; // D1=9, D2=1
 describe('Serviço de Consulta Inteligente de CPF (apicpf.com)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    localStorageMock.clear();
     limparCacheCpf();
   });
 

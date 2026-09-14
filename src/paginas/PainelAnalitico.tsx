@@ -67,8 +67,6 @@ interface PacienteAnalitico {
   termoConsentimentoStatus: string;
 }
 
-import type { ItemFila } from '../componentes/FilaDoDia.tsx';
-import { Turno } from '../../compartilhado/index.ts';
 
 interface EscolaAnalitica {
   id: string;
@@ -79,12 +77,11 @@ interface PainelAnaliticoProps {
   atendimentos: AtendimentoAnalitico[];
   pacientes: PacienteAnalitico[];
   escolas: EscolaAnalitica[];
-  fila?: ItemFila[];
 }
 
 const CORES_ESPECIALIDADES = ['bg-blue-600', 'bg-indigo-600', 'bg-sky-500', 'bg-emerald-500', 'bg-amber-500'];
 
-export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacientes, escolas, fila = [] }) => {
+export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacientes, escolas }) => {
   const [dataInicio, setDataInicio] = useState(() => `${new Date().getFullYear()}-01-01`);
   const [dataFim, setDataFim] = useState(() => new Date().toISOString().slice(0, 10));
   const [statusFiltro, setStatusFiltro] = useState('');
@@ -93,26 +90,8 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
   const [escola, setEscola] = useState('');
   const [profissionaisSaude, setProfissionaisSaude] = useState<Array<{ id: string; nome: string; especialidade?: string | null }>>([]);
 
-  // Unifica atendimentos persistidos com os itens da fila do dia em tempo real
-  const todosAtendimentos = useMemo(() => {
-    const idsBanco = new Set(atendimentos.map((a) => a.id));
-    const daFila: AtendimentoAnalitico[] = fila
-      .filter((f) => !f.atendimentoId || !idsBanco.has(f.atendimentoId))
-      .map((f) => ({
-        id: f.atendimentoId || f.id,
-        pacienteId: f.pacienteId || '',
-        pacienteNome: f.pacienteNome,
-        especialidade: f.especialidade,
-        turno: f.turno || Turno.MANHA,
-        escolaNome: f.escolaNome,
-        profissionalNome: f.profissional || 'Profissional de Saúde',
-        resumo: f.anotacoes || '',
-        criadoEm: new Date().toISOString(),
-        status: (f.status as any) || StatusAtendimento.CONCLUIDO,
-      }));
-
-    return [...atendimentos, ...daFila];
-  }, [atendimentos, fila]);
+  // O painel analítico reflete estritamente os atendimentos reais persistidos no banco de dados
+  const todosAtendimentos = atendimentos;
 
   useEffect(() => {
     let ativo = true;
