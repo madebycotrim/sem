@@ -134,9 +134,9 @@ export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
         corpo: {
           nomeCompleto: dados.nomeCompleto,
           perfil: dados.perfil,
-          conselhoProfissional: dados.conselhoProfissional,
-          registroProfissional: dados.registroProfissional,
-          especialidade: dados.especialidade,
+          conselhoProfissional: dados.conselhoProfissional || null,
+          registroProfissional: dados.registroProfissional || null,
+          especialidade: dados.especialidade || null,
         },
       });
     } else {
@@ -147,9 +147,9 @@ export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
           email: dados.email,
           perfil: dados.perfil,
           senha: dados.senhaTemporaria,
-          conselhoProfissional: dados.conselhoProfissional,
-          registroProfissional: dados.registroProfissional,
-          especialidade: dados.especialidade,
+          conselhoProfissional: dados.conselhoProfissional || null,
+          registroProfissional: dados.registroProfissional || null,
+          especialidade: dados.especialidade || null,
         },
       });
     }

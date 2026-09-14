@@ -1146,10 +1146,10 @@ export function App() {
         }}
       />
 
-      {/* ─── Modal de Timeout de Sessão por Inatividade (LGPD) ───────────── */}
+      {/* ─── Modal de Timeout de Sessão por Inatividade (5 min total, aviso nos últimos 30s) ─── */}
       <TimeoutSessao
-        tempoLimiteMinutos={15}
-        tempoAvisoSegundos={120}
+        tempoLimiteMinutos={5}
+        tempoAvisoSegundos={30}
         imune={usuarioLogado?.perfil === 'BOOTSTRAP'}
         aoExpirar={deslogar}
       />

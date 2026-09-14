@@ -66,16 +66,21 @@ const criarUsuarioSchema = z.object({
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d\s]).{8,}$/,
       'A senha deve conter pelo menos 1 maiúscula, 1 minúscula, 1 número e 1 caractere especial'
     ),
-  conselhoProfissional: z.string().optional(),
-  registroProfissional: z.string().optional(),
-  especialidade: z.string().optional(),
+  conselhoProfissional: z.string().nullable().optional().or(z.literal('')),
+  registroProfissional: z.string().nullable().optional().or(z.literal('')),
+  especialidade: z.string().nullable().optional().or(z.literal('')),
 });
 
 // ─── Criar/Convidar Usuário ──────────────────────────────────────────────────
 rotasUsuarios.post(
   '/',
   autorizarPerfis(['BOOTSTRAP', 'ADMIN']),
-  zValidator('json', criarUsuarioSchema),
+  zValidator('json', criarUsuarioSchema, (result, c) => {
+    if (!result.success) {
+      const primeiraMensagem = result.error.issues[0]?.message || 'Dados inválidos para cadastro do usuário.';
+      return c.json({ erro: primeiraMensagem, detalhes: result.error.flatten().fieldErrors }, 400);
+    }
+  }),
   async (c) => {
     const dados = c.req.valid('json');
     const db = getDb(c.env.DB);
@@ -86,7 +91,7 @@ rotasUsuarios.post(
     }
 
     const usuarioExistente = await db.query.usuarios.findFirst({
-      where: eq(usuarios.email, dados.email.toLowerCase()),
+      where: eq(usuarios.email, dados.email.toLowerCase().trim()),
     });
 
     if (usuarioExistente) {
@@ -96,12 +101,12 @@ rotasUsuarios.post(
     const senhaHash = await gerarHashSenha(dados.senha);
 
     const [novoUsuario] = await db.insert(usuarios).values({
-      email: dados.email.toLowerCase(),
+      email: dados.email.toLowerCase().trim(),
       nomeCompleto: sanitizarTexto(dados.nomeCompleto.toUpperCase()),
       perfil: dados.perfil,
-      conselhoProfissional: sanitizarTextoOpcional(dados.conselhoProfissional),
-      registroProfissional: sanitizarTextoOpcional(dados.registroProfissional),
-      especialidade: sanitizarTextoOpcional(dados.especialidade),
+      conselhoProfissional: sanitizarTextoOpcional(dados.conselhoProfissional || null),
+      registroProfissional: sanitizarTextoOpcional(dados.registroProfissional || null),
+      especialidade: sanitizarTextoOpcional(dados.especialidade || null),
       senhaHash,
       senhaTemporaria: true,
       senhaTemporariaExpiraEm: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -134,11 +139,11 @@ rotasUsuarios.post(
 );
 
 const atualizarUsuarioSchema = z.object({
-  nomeCompleto: z.string().min(3).optional(),
+  nomeCompleto: z.string().min(3, 'Nome completo deve ter pelo menos 3 caracteres').optional(),
   perfil: z.enum(['ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE', 'DPO']).optional(),
-  conselhoProfissional: z.string().optional(),
-  registroProfissional: z.string().optional(),
-  especialidade: z.string().optional(),
+  conselhoProfissional: z.string().nullable().optional().or(z.literal('')),
+  registroProfissional: z.string().nullable().optional().or(z.literal('')),
+  especialidade: z.string().nullable().optional().or(z.literal('')),
   ativo: z.boolean().optional(),
 });
 
@@ -146,7 +151,12 @@ const atualizarUsuarioSchema = z.object({
 rotasUsuarios.put(
   '/:id',
   autorizarPerfis(['BOOTSTRAP', 'ADMIN']),
-  zValidator('json', atualizarUsuarioSchema),
+  zValidator('json', atualizarUsuarioSchema, (result, c) => {
+    if (!result.success) {
+      const primeiraMensagem = result.error.issues[0]?.message || 'Dados inválidos para atualização do usuário.';
+      return c.json({ erro: primeiraMensagem, detalhes: result.error.flatten().fieldErrors }, 400);
+    }
+  }),
   async (c) => {
     const id = c.req.param('id');
     const dados = c.req.valid('json');
@@ -180,11 +190,11 @@ rotasUsuarios.put(
     const [atualizado] = await db
       .update(usuarios)
       .set({
-        ...(dados.nomeCompleto && { nomeCompleto: dados.nomeCompleto.toUpperCase() }),
+        ...(dados.nomeCompleto && { nomeCompleto: sanitizarTexto(dados.nomeCompleto.toUpperCase()) }),
         ...(dados.perfil && { perfil: dados.perfil }),
-        ...(dados.conselhoProfissional !== undefined && { conselhoProfissional: dados.conselhoProfissional }),
-        ...(dados.registroProfissional !== undefined && { registroProfissional: dados.registroProfissional }),
-        ...(dados.especialidade !== undefined && { especialidade: dados.especialidade }),
+        ...(dados.conselhoProfissional !== undefined && { conselhoProfissional: sanitizarTextoOpcional(dados.conselhoProfissional || null) }),
+        ...(dados.registroProfissional !== undefined && { registroProfissional: sanitizarTextoOpcional(dados.registroProfissional || null) }),
+        ...(dados.especialidade !== undefined && { especialidade: sanitizarTextoOpcional(dados.especialidade || null) }),
         ...(dados.ativo !== undefined && { ativo: dados.ativo }),
         atualizadoEm: new Date().toISOString(),
       })
@@ -218,7 +228,12 @@ const redefinirSenhaSchema = z.object({
 rotasUsuarios.post(
   '/:id/redefinir-senha',
   autorizarPerfis(['BOOTSTRAP', 'ADMIN']),
-  zValidator('json', redefinirSenhaSchema),
+  zValidator('json', redefinirSenhaSchema, (result, c) => {
+    if (!result.success) {
+      const primeiraMensagem = result.error.issues[0]?.message || 'A nova senha deve ter pelo menos 8 caracteres com maiúscula, minúscula, número e símbolo.';
+      return c.json({ erro: primeiraMensagem, detalhes: result.error.flatten().fieldErrors }, 400);
+    }
+  }),
   async (c) => {
     const id = c.req.param('id');
     const { novaSenha } = c.req.valid('json');

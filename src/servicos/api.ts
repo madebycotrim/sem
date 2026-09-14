@@ -49,7 +49,7 @@ export async function requisicaoApi<T = unknown>(
       });
 
       if (!resposta.ok) {
-        let erroBody: { erro?: string; detalhes?: Record<string, string[]> } = {
+        let erroBody: { erro?: string; detalhes?: Record<string, string[]>; [key: string]: any } = {
           erro: `HTTP ${resposta.status}`,
         };
         try {
@@ -61,6 +61,16 @@ export async function requisicaoApi<T = unknown>(
           // Se não for JSON válido, mantém o erro padrão
         }
 
+        // Extrai mensagem amigável de múltiplos formatos (Zod, Hono, Custom)
+        let mensagemErro = erroBody.erro;
+        if (!mensagemErro && erroBody.error?.issues && Array.isArray(erroBody.error.issues)) {
+          mensagemErro = erroBody.error.issues.map((i: any) => i.message).filter(Boolean).join('; ');
+        } else if (!mensagemErro && typeof erroBody.error === 'string') {
+          mensagemErro = erroBody.error;
+        } else if (!mensagemErro && typeof erroBody.message === 'string') {
+          mensagemErro = erroBody.message;
+        }
+
         // Não fazer retry em erros de validação/autenticação (4xx)
         if (resposta.status >= 400 && resposta.status < 500) {
           const detalhes = erroBody.detalhes
@@ -68,12 +78,12 @@ export async function requisicaoApi<T = unknown>(
             : undefined;
           throw new ErroApi(
             resposta.status,
-            [erroBody.erro ?? 'Erro na requisição', detalhes].filter(Boolean).join(' '),
+            [mensagemErro ?? 'Erro na requisição', detalhes].filter(Boolean).join(' '),
             erroBody.detalhes
           );
         }
 
-        throw new ErroApi(resposta.status, erroBody.erro ?? 'Erro no servidor');
+        throw new ErroApi(resposta.status, mensagemErro ?? 'Erro no servidor');
       }
 
       if (resposta.status === 204) {

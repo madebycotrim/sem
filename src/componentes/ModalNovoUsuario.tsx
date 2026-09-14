@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import DOMPurify from 'dompurify';
-import { CircleAlert, UserPlus } from 'lucide-react';
+import { CircleAlert, UserPlus, Sparkles, Copy, Check, Eye, EyeOff } from 'lucide-react';
 import { 
   PerfilAcesso, 
   PERFIL_ACESSO_LABELS,
@@ -23,6 +23,7 @@ import {
 import type { UsuarioItem } from './Usuarios.tsx';
 import { EspecialidadeIcone } from './EspecialidadeVisual.tsx';
 import { usePermissoes } from '../contextos/ContextoPermissoes.tsx';
+import { gerarSenhaTemporariaSegura, REGEX_SENHA_SEGURA } from '../utilitarios/geradorSenha.ts';
 
 const OPCOES_PERFIL: OpcaoSelectCustom[] = [
   { valor: PerfilAcesso.ADMIN, rotulo: PERFIL_ACESSO_LABELS[PerfilAcesso.ADMIN] },
@@ -42,15 +43,15 @@ const OPCOES_ESPECIALIDADE: OpcaoSelectCustom[] = Object.entries(ESPECIALIDADE_L
 
 const formNovoUsuarioSchema = z
   .object({
-    nomeCompleto: z.string().min(2, 'Nome completo é obrigatório').max(150),
+    nomeCompleto: z.string().min(3, 'Nome completo deve ter pelo menos 3 caracteres').max(150),
     email: z.string().email('E-mail inválido').max(254),
-    senhaTemporaria: z.string().min(8, 'Mínimo de 8 caracteres').optional().or(z.literal('')),
+    senhaTemporaria: z.string().optional().or(z.literal('')),
     perfil: z.nativeEnum(PerfilAcesso, {
       errorMap: () => ({ message: 'Selecione um perfil de acesso válido' }),
     }),
-    conselhoProfissional: z.string().optional(),
-    registroProfissional: z.string().optional(),
-    especialidade: z.string().optional(),
+    conselhoProfissional: z.string().optional().nullable(),
+    registroProfissional: z.string().optional().nullable(),
+    especialidade: z.string().optional().nullable(),
   })
   .superRefine((dados, ctx) => {
     if (dados.perfil === PerfilAcesso.PROFISSIONAL_SAUDE) {
@@ -95,6 +96,8 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
 }) => {
   const [salvando, setSalvando] = useState(false);
   const [erroGeral, setErroGeral] = useState<string | null>(null);
+  const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [senhaCopiada, setSenhaCopiada] = useState(false);
 
   const {
     register,
@@ -136,6 +139,8 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
   useEffect(() => {
     if (aberto) {
       setErroGeral(null);
+      setSenhaCopiada(false);
+      setMostrarSenha(false);
 
       if (usuarioParaEditar) {
         setValue('nomeCompleto', usuarioParaEditar.nome, { shouldValidate: true });
@@ -174,12 +179,41 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
       especialidade: '',
     });
     setErroGeral(null);
+    setSenhaCopiada(false);
+    setMostrarSenha(false);
+  };
+
+  const lidarGerarSenha = () => {
+    const novaSenha = gerarSenhaTemporariaSegura(10);
+    setValue('senhaTemporaria', novaSenha, { shouldValidate: true });
+    setMostrarSenha(true);
+    setErroGeral(null);
+  };
+
+  const lidarCopiarSenha = () => {
+    const senha = watch('senhaTemporaria');
+    if (senha) {
+      navigator.clipboard.writeText(senha);
+      setSenhaCopiada(true);
+      setTimeout(() => setSenhaCopiada(false), 2000);
+    }
   };
 
   const onSubmit = async (dados: FormNovoUsuario) => {
-    if (!usuarioParaEditar && !dados.senhaTemporaria?.trim()) {
-      setErroGeral('Informe uma senha temporária para o novo usuário.');
-      return;
+    if (!usuarioParaEditar) {
+      const senha = dados.senhaTemporaria?.trim() || '';
+      if (!senha) {
+        setErroGeral('Informe ou gere uma senha temporária para o novo usuário.');
+        return;
+      }
+      if (senha.length < 8) {
+        setErroGeral('A senha temporária deve conter no mínimo 8 caracteres.');
+        return;
+      }
+      if (!REGEX_SENHA_SEGURA.test(senha)) {
+        setErroGeral('A senha temporária deve conter pelo menos 1 letra maiúscula, 1 minúscula, 1 número e 1 caractere especial (!@#$%&*).');
+        return;
+      }
     }
 
     setSalvando(true);
@@ -237,9 +271,9 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
     >
       <form id="form-usuario" onSubmit={handleSubmit(onSubmit)} className="space-y-7">
         {erroGeral && (
-          <div className="p-3 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+          <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2.5">
             <CircleAlert className="w-4 h-4 text-red-500 shrink-0" />
-            <span>{erroGeral}</span>
+            <span className="font-medium leading-relaxed">{erroGeral}</span>
           </div>
         )}
 
@@ -271,12 +305,49 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
             {!usuarioParaEditar && (
               <div className="md:col-span-1">
                  <ModalCampo rotulo="Senha Temporária" obrigatorio erro={errors.senhaTemporaria?.message} dica="Exigida no 1º acesso">
-                   <input
-                     type="text"
-                     {...register('senhaTemporaria')}
-                     placeholder="Ex: catraki123"
-                     className={ESTILO_INPUT_MODAL}
-                   />
+                   <div className="relative flex items-center">
+                     <input
+                       type={mostrarSenha ? 'text' : 'password'}
+                       {...register('senhaTemporaria')}
+                       placeholder="Ex: Sem@2026!"
+                       className={`${ESTILO_INPUT_MODAL} pr-28 font-mono text-sm tracking-wide`}
+                     />
+                     <div className="absolute right-1.5 flex items-center gap-0.5 bg-white/90 pl-1 py-1 rounded-xl">
+                       <button
+                         type="button"
+                         onClick={() => setMostrarSenha((v) => !v)}
+                         title={mostrarSenha ? 'Ocultar senha' : 'Ver senha'}
+                         className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+                       >
+                         {mostrarSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                       </button>
+                       <button
+                         type="button"
+                         onClick={lidarCopiarSenha}
+                         disabled={!watch('senhaTemporaria')}
+                         title={senhaCopiada ? 'Copiada!' : 'Copiar senha'}
+                         className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                       >
+                         {senhaCopiada ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                       </button>
+                       <button
+                         type="button"
+                         onClick={lidarGerarSenha}
+                         title="Gerar senha segura automática"
+                         className="flex items-center gap-1 px-2 py-1 bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-semibold rounded-lg transition-colors ml-0.5"
+                       >
+                         <Sparkles className="w-3.5 h-3.5" />
+                         <span>Gerar</span>
+                       </button>
+                     </div>
+                   </div>
+                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px] text-slate-500 font-medium">
+                     <span className="flex items-center gap-1">• Mín. 8 caracteres</span>
+                     <span className="flex items-center gap-1">• 1 Maiúscula</span>
+                     <span className="flex items-center gap-1">• 1 Minúscula</span>
+                     <span className="flex items-center gap-1">• 1 Número</span>
+                     <span className="flex items-center gap-1">• 1 Símbolo</span>
+                   </div>
                  </ModalCampo>
               </div>
             )}

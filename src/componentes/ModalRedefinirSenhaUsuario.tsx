@@ -5,6 +5,7 @@ import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { PERFIL_ACESSO_LABELS } from '../../compartilhado/index.ts';
 import { requisicaoApi } from '../servicos/api.ts';
 import type { UsuarioItem } from './Usuarios.tsx';
+import { gerarSenhaTemporariaSegura, REGEX_SENHA_SEGURA } from '../utilitarios/geradorSenha.ts';
 
 interface ModalRedefinirSenhaProps {
   aberto: boolean;
@@ -25,11 +26,7 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
   const [giros, setGiros] = useState(0);
 
   const gerarSenha = (animar = true) => {
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-    let pass = '';
-    for (let i = 0; i < 10; i++) {
-      pass += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    const pass = gerarSenhaTemporariaSegura(10);
     setSenhaGerada(pass);
     setCopiado(false);
     setSalvo(false);
@@ -55,7 +52,7 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
     }
   };
 
-  const senhaValida = senhaGerada.trim().length >= 8;
+  const senhaValida = senhaGerada.trim().length >= 8 && REGEX_SENHA_SEGURA.test(senhaGerada.trim());
 
   const handleSalvar = async () => {
     if (!usuario || !senhaValida) return;
