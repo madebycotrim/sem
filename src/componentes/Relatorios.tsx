@@ -135,6 +135,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   const [profissionaisDisponiveis, setProfissionaisDisponiveis] = useState<Array<{ id: string; nome: string; especialidade?: string | null }>>([]);
 
   const [relatorioGerado, setRelatorioGerado] = useState(false);
+  const [gatilhoExecucao, setGatilhoExecucao] = useState(0);
   const [copiadoFeedback, setCopiadoFeedback] = useState(false);
 
   // Modais
@@ -144,7 +145,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   const dataInicioRef = useRef<HTMLInputElement>(null);
   const dataFimRef = useRef<HTMLInputElement>(null);
 
-  const [dados, setDados] = useState<RelatorioDados>({
+  const DADOS_RELATORIO_INICIAIS: RelatorioDados = {
     total: 0,
     totalEncaminhamentos: 0,
     taxaEncaminhamento: 0,
@@ -157,12 +158,19 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     porEscola: [],
     porProfissional: [],
     serie: {},
-  });
+  };
 
+  const [dados, setDados] = useState<RelatorioDados>(DADOS_RELATORIO_INICIAIS);
   const [dadosTabela, setDadosTabela] = useState<RegistroTabela[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [exportando, setExportando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  const ocultarRelatorioPorAlteracaoFiltro = () => {
+    setRelatorioGerado(false);
+    setDados(DADOS_RELATORIO_INICIAIS);
+    setDadosTabela([]);
+  };
 
   // Carregar escolas se vier vazio por prop
   useEffect(() => {
@@ -220,7 +228,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     setDataInicio(dataInicial);
     setDataFim(dataFinal);
     setPeriodoSelecionado(dias);
-    setRelatorioGerado(false);
+    ocultarRelatorioPorAlteracaoFiltro();
   };
 
   const handleGerarRelatorio = () => {
@@ -229,12 +237,12 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       return;
     }
     setErro(null);
-    setRelatorioGerado(true);
+    setGatilhoExecucao((prev) => prev + 1);
   };
 
-  // Requisição dos dados do relatório
+  // Requisição dos dados do relatório — executada estritamente sob demanda ao clicar em Gerar Relatório
   useEffect(() => {
-    if (!relatorioGerado) return;
+    if (gatilhoExecucao === 0) return;
 
     const controlador = new AbortController();
     const carregarRelatorio = async () => {
@@ -298,23 +306,13 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             encaminhamento: item.encaminhamentoExterno || 'Sem encaminhamento externo (resolvido na unidade)',
           }))
         );
+
+        setRelatorioGerado(true);
       } catch (erroApi) {
         if (!controlador.signal.aborted) {
-          setDados({
-            total: 0,
-            totalEncaminhamentos: 0,
-            taxaEncaminhamento: 0,
-            taxaResolutividade: 100,
-            pacientesUnicos: 0,
-            mediaDiaria: 0,
-            picoAtendimento: null,
-            porStatus: {},
-            porEspecialidade: [],
-            porEscola: [],
-            porProfissional: [],
-            serie: {},
-          });
+          setDados(DADOS_RELATORIO_INICIAIS);
           setDadosTabela([]);
+          setRelatorioGerado(false);
           setErro(erroApi instanceof Error ? erroApi.message : 'Não foi possível carregar o relatório.');
         }
       } finally {
@@ -324,7 +322,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
 
     void carregarRelatorio();
     return () => controlador.abort();
-  }, [relatorioGerado, dataInicio, dataFim, escolaFiltro, especialidadeFiltro, statusFiltro, profissionalFiltro]);
+  }, [gatilhoExecucao]);
 
   // Cálculos Derivados e Inteligência Analítica
   const totalGeral = dados.total || 0;
@@ -386,9 +384,13 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
 
   const yLinhaMedia = 190 - (mediaGrafico / maxGrafico) * 140;
 
-  const picoGrafico = dados.picoAtendimento ?? useMemo(() => {
+  const picoGrafico = useMemo(() => {
+    if (dados.picoAtendimento) return dados.picoAtendimento;
     if (!dadosGrafico.length) return null;
-    const melhor = dadosGrafico.reduce((melhorItem, item) => (item.valor > melhorItem.valor ? item : melhorItem), dadosGrafico[0]);
+    const melhor = dadosGrafico.reduce(
+      (melhorItem, item) => (item.valor > melhorItem.valor ? item : melhorItem),
+      dadosGrafico[0]
+    );
     return melhor && melhor.valor > 0 ? { data: melhor.data, total: melhor.valor } : null;
   }, [dadosGrafico, dados.picoAtendimento]);
 
@@ -646,13 +648,15 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           'Taxa de Encaminhamento (%)',
           'Participação no Volume Geral (%)',
         ],
-        ...metricasEspecialidade.map((item) => [
-          item.especialidade,
-          item.atendimentos,
-          item.encaminhamentos,
-          `${item.taxaEnc}%`,
-          `${item.pctTotal}%`,
-        ]),
+        ...(metricasEspecialidade.length > 0
+          ? metricasEspecialidade.map((item) => [
+              item.especialidade,
+              item.atendimentos,
+              item.encaminhamentos,
+              `${item.taxaEnc}%`,
+              `${item.pctTotal}%`,
+            ])
+          : [['Todas as Especialidades', 0, 0, '0%', '0%']]),
         [],
         ['=== 4. SITUAÇÃO OPERACIONAL DOS ATENDIMENTOS ==='],
         ['Situação / Status', 'Quantidade de Atendimentos', 'Participação no Total (%)'],
@@ -661,23 +665,27 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           return [rotulo, qtd, totalGeral > 0 ? `${Math.round((qtd / totalGeral) * 100)}%` : '0%'];
         }),
         [],
-        ['=== 6. PRODUTIVIDADE POR UNIDADE ESCOLAR ==='],
+        ['=== 5. PRODUTIVIDADE POR UNIDADE ESCOLAR ==='],
         ['Unidade Escolar', 'Total de Atendimentos', 'Participação no Total (%)'],
-        ...rankingEscolas.map((escola) => [
-          escola.nome,
-          escola.total,
-          totalGeral > 0 ? `${Math.round((escola.total / totalGeral) * 100)}%` : '0%',
-        ]),
+        ...(rankingEscolas.length > 0
+          ? rankingEscolas.map((escola) => [
+              escola.nome,
+              escola.total,
+              totalGeral > 0 ? `${Math.round((escola.total / totalGeral) * 100)}%` : '0%',
+            ])
+          : [['Nenhuma unidade com atendimentos registrados', 0, '0%']]),
         [],
-        ['=== 7. PRODUTIVIDADE POR PROFISSIONAL DE SAÚDE ==='],
+        ['=== 6. PRODUTIVIDADE POR PROFISSIONAL DE SAÚDE ==='],
         ['Profissional', 'Total de Atendimentos', 'Participação no Total (%)'],
-        ...rankingProfissionais.map((prof) => [
-          prof.nome,
-          prof.total,
-          totalGeral > 0 ? `${Math.round((prof.total / totalGeral) * 100)}%` : '0%',
-        ]),
+        ...(rankingProfissionais.length > 0
+          ? rankingProfissionais.map((prof) => [
+              prof.nome,
+              prof.total,
+              totalGeral > 0 ? `${Math.round((prof.total / totalGeral) * 100)}%` : '0%',
+            ])
+          : [['Nenhum profissional com atendimentos registrados', 0, '0%']]),
         [],
-        ['=== 8. ALERTAS E OBSERVAÇÕES OPERACIONAIS ==='],
+        ['=== 7. ALERTAS E OBSERVAÇÕES OPERACIONAIS ==='],
         ['Categoria / Tipo', 'Título do Alerta', 'Detalhamento Técnico'],
         ...alertasOperacionais.map((alerta) => [
           alerta.tipo.toUpperCase(),
@@ -687,26 +695,68 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       ];
 
       // ─── PÁGINA 2: DADOS BRUTOS DOS ATENDIMENTOS ─────
-      const linhasAtendimentos = atendimentos.map((item) => ({
-        ID: item.id,
-        'Data e Hora': new Date(item.criadoEm).toLocaleString('pt-BR'),
-        'Aluno / Paciente': item.pacienteNome || 'Não informado',
-        'CPF (Mascarado)': item.pacienteCpf || 'Não informado',
-        Turma: item.pacienteTurma || 'Não informada',
-        Especialidade: ESPECIALIDADE_LABELS[item.especialidade as Especialidade] ?? item.especialidade,
-        Situação: item.status ? STATUS_ATENDIMENTO_LABELS[item.status as StatusAtendimento] ?? item.status : 'Concluído',
-        Profissional: item.profissional || 'Não informado',
-        'Conselho e Registro': formatarConselhoERegistro(item.profissionalRegistro || undefined, item.profissionalConselho || undefined, item.especialidade as any) || 'Não informado',
-        'Unidade Escolar': item.escolaLocal || 'Não informado',
-        'Resumo Clínico / Queixa': item.resumo || 'Sem observações',
-        'Procedimentos Realizados': item.procedimentos || 'Padrão realizado',
-        'Insumos Utilizados': item.insumosUtilizados || 'Nenhum insumo específico',
-        'Encaminhamento Externo': item.encaminhamentoExterno || 'Não encaminhado (resolvido)',
-      }));
+      const cabecalhosDadosBrutos = [
+        'ID do Atendimento',
+        'Data e Hora',
+        'Aluno / Paciente',
+        'CPF (Mascarado)',
+        'Turma',
+        'Especialidade',
+        'Situação / Status',
+        'Profissional de Saúde',
+        'Conselho e Registro',
+        'Unidade Escolar',
+        'Resumo Clínico / Queixa',
+        'Procedimentos Realizados',
+        'Insumos Utilizados',
+        'Encaminhamento Externo',
+      ];
+
+      const linhasDadosBrutosMatriz: (string | number)[][] = [
+        cabecalhosDadosBrutos,
+      ];
+
+      if (atendimentos.length > 0) {
+        atendimentos.forEach((item) => {
+          linhasDadosBrutosMatriz.push([
+            item.id,
+            item.criadoEm ? new Date(item.criadoEm).toLocaleString('pt-BR') : 'Não informado',
+            item.pacienteNome || 'Não informado',
+            item.pacienteCpf || 'Não informado',
+            item.pacienteTurma || 'Não informada',
+            ESPECIALIDADE_LABELS[item.especialidade as Especialidade] ?? item.especialidade ?? 'Não informada',
+            item.status ? STATUS_ATENDIMENTO_LABELS[item.status as StatusAtendimento] ?? item.status : 'Concluído',
+            item.profissional || 'Não informado',
+            formatarConselhoERegistro(item.profissionalRegistro || undefined, item.profissionalConselho || undefined, item.especialidade as any) || 'Não informado',
+            item.escolaLocal || 'Não informado',
+            item.resumo || 'Sem observações registradas',
+            item.procedimentos || 'Procedimento padrão realizado',
+            item.insumosUtilizados || 'Nenhum insumo específico registrado',
+            item.encaminhamentoExterno || 'Não encaminhado (resolvido na unidade)',
+          ]);
+        });
+      } else {
+        linhasDadosBrutosMatriz.push([
+          'Nenhum atendimento registrado no banco de dados para os filtros selecionados.',
+          '-',
+          '-',
+          '-',
+          '-',
+          '-',
+          '-',
+          '-',
+          '-',
+          '-',
+          '-',
+          '-',
+          '-',
+          '-',
+        ]);
+      }
 
       const planilha = utils.book_new();
       const abaDashboard = utils.aoa_to_sheet(linhasDashboard);
-      const abaDadosBrutos = utils.json_to_sheet(linhasAtendimentos);
+      const abaDadosBrutos = utils.aoa_to_sheet(linhasDadosBrutosMatriz);
 
       abaDashboard['!cols'] = [
         { wch: 38 },
@@ -719,20 +769,25 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       ];
 
       abaDadosBrutos['!cols'] = [
-        { wch: 38 }, // ID
-        { wch: 18 }, // Data e Hora
+        { wch: 38 }, // ID do Atendimento
+        { wch: 20 }, // Data e Hora
         { wch: 30 }, // Aluno / Paciente
-        { wch: 18 }, // CPF
-        { wch: 15 }, // Turma
+        { wch: 18 }, // CPF (Mascarado)
+        { wch: 16 }, // Turma
         { wch: 22 }, // Especialidade
-        { wch: 16 }, // Status
-        { wch: 28 }, // Profissional
+        { wch: 18 }, // Situação / Status
+        { wch: 28 }, // Profissional de Saúde
+        { wch: 24 }, // Conselho e Registro
         { wch: 32 }, // Unidade Escolar
-        { wch: 45 }, // Resumo Clínico
-        { wch: 40 }, // Procedimentos
-        { wch: 35 }, // Insumos
-        { wch: 45 }, // Encaminhamento
+        { wch: 45 }, // Resumo Clínico / Queixa
+        { wch: 40 }, // Procedimentos Realizados
+        { wch: 35 }, // Insumos Utilizados
+        { wch: 45 }, // Encaminhamento Externo
       ];
+
+      abaDadosBrutos['!autofilter'] = {
+        ref: `A1:N${Math.max(2, linhasDadosBrutosMatriz.length)}`,
+      };
 
       // Página 1: Análise Completa como Dashboard
       // Página 2: Dados Brutos
@@ -797,7 +852,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   onChange={(evento) => {
                     setPeriodoSelecionado(null);
                     setDataInicio(evento.target.value);
-                    setRelatorioGerado(false);
+                    ocultarRelatorioPorAlteracaoFiltro();
                   }}
                   className="pointer-events-none absolute h-px w-px opacity-0"
                   aria-label="Data inicial"
@@ -826,7 +881,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   onChange={(evento) => {
                     setPeriodoSelecionado(null);
                     setDataFim(evento.target.value);
-                    setRelatorioGerado(false);
+                    ocultarRelatorioPorAlteracaoFiltro();
                   }}
                   className="pointer-events-none absolute h-px w-px opacity-0"
                   aria-label="Data final"
@@ -840,7 +895,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   valor={statusFiltro}
                   aoMudar={(val) => {
                     setStatusFiltro(val);
-                    setRelatorioGerado(false);
+                    ocultarRelatorioPorAlteracaoFiltro();
                   }}
                   placeholder="Todos os status"
                   tamanho="sm"
@@ -856,7 +911,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   valor={escolaFiltro}
                   aoMudar={(val) => {
                     setEscolaFiltro(val);
-                    setRelatorioGerado(false);
+                    ocultarRelatorioPorAlteracaoFiltro();
                   }}
                   placeholder="Todas as instituições"
                   tamanho="sm"
@@ -877,7 +932,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   valor={especialidadeFiltro}
                   aoMudar={(val) => {
                     setEspecialidadeFiltro(val);
-                    setRelatorioGerado(false);
+                    ocultarRelatorioPorAlteracaoFiltro();
                   }}
                   placeholder="Todas as especialidades"
                   tamanho="sm"
@@ -893,7 +948,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   valor={profissionalFiltro}
                   aoMudar={(val) => {
                     setProfissionalFiltro(val);
-                    setRelatorioGerado(false);
+                    ocultarRelatorioPorAlteracaoFiltro();
                   }}
                   placeholder="Todos os profissionais"
                   tamanho="sm"
@@ -949,7 +1004,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                     setDataInicio('');
                     setDataFim('');
                     setPeriodoSelecionado(null);
-                    setErro(null);
+                    ocultarRelatorioPorAlteracaoFiltro();
                     setErro(null);
                   }}
                   icone={<RotateCcw className="h-3.5 w-3.5" />}
@@ -958,17 +1013,13 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   Limpar
                 </Botao>
 
-                {carregando && (
-                  <div className="flex items-center gap-1.5 text-xs text-blue-700 font-semibold animate-pulse mr-2">
-                    <LoaderCircle className="h-3.5 w-3.5 animate-spin text-blue-600" />
-                    <span>Atualizando...</span>
-                  </div>
-                )}
                 <Botao
                   variante="primario"
                   tamanho="sm"
                   formato="pilula"
                   onClick={handleGerarRelatorio}
+                  carregando={carregando}
+                  textoCarregando="Gerando..."
                   icone={<FileBarChart2 className="h-4 w-4" />}
                 >
                   {relatorioGerado ? 'Atualizar Dados' : 'Gerar Relatório'}
@@ -993,22 +1044,37 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         </div>
       )}
 
-      {/* ─── Placeholder: relatório não gerado ───── */}
+      {/* ─── Estado de Carregamento ───── */}
+      {carregando && (
+        <div className="mt-4 flex flex-col items-center justify-center gap-4 rounded-2xl border border-slate-200 bg-white py-20 text-center shadow-xs">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 animate-spin">
+            <LoaderCircle className="h-8 w-8" />
+          </div>
+          <div>
+            <p className="text-base font-extrabold text-slate-800">Gerando Relatório Oficial...</p>
+            <p className="mt-1 text-xs text-slate-400">Consolidando dados clínicos e epidemiológicos da rede municipal</p>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Placeholder: relatório não gerado ou filtros alterados ───── */}
       {!relatorioGerado && !carregando && (
         <div className="mt-4 flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 py-20 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600/10 text-blue-600">
             <FileBarChart2 className="h-8 w-8" />
           </div>
           <div>
-            <p className="text-base font-extrabold text-slate-700">Relatório não gerado</p>
-            <p className="mt-1 text-sm text-slate-400">
-              Configure os filtros desejados e clique em <strong className="text-blue-700">Gerar Relatório</strong> para visualizar os dados.
+            <p className="text-base font-extrabold text-slate-700">Relatório oculto</p>
+            <p className="mt-1 text-sm text-slate-500 max-w-md mx-auto">
+              {gatilhoExecucao > 0
+                ? 'Os filtros foram alterados. Para visualizar os dados atualizados, clique novamente em Gerar Relatório.'
+                : 'Defina os filtros desejados acima e clique em Gerar Relatório para iniciar a consolidação dos dados.'}
             </p>
           </div>
           <button
             type="button"
             onClick={handleGerarRelatorio}
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 transition-colors cursor-pointer"
           >
             <FileBarChart2 className="h-4 w-4" />
             Gerar Relatório
@@ -1017,7 +1083,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       )}
 
       {/* ─── Painel do Relatório: só visível após clicar em Gerar ───── */}
-      {relatorioGerado && (
+      {relatorioGerado && !carregando && (
         <>
       <div className="mt-4 rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
         <div className="flex flex-wrap items-center justify-between border-b border-slate-200 bg-gradient-to-r from-[#f8fafc] to-[#edf4fa] px-5 py-3.5 gap-3">

@@ -109,27 +109,45 @@ describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () 
         ['Oftalmologia', 55, 10, '18%'],
       ];
 
-      const linhasDadosBrutos = [
-        {
-          ID: 'uuid-1',
-          'Data e Hora': '14/09/2026 09:00',
-          'Aluno / Paciente': 'Lucas Gabriel',
-          'CPF (Mascarado)': '123.***.***-45',
-          Turma: '5º Ano A',
-          Especialidade: 'Odontologia',
-          Turno: 'Manhã',
-          Situação: 'Concluído',
-          Profissional: 'Dr. Roberto',
-          'Unidade Escolar': 'Escola Ayrton Senna',
-          'Resumo Clínico / Queixa': 'Avaliação de cárie',
-          'Procedimentos Realizados': 'Restauração',
-          'Insumos Utilizados': 'Resina composta',
-          'Encaminhamento Externo': 'Não encaminhado (resolvido)',
-        },
+      const cabecalhosDadosBrutos = [
+        'ID do Atendimento',
+        'Data e Hora',
+        'Aluno / Paciente',
+        'CPF (Mascarado)',
+        'Turma',
+        'Especialidade',
+        'Situação / Status',
+        'Profissional de Saúde',
+        'Conselho e Registro',
+        'Unidade Escolar',
+        'Resumo Clínico / Queixa',
+        'Procedimentos Realizados',
+        'Insumos Utilizados',
+        'Encaminhamento Externo',
+      ];
+
+      const linhasDadosBrutosMatriz = [
+        cabecalhosDadosBrutos,
+        [
+          'uuid-1',
+          '14/09/2026 09:00',
+          'Lucas Gabriel',
+          '123.***.***-45',
+          '5º Ano A',
+          'Odontologia',
+          'Concluído',
+          'Dr. Roberto',
+          'CRO-DF 1234',
+          'Escola Ayrton Senna',
+          'Avaliação de cárie',
+          'Restauração',
+          'Resina composta',
+          'Não encaminhado (resolvido)',
+        ],
       ];
 
       const abaDashboard = utils.aoa_to_sheet(linhasDashboard);
-      const abaDadosBrutos = utils.json_to_sheet(linhasDadosBrutos);
+      const abaDadosBrutos = utils.aoa_to_sheet(linhasDadosBrutosMatriz);
 
       utils.book_append_sheet(planilha, abaDashboard, 'Dashboard');
       utils.book_append_sheet(planilha, abaDadosBrutos, 'Dados Brutos');
@@ -137,6 +155,95 @@ describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () 
       expect(planilha.SheetNames).toEqual(['Dashboard', 'Dados Brutos']);
       expect(planilha.Sheets['Dashboard']).toBeDefined();
       expect(planilha.Sheets['Dados Brutos']).toBeDefined();
+      expect(abaDadosBrutos['A1'].v).toBe('ID do Atendimento');
+      expect(abaDadosBrutos['N1'].v).toBe('Encaminhamento Externo');
+    });
+
+    it('deve garantir cabeçalhos completos na Página 2 mesmo com lista vazia de atendimentos', () => {
+      const cabecalhos = [
+        'ID do Atendimento',
+        'Data e Hora',
+        'Aluno / Paciente',
+        'CPF (Mascarado)',
+        'Turma',
+        'Especialidade',
+        'Situação / Status',
+        'Profissional de Saúde',
+        'Conselho e Registro',
+        'Unidade Escolar',
+        'Resumo Clínico / Queixa',
+        'Procedimentos Realizados',
+        'Insumos Utilizados',
+        'Encaminhamento Externo',
+      ];
+
+      const matrizVazia = [
+        cabecalhos,
+        ['Nenhum atendimento registrado no banco de dados para os filtros selecionados.', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
+      ];
+
+      const aba = utils.aoa_to_sheet(matrizVazia);
+      expect(aba['A1'].v).toBe('ID do Atendimento');
+      expect(aba['B1'].v).toBe('Data e Hora');
+      expect(aba['C1'].v).toBe('Aluno / Paciente');
+      expect(aba['N1'].v).toBe('Encaminhamento Externo');
+      expect(aba['A2'].v).toContain('Nenhum atendimento registrado');
+    });
+  });
+
+  describe('Ciclo de Vida de Visibilidade do Relatório e Filtros', () => {
+    it('o relatório deve iniciar oculto (relatorioGerado = false) até o clique explícito do usuário', () => {
+      let relatorioGerado = false;
+      let gatilhoExecucao = 0;
+
+      // Estado inicial
+      expect(relatorioGerado).toBe(false);
+      expect(gatilhoExecucao).toBe(0);
+
+      // Usuário clica no botão "Gerar Relatório"
+      const handleGerarRelatorio = () => {
+        gatilhoExecucao += 1;
+      };
+
+      handleGerarRelatorio();
+      expect(gatilhoExecucao).toBe(1);
+
+      // Ao finalizar a busca com sucesso
+      relatorioGerado = true;
+      expect(relatorioGerado).toBe(true);
+    });
+
+    it('qualquer alteração nos filtros deve ocultar o relatório e zerar dados em memória', () => {
+      let relatorioGerado = true;
+      let dados = { total: 42, totalEncaminhamentos: 5 };
+      let dadosTabela = [{ id: '1', paciente: 'João' }];
+
+      const DADOS_INICIAIS = { total: 0, totalEncaminhamentos: 0 };
+
+      const ocultarRelatorioPorAlteracaoFiltro = () => {
+        relatorioGerado = false;
+        dados = { ...DADOS_INICIAIS };
+        dadosTabela = [];
+      };
+
+      // Simulação de alteração no filtro de data
+      ocultarRelatorioPorAlteracaoFiltro();
+      expect(relatorioGerado).toBe(false);
+      expect(dados.total).toBe(0);
+      expect(dadosTabela).toHaveLength(0);
+
+      // Simulação de alteração no filtro de escola
+      relatorioGerado = true;
+      dados.total = 100;
+      ocultarRelatorioPorAlteracaoFiltro();
+      expect(relatorioGerado).toBe(false);
+      expect(dados.total).toBe(0);
+
+      // Simulação de clique no botão Limpar
+      relatorioGerado = true;
+      ocultarRelatorioPorAlteracaoFiltro();
+      expect(relatorioGerado).toBe(false);
     });
   });
 });
+

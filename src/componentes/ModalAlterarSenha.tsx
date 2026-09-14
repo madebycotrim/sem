@@ -1,4 +1,4 @@
-import { useState, type FC } from 'react';
+import { useState, useRef, type FC } from 'react';
 import { Modal, BotaoModal, ModalSecao, ModalCampo, ESTILO_INPUT_MODAL } from './Modal.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
 import { LockKeyhole } from 'lucide-react';
@@ -15,6 +15,9 @@ export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Ref para o formulário isolado — permite reset nativo e impede que o browser
+  // associe estes campos com outros inputs da página fora do modal.
+  const formRef = useRef<HTMLFormElement>(null);
 
   const limparFormulario = () => {
     setSenhaAtual('');
@@ -23,6 +26,8 @@ export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar
     setSalvando(false);
     setSalvo(false);
     setErro(null);
+    // Reset nativo garante que o browser limpe qualquer valor auto-preenchido
+    formRef.current?.reset();
   };
 
   const handleFechar = () => {
@@ -74,13 +79,31 @@ export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar
         />
       }
     >
-      <div className="flex flex-col gap-6">
+      {/*
+        Formulário isolado com autocomplete="off" no nível do <form>.
+        Isso instrui o browser a NÃO associar estes campos com outras
+        credenciais salvas na página. Os campos dummy (aria-hidden) no
+        topo "capturam" o preenchimento automático antes que ele alcance
+        inputs visíveis, e são descartados pelo browser sem efeito visual.
+      */}
+      <form
+        ref={formRef}
+        autoComplete="off"
+        onSubmit={(e) => e.preventDefault()}
+        className="flex flex-col gap-6"
+      >
+        {/* Campos dummy invisíveis — impedem que o browser auto-preencha os inputs reais */}
+        <input type="text" name="username_dummy" aria-hidden="true" tabIndex={-1} style={{ display: 'none' }} readOnly />
+        <input type="password" name="password_dummy" aria-hidden="true" tabIndex={-1} style={{ display: 'none' }} readOnly />
+
         {erro && <p className="text-xs font-semibold text-red-600">{erro}</p>}
+
         <ModalSecao titulo="Autenticação Atual">
           <ModalCampo rotulo="Senha Atual" obrigatorio>
             <div className="relative">
               <input
                 type="password"
+                name="senha_atual_modal"
                 value={senhaAtual}
                 onChange={(e) => setSenhaAtual(e.target.value)}
                 placeholder="Digite sua senha atual"
@@ -97,6 +120,7 @@ export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar
               <div className="relative">
                 <input
                   type="password"
+                  name="nova_senha_modal"
                   value={novaSenha}
                   onChange={(e) => setNovaSenha(e.target.value)}
                   placeholder="Mínimo de 8 caracteres"
@@ -114,6 +138,7 @@ export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar
               <div className="relative">
                 <input
                   type="password"
+                  name="confirmar_nova_senha_modal"
                   value={confirmarSenha}
                   onChange={(e) => setConfirmarSenha(e.target.value)}
                   placeholder="Repita a nova senha"
@@ -124,7 +149,7 @@ export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar
             </ModalCampo>
           </div>
         </ModalSecao>
-      </div>
+      </form>
     </Modal>
   );
 };
