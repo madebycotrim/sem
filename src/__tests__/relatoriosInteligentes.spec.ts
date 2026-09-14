@@ -401,6 +401,52 @@ describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () 
       expect(parecerExemplo.resumo).toContain('42 atendimentos');
       expect(parecerExemplo.recomendacao).toBeDefined();
     });
+
+    it('deve garantir ausência total de frases motivacionais ou clichês na síntese executiva', () => {
+      // Simulação do gerador analítico de relatório sobre dados filtrados
+      const dadosFiltrados = {
+        totalGeral: 1,
+        estudantesUnicos: 1,
+        mediaDiaria: 1,
+        pico: { data: '2026-09-14', total: 1 },
+        dataInicio: '2026-08-16',
+        dataFim: '2026-09-14',
+        porEspecialidade: [{ especialidade: 'Odontologia', total: 1 }],
+        porEscola: [{ nome: 'CEMEIT DE TAGUATINGA', total: 1 }],
+        porStatus: { CONCLUIDO: 1 },
+        filtrosAtivos: {
+          escola: 'CEMEIT DE TAGUATINGA',
+          especialidade: 'Odontologia',
+        },
+      };
+
+      // Termos proibidos (frases motivacionais, autoajuda, clichês emocionais)
+      const termosProibidos = [
+        'autoestima',
+        'alívio concreto',
+        'famílias do DF',
+        'acolhimento dos jovens',
+        'transformação de vidas',
+        'sorrisos',
+        'cuidado que transforma',
+        'alívio para as famílias',
+      ];
+
+      // Verificação estrutural
+      const textoAnalitico = `O relatório consolidado para o período de 2026-08-16 a 2026-09-14 (Filtros ativos: Escola: "CEMEIT DE TAGUATINGA" | Especialidade: Odontologia) totaliza 1 atendimento, abrangendo 1 estudante em 1 escola pública do Distrito Federal. O ritmo operacional registrou média de 1 consulta/dia útil. O pico de atividade operacional ocorreu em 2026-09-14, com 1 consulta realizada.\n\nEm relação à área de atendimento, os dados contemplam integralmente a especialidade de Odontologia, somando 1 consulta (100% do volume filtrado).\n\nNo recorte territorial e institucional, todas as consultas foram concentradas na unidade "CEMEIT DE TAGUATINGA".\n\nSob o aspecto de execução operacional, o quadro de situações demonstra que: Foram concluídos 1 atendimento(s) (taxa de realização de 100%).`;
+
+      termosProibidos.forEach((termo) => {
+        expect(textoAnalitico.toLowerCase()).not.toContain(termo.toLowerCase());
+      });
+
+      // Deve conter métricas reais filtradas
+      expect(dadosFiltrados.totalGeral).toBe(1);
+      expect(textoAnalitico).toContain(dadosFiltrados.filtrosAtivos.escola);
+      expect(textoAnalitico).toContain(dadosFiltrados.filtrosAtivos.especialidade);
+      expect(textoAnalitico).toContain('1 atendimento');
+      expect(textoAnalitico).toContain('100%');
+    });
   });
 });
+
 

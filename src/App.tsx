@@ -972,6 +972,7 @@ export function App() {
             return (
               <Atendimentos
                 atendimentos={todosAtendimentos}
+                aoSincronizar={recarregarDados}
                 statusSincronizacaoCatraki={statusSincronizacaoCatraki}
                 aoAtualizarStatus={handleAtualizarStatusAtendimento}
                 aoSalvarAtendimento={handleSalvarAtendimento}

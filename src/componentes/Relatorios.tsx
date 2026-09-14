@@ -21,8 +21,10 @@ import {
   Zap,
   ShieldCheck,
   Users,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { utils, writeFile } from 'xlsx';
+import { ModalImportarPlanilha } from './ModalImportarPlanilha.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
 import {
   ESPECIALIDADE_LABELS,
@@ -147,6 +149,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   // Modais
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState<RegistroTabela | null>(null);
   const [mostrarModalImpressao, setMostrarModalImpressao] = useState(false);
+  const [modalImportarAberto, setModalImportarAberto] = useState(false);
 
   const dataInicioRef = useRef<HTMLInputElement>(null);
   const dataFimRef = useRef<HTMLInputElement>(null);
@@ -584,6 +587,19 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     setGerandoSinteseIa(true);
     setSinteseExecutivaIa(null);
     try {
+      const nomeEscolaFiltro = escolaFiltro
+        ? (escolasLocais.find((e) => e.id === escolaFiltro)?.nome || 'Unidade selecionada')
+        : undefined;
+      const nomeEspecialidadeFiltro = especialidadeFiltro
+        ? (ESPECIALIDADE_LABELS[especialidadeFiltro as Especialidade] ?? especialidadeFiltro)
+        : undefined;
+      const nomeProfissionalFiltro = profissionalFiltro
+        ? (profissionaisDisponiveis.find((p) => p.id === profissionalFiltro)?.nome || 'Profissional selecionado')
+        : undefined;
+      const nomeStatusFiltro = statusFiltro
+        ? (STATUS_ATENDIMENTO_LABELS[statusFiltro as StatusAtendimento] ?? statusFiltro)
+        : undefined;
+
       const payload = {
         totalGeral: totalEfetivo,
         estudantesUnicos: dadosBase.pacientesUnicos ?? totalEfetivo,
@@ -600,7 +616,18 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           nome: e.nome,
           total: e.total,
         })),
+        porProfissional: (dadosBase.porProfissional || []).map((p) => ({
+          nome: p.nome,
+          total: p.total,
+        })),
         porStatus: dadosBase.porStatus ?? {},
+        filtrosAtivos: {
+          escola: nomeEscolaFiltro,
+          especialidade: nomeEspecialidadeFiltro,
+          profissional: nomeProfissionalFiltro,
+          status: nomeStatusFiltro,
+          periodo: dataInicio && dataFim ? `${dataInicio} a ${dataFim}` : undefined,
+        },
       };
 
       const res = await requisicaoApi<RespostaSinteseIa>('/atendimentos/relatorio/sintese-ia', {
@@ -1094,6 +1121,17 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                   className="text-slate-600 hover:text-rose-700 hover:bg-rose-50 border-slate-200"
                 >
                   Limpar
+                </Botao>
+
+                <Botao
+                  variante="secundario"
+                  tamanho="sm"
+                  formato="pilula"
+                  onClick={() => setModalImportarAberto(true)}
+                  icone={<FileSpreadsheet className="h-4 w-4 text-blue-600" />}
+                  className="border-blue-200 text-blue-700 bg-blue-50/50 hover:bg-blue-100/70"
+                >
+                  Importar Planilha
                 </Botao>
 
                 <Botao
@@ -1997,6 +2035,14 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           </div>
         </div>
       )}
+
+      <ModalImportarPlanilha
+        aberto={modalImportarAberto}
+        aoFechar={() => setModalImportarAberto(false)}
+        aoConcluirImportacao={() => {
+          handleGerarRelatorio();
+        }}
+      />
     </div>
   );
 };

@@ -9,6 +9,7 @@ import { rotasUsuarios } from './usuarios.rotas.js';
 import { rotasCpf } from './cpf.rotas.js';
 import { rotasBootstrap } from './bootstrap.rotas.js';
 import { rotasManutencao } from './manutencao.rotas.js';
+import { rotasImportacao } from './importacao.rotas.js';
 
 export const rotasV1 = new Hono<{ Bindings: Bindings }>();
 
@@ -21,3 +22,4 @@ rotasV1.route('/usuarios', rotasUsuarios);
 rotasV1.route('/cpf', rotasCpf);
 rotasV1.route('/bootstrap', rotasBootstrap);
 rotasV1.route('/manutencao', rotasManutencao);
+rotasV1.route('/importacao', rotasImportacao);

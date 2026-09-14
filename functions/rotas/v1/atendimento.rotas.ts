@@ -517,105 +517,220 @@ const sinteseIaSchema = z.object({
     nome: z.string(),
     total: z.number(),
   })).optional(),
+  porProfissional: z.array(z.object({
+    nome: z.string(),
+    total: z.number(),
+  })).optional(),
   porStatus: z.record(z.string(), z.number()).optional(),
+  filtrosAtivos: z.object({
+    escola: z.string().optional(),
+    especialidade: z.string().optional(),
+    profissional: z.string().optional(),
+    status: z.string().optional(),
+    periodo: z.string().optional(),
+  }).optional(),
 });
 
 /**
  * POST /atendimentos/relatorio/sintese-ia
- * Gera Síntese Executiva e Parecer Clínico Operacional via Cloudflare Workers AI.
- * Respeita LGPD: recebe estritamente agregados estatísticos, SEM NENHUM dado identificável de aluno.
+ * Gera Relatório Analítico Executivo e Operacional via Cloudflare Workers AI ou Fallback Local.
+ * Respeita LGPD: recebe estritamente agregados estatísticos dos dados filtrados, SEM PII de alunos.
+ * Zero frases motivacionais ou clichês — foco estrito em métricas, distribuição e status operacional.
  */
 rotasAtendimento.post('/relatorio/sintese-ia', zValidator('json', sinteseIaSchema), async (c) => {
   const dados = c.req.valid('json');
   const qtdEstudantes = dados.estudantesUnicos ?? dados.pacientesUnicos ?? dados.totalGeral;
 
-  // Função auxiliar de Fallback Algorítmico Local (profissional, humano e acessível para a Gestão)
+  // Função auxiliar de Fallback Algorítmico Local (Técnico, completo, analítico e sem clichês motivacionais)
   const gerarFallbackLocal = () => {
     if (dados.totalGeral === 0) {
       return {
         origem: 'ALGORITMO_LOCAL' as const,
-        titulo: 'Resumo das Ações de Saúde nas Escolas',
-        resumo: 'Nenhum atendimento foi registrado no intervalo e filtros selecionados para o projeto Escola Cidadã – Saúde em Movimento (parceria UnB, SESI-DF e Finatec). O sistema permanece pronto para receber os novos registros da equipe itinerante.',
+        titulo: 'Relatório Analítico de Atendimentos Filtrados',
+        resumo: 'Nenhum atendimento foi localizado para os parâmetros e filtros selecionados. Não há registros de consultas, especialidades ou unidades escolares a reportar no recorte atual.',
         pontos: [
-          'Aguardando Registros: Nenhum atendimento encontrado com os filtros atuais.',
-          'Dica de Consulta: Ajuste as datas ou escolas nos filtros acima para visualizar outros períodos.',
+          'Volume Geral: 0 atendimentos e 0 estudantes computados no recorte.',
+          'Especialidades: Sem demanda registrada para os parâmetros atuais.',
+          'Unidades Escolares: Nenhuma instituição com atendimentos registrados.',
+          'Situação Operacional: Sem ocorrências de agendamento, realização ou cancelamento.',
         ],
-        recomendacao: 'Amplie o período nos filtros do cabeçalho para consultar atendimentos de outras semanas da ação itinerante.',
+        recomendacao: 'Ajuste os parâmetros de filtro (intervalo de datas, escola ou especialidade) para consultar outros períodos da operação.',
       };
     }
 
-    const topEsp = dados.porEspecialidade[0];
+    // Ordenações analíticas
+    const especialidadesOrdenadas = [...dados.porEspecialidade].sort((a, b) => b.total - a.total);
+    const escolasOrdenadas = [...(dados.porEscola || [])].sort((a, b) => b.total - a.total);
+    const profissionaisOrdenados = [...(dados.porProfissional || [])].sort((a, b) => b.total - a.total);
+
+    const topEsp = especialidadesOrdenadas[0];
     const topEspNome = topEsp?.especialidade ?? 'Clínica Geral';
     const topEspTotal = topEsp?.total ?? 0;
     const topEspPct = topEsp && dados.totalGeral > 0 ? Math.round((topEspTotal / dados.totalGeral) * 100) : 0;
-    const topEscola = dados.porEscola?.[0]?.nome ?? 'escolas públicas da rede';
-    const totalEscolasAtendidas = dados.porEscola?.length ?? 0;
 
-    // Concordância gramatical estrita para singular e plural
-    const textoAtendimentos = dados.totalGeral === 1 ? '1 atendimento' : `${dados.totalGeral} atendimentos`;
-    const textoEstudantes = qtdEstudantes === 1 ? '1 estudante' : `${qtdEstudantes} estudantes`;
+    const topEscolaItem = escolasOrdenadas[0];
+    const topEscola = topEscolaItem?.nome ?? 'unidade escolar não identificada';
+    const topEscolaTotal = topEscolaItem?.total ?? 0;
+    const topEscolaPct = topEscolaItem && dados.totalGeral > 0 ? Math.round((topEscolaTotal / dados.totalGeral) * 100) : 0;
+    const totalEscolasAtendidas = escolasOrdenadas.length;
+
+    // Status operacionais
+    const stMap = dados.porStatus ?? {};
+    const totalConcluidos = stMap['CONCLUIDO'] ?? 0;
+    const totalAgendados = stMap['AGENDADO'] ?? 0;
+    const totalConfirmados = stMap['CONFIRMADO'] ?? 0;
+    const totalEmAtendimento = stMap['EM_ATENDIMENTO'] ?? 0;
+    const totalCancelados = stMap['CANCELADO'] ?? 0;
+    const totalFaltas = stMap['FALTOU'] ?? 0;
+    const taxaConclusao = dados.totalGeral > 0 ? Math.round((totalConcluidos / dados.totalGeral) * 100) : 0;
+
+    // Concordâncias gramaticais precisas
+    const textoAtendimentos = dados.totalGeral === 1 ? '1 atendimento' : `${dados.totalGeral.toLocaleString('pt-BR')} atendimentos`;
+    const textoEstudantes = qtdEstudantes === 1 ? '1 estudante' : `${qtdEstudantes.toLocaleString('pt-BR')} estudantes distintos`;
     const textoEscolas = totalEscolasAtendidas === 1 ? '1 escola pública' : `${totalEscolasAtendidas} escolas públicas`;
-    const textoMedia = dados.mediaDiaria === 1 ? '1 consulta por dia útil' : `${dados.mediaDiaria} consultas por dia útil`;
+    const textoMedia = dados.mediaDiaria === 1 ? '1 consulta/dia útil' : `${dados.mediaDiaria} consultas/dia útil`;
     const textoPico = dados.pico
-      ? ` O dia de maior atividade foi em ${dados.pico.data}, com ${dados.pico.total === 1 ? '1 consulta realizada' : `${dados.pico.total} consultas realizadas`}.`
+      ? ` O pico de atividade operacional ocorreu em ${dados.pico.data}, com ${dados.pico.total === 1 ? '1 consulta realizada' : `${dados.pico.total} consultas realizadas`}.`
       : '';
 
-    const paragrafo1 = `No período avaliado (${dados.dataInicio || 'Início'} a ${dados.dataFim || 'Atual'}), o projeto Escola Cidadã – Saúde em Movimento, realizado em parceria pela Universidade de Brasília (UnB), SESI-DF e Finatec, realizou ${textoAtendimentos}, acolhendo diretamente ${textoEstudantes} em ${textoEscolas} do Distrito Federal. As equipes mantiveram um ritmo constante de atendimento, com média de ${textoMedia}.${textoPico}`;
+    // Filtros aplicados em texto explicativo
+    const filtrosDescricao: string[] = [];
+    if (dados.filtrosAtivos?.escola) filtrosDescricao.push(`Escola: "${dados.filtrosAtivos.escola}"`);
+    if (dados.filtrosAtivos?.especialidade) filtrosDescricao.push(`Especialidade: ${dados.filtrosAtivos.especialidade}`);
+    if (dados.filtrosAtivos?.profissional) filtrosDescricao.push(`Profissional: ${dados.filtrosAtivos.profissional}`);
+    if (dados.filtrosAtivos?.status) filtrosDescricao.push(`Situação: ${dados.filtrosAtivos.status}`);
+    const textoFiltrosAplicados = filtrosDescricao.length > 0 ? ` (Filtros ativos: ${filtrosDescricao.join(' | ')})` : '';
 
-    const paragrafo2 = `Entre as frentes de atendimento, a área de ${topEspNome} foi a mais procurada pelos jovens, somando ${topEspTotal === 1 ? '1 consulta' : `${topEspTotal} consultas`} (${topEspPct}% de todos os atendimentos do período). A unidade escolar com maior participação foi a "${topEscola}", demonstrando forte envolvimento da comunidade escolar com o cuidado preventivo e a promoção da saúde.`;
+    // Parágrafo 1: Escopo e Volume Geral
+    const periodoTexto = dados.dataInicio && dados.dataFim
+      ? `${dados.dataInicio} a ${dados.dataFim}`
+      : (dados.dataInicio ? `a partir de ${dados.dataInicio}` : (dados.dataFim ? `até ${dados.dataFim}` : 'todo o período histórico'));
+    const paragrafo1 = `O relatório consolidado para o período de ${periodoTexto}${textoFiltrosAplicados} totaliza ${textoAtendimentos}, abrangendo ${textoEstudantes} em ${textoEscolas} do Distrito Federal. O ritmo operacional registrou média de ${textoMedia}.${textoPico}`;
 
-    const paragrafo3 = `Ao levar os profissionais de saúde diretamente para dentro das escolas públicas, a ação itinerante facilita o acesso ao cuidado, ajuda a melhorar a autoestima e o rendimento escolar dos estudantes, proporcionando um alívio concreto e acolhimento para as famílias do DF.`;
+    // Parágrafo 2: Distribuição por Especialidade
+    let paragrafo2 = '';
+    if (especialidadesOrdenadas.length === 1) {
+      paragrafo2 = `Em relação à área de atendimento, os dados contemplam integralmente a especialidade de ${topEspNome}, somando ${topEspTotal === 1 ? '1 consulta' : `${topEspTotal} consultas`} (100% do volume filtrado).`;
+    } else if (especialidadesOrdenadas.length > 1) {
+      const listaEsp = especialidadesOrdenadas
+        .slice(0, 6)
+        .map((e) => {
+          const pct = Math.round((e.total / dados.totalGeral) * 100);
+          return `${e.especialidade} com ${e.total} consulta(s) (${pct}%)`;
+        })
+        .join(', ');
+      paragrafo2 = `A distribuição por especialidade apresenta a seguinte composição: ${listaEsp}. A especialidade de ${topEspNome} liderou a demanda no período selecionado, concentrando ${topEspPct}% de todos os atendimentos filtrados.`;
+    } else {
+      paragrafo2 = `Não houve discriminação de especialidade nos registros que compõem este filtro.`;
+    }
+
+    // Parágrafo 3: Unidades Escolares e Atuação Profissional
+    let paragrafo3 = '';
+    if (totalEscolasAtendidas === 1) {
+      paragrafo3 = `No recorte territorial e institucional, todas as consultas foram concentradas na unidade "${topEscola}".`;
+    } else if (totalEscolasAtendidas > 1) {
+      const listaEscolas = escolasOrdenadas
+        .slice(1, 4)
+        .map((e) => `"${e.nome}" (${e.total} consultas, ${Math.round((e.total / dados.totalGeral) * 100)}%)`)
+        .join(', ');
+      paragrafo3 = `Quanto à abrangência institucional, as consultas foram realizadas em ${totalEscolasAtendidas} unidades escolares, com maior concentração na "${topEscola}", responsável por ${topEscolaTotal} atendimentos (${topEscolaPct}% da demanda filtrada), seguida por ${listaEscolas}.`;
+    }
+
+    if (profissionaisOrdenados.length > 0) {
+      if (profissionaisOrdenados.length === 1) {
+        paragrafo3 += ` As atividades foram conduzidas pelo profissional ${profissionaisOrdenados[0].nome}.`;
+      } else {
+        const topProf = profissionaisOrdenados[0];
+        const pctProf = Math.round((topProf.total / dados.totalGeral) * 100);
+        paragrafo3 += ` A assistência foi executada por ${profissionaisOrdenados.length} profissionais de saúde, com maior alocação de ${topProf.nome} (${topProf.total} consultas, ${pctProf}% da carga horária de atendimento).`;
+      }
+    }
+
+    // Parágrafo 4: Situação Operacional e Taxa de Conclusão
+    const pendencias = totalAgendados + totalConfirmados + totalEmAtendimento;
+    const taxaPendencia = dados.totalGeral > 0 ? Math.round((pendencias / dados.totalGeral) * 100) : 0;
+    const taxaFaltas = dados.totalGeral > 0 ? Math.round((totalFaltas / dados.totalGeral) * 100) : 0;
+    const taxaCancelados = dados.totalGeral > 0 ? Math.round((totalCancelados / dados.totalGeral) * 100) : 0;
+
+    let detalhesStatus = `Foram concluídos ${totalConcluidos} atendimento(s) (taxa de realização de ${taxaConclusao}%)`;
+    if (pendencias > 0) {
+      detalhesStatus += `, restando ${pendencias} em status agendado/confirmado (${taxaPendencia}%)`;
+    }
+    if (totalFaltas > 0) {
+      detalhesStatus += `, com ${totalFaltas} falta(s) registrada(s) (absenteísmo de ${taxaFaltas}%)`;
+    }
+    if (totalCancelados > 0) {
+      detalhesStatus += ` e ${totalCancelados} cancelamento(s) (${taxaCancelados}%)`;
+    }
+    detalhesStatus += '.';
+    const paragrafo4 = `Sob o aspecto de execução operacional, o quadro de situações demonstra que: ${detalhesStatus}`;
+
+    // Montagem dos 4 Cards Analíticos
+    const pontoVolume = `Volume & Cobertura: ${textoAtendimentos} e ${textoEstudantes} atendidos em ${textoEscolas}, média de ${textoMedia}.`;
+    const pontoEspecialidade = `Demanda por Especialidade: ${topEspNome} liderou com ${topEspTotal} consulta(s) (${topEspPct}% do volume filtrado).`;
+    const pontoEscola = `Unidade em Destaque: "${topEscola}" concentrou ${topEscolaTotal} atendimento(s) (${topEscolaPct}% da demanda).`;
+    const pontoStatus = `Situação Operacional: Taxa de conclusão de ${taxaConclusao}% (${totalConcluidos} concluído(s), ${totalFaltas} falta(s), ${totalCancelados} cancelamento(s)).`;
 
     return {
       origem: 'ALGORITMO_LOCAL' as const,
-      titulo: 'Resumo das Ações de Saúde nas Escolas',
-      resumo: `${paragrafo1}\n\n${paragrafo2}\n\n${paragrafo3}`,
-      pontos: [
-        `Alcance dos Estudantes: ${textoEstudantes} acolhidos em ${textoEscolas}, com média de ${textoMedia}.`,
-        `Área Mais Procurada: ${topEspNome} liderou com ${topEspPct}% dos atendimentos da equipe itinerante.`,
-        `Escola em Destaque: "${topEscola}" registrou a maior participação no período.`,
-        `Cuidado nas Escolas: Ações no ambiente escolar que fortalecem a autoestima e o rendimento dos jovens.`,
-      ],
-      recomendacao: `Manter o cronograma itinerante e o apoio prioritário de insumos para a unidade "${topEscola}" e para os atendimentos de ${topEspNome}.`,
+      titulo: 'Relatório Analítico de Atendimentos Filtrados',
+      resumo: `${paragrafo1}\n\n${paragrafo2}\n\n${paragrafo3}\n\n${paragrafo4}`,
+      pontos: [pontoVolume, pontoEspecialidade, pontoEscola, pontoStatus],
+      recomendacao: `Manter dimensionamento logístico com prioridade para ${topEspNome} na unidade "${topEscola}", com controle de confirmação para assegurar a manutenção da taxa de conclusão em ${taxaConclusao}%.`,
     };
   };
 
   // Se Cloudflare Workers AI estiver disponível no runtime
   if (c.env.AI && typeof c.env.AI.run === 'function') {
     try {
-      const promptSistema = `Você é a coordenadora do projeto "Escola Cidadã – Saúde em Movimento", parceria entre a Universidade de Brasília (UnB), o Serviço Social da Indústria do Distrito Federal (SESI-DF) e a Fundação de Empreendimentos Científicos e Tecnológicos (Finatec). O projeto leva atendimento de saúde (odontologia, oftalmologia, fonoaudiologia, nutrição e apoio psicossocial/emocional) a estudantes das escolas públicas do Distrito Federal.
+      const promptSistema = `Você é um analista sênior de dados operacionais e auditor de saúde do projeto "Escola Cidadã – Saúde em Movimento" (UnB, SESI-DF e Finatec).
 
-Sua missão é redigir um resumo executivo para a equipe de gestão e direção escolar.
+Sua tarefa é redigir um RELATÓRIO ANALÍTICO E OPERACIONAL COMPLETO com base ESTRITAMENTE nos dados numéricos e filtros fornecidos pelo usuário.
 
-DIRETRIZES DE COMUNICAÇÃO (MUITO IMPORTANTE):
-1. Tom: Profissional, acolhedor, transparente e direto.
-2. Vocabulário acessível: Use palavras simples e claras. NÃO use jargões difíceis (evite termos herméticos como "demanda epidemiológica", "resolutividade", "absenteísmo escolar", "intervenção clínica").
-3. Impacto real: Mostre como o cuidado à saúde na escola melhora a autoestima, o desempenho nos estudos e traz alívio para as famílias.
-4. Gramática e Concordância: Respeite rigorosamente singular e plural (ex: "1 atendimento", "1 estudante", "1 consulta por dia").
-5. Privacidade (LGPD): Jamais invente ou mencione dados pessoais de alunos (nomes, CPFs). Trabalhe exclusivamente com os números consolidados informados.
+REGRAS DE CONTEÚDO E ESTILO (CRÍTICAS E OBRIGATÓRIAS):
+1. PROIBIÇÃO ABSOLUTA DE FRASES MOTIVACIONAIS OU CLICHÊS:
+   - NUNCA use frases motivacionais, emocionais, slogans ou de autoajuda (ex: NUNCA use frases como "melhora a autoestima dos estudantes", "alívio concreto para as famílias", "acolhimento dos jovens", "transformação de vidas").
+   - O texto deve ser 100% técnico, analítico, formal, quantitativo e focado em governança e operações.
+
+2. ESTRUTURA DO RESUMO (3 a 4 parágrafos densos e completos):
+   - Parágrafo 1 (Escopo e Volume): Período, filtros aplicados, volume total de atendimentos, estudantes únicos, média diária e dia de pico.
+   - Parágrafo 2 (Especialidades): Todas as especialidades filtradas, volumes de consultas e participações percentuais relativas.
+   - Parágrafo 3 (Unidades e Profissionais): Cobertura territorial/escolar, distribuição de consultas por escola e alocação de profissionais de saúde.
+   - Parágrafo 4 (Situação Operacional): Balanço de status (concluídos, agendados, cancelados, faltas) e taxa percentual de efetivação.
+
+3. PONTOS DE DESTAQUE (4 CARDS OBRIGATÓRIOS, NO FORMATO "Título: Descrição"):
+   - "Volume & Cobertura: [X atendimentos e Y estudantes em Z escolas, com média de W/dia]"
+   - "Demanda por Especialidade: [Especialidade líder com X consultas e Y% do total]"
+   - "Unidade em Destaque: [Escola com maior volume com X consultas e Y% da demanda]"
+   - "Situação Operacional: [Taxa de conclusão de X%, com Y concluídos, Z faltas e W cancelamentos]"
+
+4. RECOMENDAÇÃO TÉCNICA:
+   - Uma orientação estritamente operacional e de suprimentos baseada nos gargalos ou maiores volumes identificados.
 
 ESTRUTURA OBRIGATÓRIA DA RESPOSTA (JSON PURO):
 Responda EXCLUSIVAMENTE em formato JSON sem cercaduras markdown:
 {
-  "titulo": "Resumo das Ações de Saúde nas Escolas",
-  "resumo": "Texto corrido de 2 a 3 parágrafos claros e profissionais explicando: 1) O total de atendimentos e estudantes atendidos nas escolas públicas do DF pelo projeto Escola Cidadã – Saúde em Movimento (UnB, SESI-DF e Finatec); 2) A especialidade com maior procura e como ela ajuda a saúde dos jovens; 3) O ritmo das atividades itinerantes e o benefício do acolhimento na escola para o bem-estar e o aprendizado.",
+  "titulo": "Relatório Analítico de Atendimentos Filtrados",
+  "resumo": "Texto analítico em 3 a 4 parágrafos objetivos",
   "pontos": [
-    "Alcance dos Estudantes: detalhe com número de estudantes e média diária",
-    "Área Mais Procurada: especialidade mais atendida e percentual",
-    "Escola em Destaque: escola com maior participação",
-    "Cuidado nas Escolas: impacto positivo no bem-estar e no rendimento escolar"
+    "Volume & Cobertura: detalhe quantitativo",
+    "Demanda por Especialidade: detalhe quantitativo",
+    "Unidade em Destaque: detalhe quantitativo",
+    "Situação Operacional: detalhe quantitativo"
   ],
-  "recomendacao": "Orientação prática para o próximo ciclo de visitas e reforço de insumos."
+  "recomendacao": "Diretriz operacional e logística objetiva"
 }`;
 
-      const promptUsuario = `Dados Consolidados das Ações no DF:
+      const promptUsuario = `Dados Consolidados das Ações no DF (Recorte Filtrado):
 - Projeto: Escola Cidadã – Saúde em Movimento (UnB / SESI-DF / Finatec)
 - Período: ${dados.dataInicio || 'Início'} até ${dados.dataFim || 'Atual'}
+- Filtros Ativos: ${JSON.stringify(dados.filtrosAtivos ?? {})}
 - Atendimentos Totais: ${dados.totalGeral}
 - Estudantes Atendidos: ${qtdEstudantes}
 - Média Diária: ${dados.mediaDiaria} consultas/dia útil ${dados.pico ? `(Pico de ${dados.pico.total} em ${dados.pico.data})` : ''}
-- Atendimentos por Especialidade: ${dados.porEspecialidade.map((e) => `${e.especialidade}: ${e.total}`).join(', ') || 'Nenhuma'}
-- Escolas Públicas Atendidas: ${dados.porEscola?.slice(0, 8).map((e) => `${e.nome}: ${e.total}`).join(', ') || 'Não discriminado'}
+- Atendimentos por Especialidade: ${dados.porEspecialidade.map((e) => `${e.especialidade}: ${e.total} (${e.pct ?? Math.round((e.total / Math.max(1, dados.totalGeral)) * 100)}%)`).join(', ') || 'Nenhuma'}
+- Escolas Públicas Atendidas: ${dados.porEscola?.slice(0, 10).map((e) => `${e.nome}: ${e.total}`).join(', ') || 'Não discriminado'}
+- Profissionais de Saúde: ${dados.porProfissional?.slice(0, 10).map((p) => `${p.nome}: ${p.total}`).join(', ') || 'Não discriminado'}
 - Status Operacional: ${JSON.stringify(dados.porStatus ?? {})}`;
 
       const timeoutMs = 9000;
@@ -629,7 +744,7 @@ Responda EXCLUSIVAMENTE em formato JSON sem cercaduras markdown:
           { role: 'user', content: promptUsuario },
         ],
         temperature: 0.2,
-        max_tokens: 1000,
+        max_tokens: 1200,
       });
 
       const resultado: any = await Promise.race([aiPromise, timeoutPromise]);
@@ -642,7 +757,7 @@ Responda EXCLUSIVAMENTE em formato JSON sem cercaduras markdown:
           return c.json({
             origem: 'CLOUDFLARE_WORKERS_AI',
             modelo: '@cf/meta/llama-3-8b-instruct',
-            titulo: parsed.titulo || 'Resumo das Ações de Saúde nas Escolas',
+            titulo: parsed.titulo || 'Relatório Analítico de Atendimentos Filtrados',
             resumo: String(parsed.resumo),
             pontos: parsed.pontos.map((p: any) => String(p)),
             recomendacao: parsed.recomendacao ? String(parsed.recomendacao) : undefined,
