@@ -904,7 +904,12 @@ export function App() {
                 atendimentos={atendimentos}
                 statusSincronizacaoCatraki={statusSincronizacaoCatraki}
                 aoAtualizarStatus={handleAtualizarStatusAtendimento}
+                aoSalvarAtendimento={handleSalvarAtendimento}
                 aoNovoAtendimento={temPermissao('criarPaciente') ? () => navegarParaSecao('filaDia') : () => {}}
+                ehAdmin={usuarioLogado?.perfil === 'ADMIN' || usuarioLogado?.perfil === 'BOOTSTRAP'}
+                pacientes={pacientes}
+                escolas={escolasGlobais}
+                profissionais={profissionais}
               />
             );
           }

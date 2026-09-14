@@ -9,6 +9,7 @@ import {
 } from './tabelaExcel/index.ts';
 import { Paginacao } from './Paginacao.tsx';
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
+import { StatusAtendimentoBadge } from './StatusAtendimentoBadge.tsx';
 import { censurarCpf } from './TabelaPacientes.tsx';
 import { Clock3, RotateCcw, CalendarDays, ClipboardCheck, Play, Plus, Ban } from 'lucide-react';
 import { Botao } from './Botao.tsx';
@@ -802,32 +803,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                     </td>
 
                     <td className="py-3 px-3">
-                      {item.status === 'AGUARDANDO' ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-2xl text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                          Aguardando
-                        </span>
-                      ) : item.status === 'CONFIRMADO' ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-2xl text-[11px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
-                          Confirmado
-                        </span>
-                      ) : item.status === 'EM_ATENDIMENTO' ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-2xl text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                          Em Atendimento
-                        </span>
-                      ) : item.status === 'CANCELADO' ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-2xl text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                          Cancelado
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-2xl text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          Concluído
-                        </span>
-                      )}
+                      <StatusAtendimentoBadge status={item.status} />
                     </td>
 
                     <td className={`py-3 px-4 text-right ${confirmandoAlteracaoId === item.id || confirmandoCancelamentoId === item.id || confirmandoPresencaId === item.id || confirmandoReativacaoId === item.id ? 'relative z-50' : ''}`}>

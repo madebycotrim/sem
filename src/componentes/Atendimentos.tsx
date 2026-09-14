@@ -1,5 +1,5 @@
-import { type FC, useState, useMemo, useRef } from 'react';
-import { Calendar, FileText, RotateCcw } from 'lucide-react';
+import { type FC, useState, useMemo, useRef, useEffect } from 'react';
+import { Calendar, FileText, RotateCcw, ClipboardCheck, Play, Ban } from 'lucide-react';
 import { ESPECIALIDADE_LABELS, Especialidade, Turno } from '../../compartilhado/index.ts';
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import {
@@ -14,6 +14,9 @@ import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 import { SelectModal } from './Modal.tsx';
 import { Botao } from './Botao.tsx';
 import { STATUS_ATENDIMENTO_LABELS, StatusAtendimento } from '../../compartilhado/index.ts';
+import { StatusAtendimentoBadge } from './StatusAtendimentoBadge.tsx';
+import { ModalIniciarAtendimento, type DadosAtendimento } from './ModalIniciarAtendimento.tsx';
+import { requisicaoApi } from '../servicos/api.ts';
 
 export interface ItemAtendimentoLista {
   id: string;
@@ -41,13 +44,179 @@ export interface AtendimentosProps {
     status: 'sincronizando' | 'sincronizado' | 'erro' | 'ocioso';
     ultimaSincronizacao?: Date | null;
   };
-  aoAtualizarStatus?: (id: string, status: StatusAtendimento) => void;
+  aoAtualizarStatus?: (id: string, status: StatusAtendimento) => void | Promise<void>;
+  aoSalvarAtendimento?: (atendimento: ItemAtendimentoLista) => void;
+  ehAdmin?: boolean;
+  pacientes?: Array<{ id: string; nome: string; cpf?: string; idade?: number }>;
+  escolas?: Array<{ id: string; nome: string }>;
+  profissionais?: Array<{ id: string; nome: string; registro?: string; registroConselho?: string; conselho?: string }>;
 }
 
 export const Atendimentos: FC<AtendimentosProps> = ({
-  atendimentos,
+  atendimentos: atendimentosProp,
   aoAtualizarStatus,
+  aoSalvarAtendimento,
+  ehAdmin = false,
+  pacientes = [],
+  escolas = [],
+  profissionais = [],
 }) => {
+  const [atendimentosLocais, setAtendimentosLocais] = useState<ItemAtendimentoLista[]>(atendimentosProp);
+
+  useEffect(() => {
+    setAtendimentosLocais(atendimentosProp);
+  }, [atendimentosProp]);
+
+  const atendimentos = atendimentosLocais;
+
+  const [modalAtendimentoAberto, setModalAtendimentoAberto] = useState(false);
+  const [dadosAtendimentoAtivo, setDadosAtendimentoAtivo] = useState<DadosAtendimento | null>(null);
+  const [confirmandoAlteracaoId, setConfirmandoAlteracaoId] = useState<string | null>(null);
+  const [confirmandoCancelamentoId, setConfirmandoCancelamentoId] = useState<string | null>(null);
+  const [confirmandoPresencaId, setConfirmandoPresencaId] = useState<string | null>(null);
+  const [confirmandoReativacaoId, setConfirmandoReativacaoId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!confirmandoAlteracaoId && !confirmandoCancelamentoId && !confirmandoPresencaId && !confirmandoReativacaoId) return undefined;
+
+    const fecharAoClicarFora = (evento: MouseEvent) => {
+      const alvo = evento?.target as HTMLElement | undefined;
+      if (alvo && typeof alvo.closest === 'function') {
+        if (!alvo.closest('[data-confirmacao-popover]')) {
+          setConfirmandoAlteracaoId(null);
+          setConfirmandoCancelamentoId(null);
+          setConfirmandoPresencaId(null);
+          setConfirmandoReativacaoId(null);
+        }
+      } else {
+        setConfirmandoAlteracaoId(null);
+        setConfirmandoCancelamentoId(null);
+        setConfirmandoPresencaId(null);
+        setConfirmandoReativacaoId(null);
+      }
+    };
+    const fecharComEscape = (evento: KeyboardEvent) => {
+      if (evento.key === 'Escape') {
+        setConfirmandoAlteracaoId(null);
+        setConfirmandoCancelamentoId(null);
+        setConfirmandoPresencaId(null);
+        setConfirmandoReativacaoId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', fecharAoClicarFora);
+    document.addEventListener('keydown', fecharComEscape);
+    return () => {
+      document.removeEventListener('mousedown', fecharAoClicarFora);
+      document.removeEventListener('keydown', fecharComEscape);
+    };
+  }, [confirmandoAlteracaoId, confirmandoCancelamentoId, confirmandoPresencaId, confirmandoReativacaoId]);
+
+  const handleAlterarStatus = async (id: string, novoStatus: StatusAtendimento) => {
+    const item = atendimentos.find((a) => a.id === id);
+    const statusAnterior = item?.status;
+    setAtendimentosLocais((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, status: novoStatus } : a))
+    );
+    try {
+      if (aoAtualizarStatus) {
+        await aoAtualizarStatus(id, novoStatus);
+      } else {
+        await requisicaoApi(`/atendimentos/${id}/status`, {
+          metodo: 'PATCH',
+          corpo: { status: novoStatus },
+        });
+      }
+    } catch (err) {
+      setAtendimentosLocais((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: statusAnterior } : a))
+      );
+      console.error('Erro ao atualizar status do atendimento:', err);
+    }
+  };
+
+  const handleCancelarAtendimento = async (id: string) => {
+    setConfirmandoCancelamentoId(null);
+    await handleAlterarStatus(id, StatusAtendimento.CANCELADO);
+  };
+
+  const abrirModalProntuario = async (item: ItemAtendimentoLista, alterarParaEmAtendimento = false) => {
+    if (alterarParaEmAtendimento && item.status !== StatusAtendimento.EM_ATENDIMENTO) {
+      await handleAlterarStatus(item.id, StatusAtendimento.EM_ATENDIMENTO);
+    }
+
+    const pacienteEncontrado = pacientes.find(
+      (p) => p.id === item.pacienteId || p.nome === item.pacienteNome
+    );
+    const escolaEncontrada = escolas.find(
+      (e) => e.id === item.escolaId || e.nome === item.escolaNome
+    );
+    const profissionalEncontrado = profissionais.find(
+      (pr) => pr.id === item.profissionalId || pr.nome === item.profissionalNome
+    );
+
+    const hora = new Date(item.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    setDadosAtendimentoAtivo({
+      itemId: item.id,
+      atendimentoId: item.id,
+      pacienteId: item.pacienteId || pacienteEncontrado?.id,
+      escolaId: item.escolaId || escolaEncontrada?.id,
+      pacienteNome: item.pacienteNome,
+      cpf: pacienteEncontrado?.cpf,
+      idade: pacienteEncontrado?.idade ?? 0,
+      escolaNome: item.escolaNome,
+      especialidade: item.especialidade,
+      profissional: item.profissionalNome,
+      profissionalId: item.profissionalId || profissionalEncontrado?.id,
+      profissionalRegistro: profissionalEncontrado?.registroConselho || profissionalEncontrado?.registro,
+      profissionalConselho: profissionalEncontrado?.conselho,
+      horarioChegada: hora !== 'Invalid Date' ? hora : '--:--',
+      anotacoes: item.resumo || '',
+    });
+    setModalAtendimentoAberto(true);
+  };
+
+  const handleSalvarAtendimentoProntuario = async (
+    itemId: string,
+    textoAnotacoes: string,
+    dadosAtendimento: DadosAtendimento
+  ) => {
+    try {
+      await requisicaoApi(`/atendimentos/${itemId}`, {
+        metodo: 'PATCH',
+        corpo: {
+          resumo: textoAnotacoes,
+          status: StatusAtendimento.CONCLUIDO,
+          ...(dadosAtendimento.profissionalId ? { usuarioId: dadosAtendimento.profissionalId } : {}),
+        },
+      });
+      setAtendimentosLocais((prev) =>
+        prev.map((a) =>
+          a.id === itemId
+            ? { ...a, resumo: textoAnotacoes, status: StatusAtendimento.CONCLUIDO }
+            : a
+        )
+      );
+      aoAtualizarStatus?.(itemId, StatusAtendimento.CONCLUIDO);
+      aoSalvarAtendimento?.({
+        id: itemId,
+        pacienteId: dadosAtendimento.pacienteId || '',
+        pacienteNome: dadosAtendimento.pacienteNome,
+        especialidade: dadosAtendimento.especialidade,
+        turno: Turno.MANHA,
+        escolaNome: dadosAtendimento.escolaNome,
+        profissionalNome: dadosAtendimento.profissional || '',
+        resumo: textoAnotacoes,
+        criadoEm: new Date().toISOString(),
+        status: StatusAtendimento.CONCLUIDO,
+      });
+      setModalAtendimentoAberto(false);
+      setDadosAtendimentoAtivo(null);
+    } catch (erro) {
+      console.error('Erro ao salvar prontuário:', erro);
+    }
+  };
   const [busca, setBusca] = useState('');
   // O histórico clínico começa mostrando apenas consultas concluídas.
   const [statusFiltro, setStatusFiltro] = useState(StatusAtendimento.CONCLUIDO);
@@ -96,8 +265,9 @@ export const Atendimentos: FC<AtendimentosProps> = ({
       {
         id: 'status',
         rotulo: 'STATUS',
-        desabilitarFiltro: true,
-        desabilitarOrdenacao: true,
+        tipo: 'opcao',
+        obterValor: (i) => i.status || StatusAtendimento.CONCLUIDO,
+        formatarRotulo: (val) => STATUS_ATENDIMENTO_LABELS[val as StatusAtendimento] || String(val),
       },
     ],
     []
@@ -287,15 +457,21 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                   estado={filtroExcel}
                   className="px-3.5 py-3"
                 />
+                <CabecalhoColunaExcel
+                  colunaId="status"
+                  rotulo="STATUS"
+                  estado={filtroExcel}
+                  className="px-3.5 py-3"
+                />
                 <th scope="col" className="py-3 px-4 font-bold text-slate-600 text-right">
-                  <span>STATUS</span>
+                  <span>AÇÕES</span>
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
               {dadosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-20 text-center">
+                  <td colSpan={7} className="py-20 text-center">
                     <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
                       <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-3 ring-8 ring-blue-50/60 shadow-xs">
                           <FileText className="w-7 h-7 text-blue-500" />
@@ -355,13 +531,328 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                     <td className="py-3 px-3.5 text-slate-500 font-mono text-[11px]">
                       {new Date(item.criadoEm).toLocaleDateString('pt-BR')} {new Date(item.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                     </td>
-                    <td className="py-3 px-4 text-right">
-                      <SelectModal
-                        value={item.status || StatusAtendimento.CONCLUIDO}
-                        onChange={(evento) => aoAtualizarStatus?.(item.id, evento.target.value as StatusAtendimento)}
-                        className="h-8 min-w-[132px] text-[11px]"
-                        opcoes={Object.entries(STATUS_ATENDIMENTO_LABELS).map(([valor, rotulo]) => ({ valor, rotulo: String(rotulo) }))}
-                      />
+                    <td className="py-3 px-3.5">
+                      <StatusAtendimentoBadge status={item.status || StatusAtendimento.CONCLUIDO} />
+                    </td>
+                    <td className={`py-3 px-4 text-right ${confirmandoAlteracaoId === item.id || confirmandoCancelamentoId === item.id || confirmandoPresencaId === item.id || confirmandoReativacaoId === item.id ? 'relative z-50' : ''}`}>
+                      <div className="flex items-center justify-end gap-1.5" data-confirmacao-popover>
+                        {/* PASSO 1: AGUARDANDO / AGENDADO */}
+                        {(item.status === StatusAtendimento.AGENDADO || (item.status as unknown) === 'AGUARDANDO') && (
+                          <>
+                            <div className="relative inline-flex items-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmandoPresencaId(confirmandoPresencaId === item.id ? null : item.id);
+                                  setConfirmandoCancelamentoId(null);
+                                  setConfirmandoAlteracaoId(null);
+                                  setConfirmandoReativacaoId(null);
+                                }}
+                                className="inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl shadow-[0_2px_8px_rgba(245,158,11,0.12)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-100"
+                              >
+                                <ClipboardCheck className="w-3.5 h-3.5 text-amber-600" />
+                                Confirmar
+                              </button>
+                              {confirmandoPresencaId === item.id && (
+                                <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
+                                  <div className="absolute right-6 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                  <span className="text-[11.5px] font-bold text-slate-700">Deseja confirmar a presença deste aluno?</span>
+                                  <div className="flex items-center justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmandoPresencaId(null)}
+                                      className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                    >
+                                      Voltar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        setConfirmandoPresencaId(null);
+                                        await handleAlterarStatus(item.id, StatusAtendimento.CONFIRMADO);
+                                      }}
+                                      className="px-2.5 py-1 text-[11px] bg-amber-600 text-white hover:bg-amber-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                    >
+                                      Sim, confirmar
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            {ehAdmin && (
+                              <div className="relative inline-flex items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConfirmandoCancelamentoId(confirmandoCancelamentoId === item.id ? null : item.id);
+                                    setConfirmandoAlteracaoId(null);
+                                    setConfirmandoPresencaId(null);
+                                    setConfirmandoReativacaoId(null);
+                                  }}
+                                  title="Cancelar atendimento (Administrador)"
+                                  className="inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition-all cursor-pointer"
+                                >
+                                  <Ban className="w-3.5 h-3.5" />
+                                </button>
+                                {confirmandoCancelamentoId === item.id && (
+                                  <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
+                                    <div className="absolute right-3 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                    <span className="text-[11.5px] font-bold text-slate-700">Deseja cancelar este atendimento?</span>
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmandoCancelamentoId(null)}
+                                        className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                      >
+                                        Voltar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCancelarAtendimento(item.id)}
+                                        className="px-2.5 py-1 text-[11px] bg-rose-600 text-white hover:bg-rose-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                      >
+                                        Sim, cancelar
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* PASSO 2: CONFIRMADO */}
+                        {item.status === 'CONFIRMADO' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => abrirModalProntuario(item, true)}
+                              className="inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-xl shadow-[0_4px_12px_rgba(37,99,235,0.24)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+                            >
+                              <Play className="w-3.5 h-3.5" />
+                              Iniciar Atendimento
+                            </button>
+                            {ehAdmin && (
+                              <div className="relative inline-flex items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConfirmandoCancelamentoId(confirmandoCancelamentoId === item.id ? null : item.id);
+                                    setConfirmandoAlteracaoId(null);
+                                    setConfirmandoPresencaId(null);
+                                    setConfirmandoReativacaoId(null);
+                                  }}
+                                  title="Cancelar atendimento (Administrador)"
+                                  className="inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition-all cursor-pointer"
+                                >
+                                  <Ban className="w-3.5 h-3.5" />
+                                </button>
+                                {confirmandoCancelamentoId === item.id && (
+                                  <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
+                                    <div className="absolute right-3 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                    <span className="text-[11.5px] font-bold text-slate-700">Deseja cancelar este atendimento?</span>
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmandoCancelamentoId(null)}
+                                        className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                      >
+                                        Voltar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCancelarAtendimento(item.id)}
+                                        className="px-2.5 py-1 text-[11px] bg-rose-600 text-white hover:bg-rose-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                      >
+                                        Sim, cancelar
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* PASSO 3: EM_ATENDIMENTO */}
+                        {item.status === 'EM_ATENDIMENTO' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => abrirModalProntuario(item, false)}
+                              className="inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-xl shadow-[0_2px_8px_rgba(37,99,235,0.12)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+                            >
+                              <Play className="w-3.5 h-3.5 text-blue-600" />
+                              Continuar
+                            </button>
+                            {ehAdmin && (
+                              <div className="relative inline-flex items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConfirmandoCancelamentoId(confirmandoCancelamentoId === item.id ? null : item.id);
+                                    setConfirmandoAlteracaoId(null);
+                                    setConfirmandoPresencaId(null);
+                                    setConfirmandoReativacaoId(null);
+                                  }}
+                                  title="Cancelar atendimento (Administrador)"
+                                  className="inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition-all cursor-pointer"
+                                >
+                                  <Ban className="w-3.5 h-3.5" />
+                                </button>
+                                {confirmandoCancelamentoId === item.id && (
+                                  <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
+                                    <div className="absolute right-3 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                    <span className="text-[11.5px] font-bold text-slate-700">Deseja cancelar este atendimento?</span>
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmandoCancelamentoId(null)}
+                                        className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                      >
+                                        Voltar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCancelarAtendimento(item.id)}
+                                        className="px-2.5 py-1 text-[11px] bg-rose-600 text-white hover:bg-rose-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                      >
+                                        Sim, cancelar
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* PASSO 4: CONCLUIDO */}
+                        {(!item.status || item.status === 'CONCLUIDO') && (
+                          ehAdmin ? (
+                            <div className="relative inline-flex items-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmandoAlteracaoId(confirmandoAlteracaoId === item.id ? null : item.id);
+                                  setConfirmandoCancelamentoId(null);
+                                  setConfirmandoPresencaId(null);
+                                  setConfirmandoReativacaoId(null);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-transparent hover:border-slate-200 hover:bg-slate-50 text-[11px] text-slate-500 hover:text-blue-700 font-medium transition-colors cursor-pointer group/finalizado"
+                              >
+                                <span>Finalizado</span>
+                                <span className="text-slate-400 group-hover/finalizado:text-blue-600">▾</span>
+                              </button>
+                              {confirmandoAlteracaoId === item.id && (
+                                <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-1 p-2 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in min-w-[170px] text-left">
+                                  <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                  <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                                    Opções do atendimento
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setConfirmandoAlteracaoId(null);
+                                      abrirModalProntuario(item, false);
+                                    }}
+                                    className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5 text-blue-600" />
+                                    Alterar atendimento
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setConfirmandoCancelamentoId(item.id);
+                                      setConfirmandoAlteracaoId(null);
+                                    }}
+                                    className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                                  >
+                                    <Ban className="w-3.5 h-3.5 text-rose-600" />
+                                    Cancelar atendimento
+                                  </button>
+                                </div>
+                              )}
+                              {confirmandoCancelamentoId === item.id && (
+                                <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
+                                  <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                  <span className="text-[11.5px] font-bold text-slate-700">Deseja cancelar este atendimento finalizado?</span>
+                                  <div className="flex items-center justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmandoCancelamentoId(null)}
+                                      className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                    >
+                                      Voltar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCancelarAtendimento(item.id)}
+                                      className="px-2.5 py-1 text-[11px] bg-rose-600 text-white hover:bg-rose-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                    >
+                                      Sim, cancelar
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 font-medium px-2 py-1 select-none">
+                              Finalizado
+                            </span>
+                          )
+                        )}
+
+                        {/* PASSO 5: CANCELADO */}
+                        {item.status === 'CANCELADO' && (
+                          <div className="relative inline-flex items-center gap-2">
+                            <span className="text-[11px] font-semibold text-rose-500 italic">Cancelado</span>
+                            {ehAdmin && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConfirmandoReativacaoId(confirmandoReativacaoId === item.id ? null : item.id);
+                                    setConfirmandoCancelamentoId(null);
+                                    setConfirmandoAlteracaoId(null);
+                                    setConfirmandoPresencaId(null);
+                                  }}
+                                  className="text-[10.5px] font-bold text-slate-500 hover:text-blue-600 hover:underline cursor-pointer"
+                                  title="Reabrir / colocar de volta na fila"
+                                >
+                                  Reativar
+                                </button>
+                                {confirmandoReativacaoId === item.id && (
+                                  <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
+                                    <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                    <span className="text-[11.5px] font-bold text-slate-700">Deseja reativar este atendimento?</span>
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmandoReativacaoId(null)}
+                                        className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                      >
+                                        Voltar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          setConfirmandoReativacaoId(null);
+                                          await handleAlterarStatus(item.id, StatusAtendimento.CONFIRMADO);
+                                        }}
+                                        className="px-2.5 py-1 text-[11px] bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                      >
+                                        Sim, reativar
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -378,6 +869,16 @@ export const Atendimentos: FC<AtendimentosProps> = ({
           />
         </div>
       </div>
+
+      <ModalIniciarAtendimento
+        aberto={modalAtendimentoAberto}
+        dados={dadosAtendimentoAtivo}
+        aoFechar={() => {
+          setModalAtendimentoAberto(false);
+          setDadosAtendimentoAtivo(null);
+        }}
+        aoConfirmar={handleSalvarAtendimentoProntuario}
+      />
     </div>
   );
 };
