@@ -10,8 +10,9 @@ import {
 import { Paginacao } from './Paginacao.tsx';
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 import { StatusAtendimentoBadge } from './StatusAtendimentoBadge.tsx';
-import { censurarCpf } from './TabelaPacientes.tsx';
-import { Clock3, RotateCcw, CalendarDays, ClipboardCheck, Play, Plus, Ban } from 'lucide-react';
+import { censurarCpf, type ItemPaciente } from './TabelaPacientes.tsx';
+import { CardHoverPaciente } from './CardHoverPaciente.tsx';
+import { Clock3, RotateCcw, CalendarDays, ClipboardCheck, Play, Plus, Ban, FileText } from 'lucide-react';
 import { Botao } from './Botao.tsx';
 import { ModalTriagem, type ItemPacienteTriagem, type ItemProfissionalTriagem } from './ModalTriagem.tsx';
 import { ModalIniciarAtendimento, type DadosAtendimento } from './ModalIniciarAtendimento.tsx';
@@ -100,7 +101,7 @@ export interface FilaDoDiaProps {
   aoVerHistoricoPaciente?: (paciente: any) => void;
   ehAdmin?: boolean;
   escolas?: Array<{ id: string; nome: string }>;
-  pacientes?: ItemPacienteTriagem[];
+  pacientes?: (ItemPacienteTriagem | ItemPaciente)[];
   atendimentos?: ItemAtendimentoLista[];
   fila?: ItemFila[];
   profissionais?: ItemProfissionalTriagem[];
@@ -124,6 +125,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   const [modalTriagemAberto, setModalTriagemAberto] = useState(false);
   const [modalAtendimentoAberto, setModalAtendimentoAberto] = useState(false);
   const [dadosAtendimentoAtivo, setDadosAtendimentoAtivo] = useState<DadosAtendimento | null>(null);
+  const [modalModoVisualizacao, setModalModoVisualizacao] = useState(false);
   const [confirmandoAlteracaoId, setConfirmandoAlteracaoId] = useState<string | null>(null);
   const [confirmandoCancelamentoId, setConfirmandoCancelamentoId] = useState<string | null>(null);
   const [confirmandoPresencaId, setConfirmandoPresencaId] = useState<string | null>(null);
@@ -320,7 +322,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   /**
    * Abre o prontuário com o texto preservado da consulta anterior
    */
-  const abrirModalProntuario = async (item: ItemFila, alterarParaEmAtendimento = false) => {
+  const abrirModalProntuario = async (item: ItemFila, alterarParaEmAtendimento = false, somenteLeitura = false) => {
     if (alterarParaEmAtendimento && item.status !== 'EM_ATENDIMENTO') {
       try {
         await alternarStatus(item.id, 'EM_ATENDIMENTO');
@@ -361,6 +363,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       horarioChegada: item.horarioChegada,
       anotacoes: textoAnotacoes,
     });
+    setModalModoVisualizacao(somenteLeitura);
     setModalAtendimentoAberto(true);
   };
 
@@ -735,40 +738,58 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                     </td>
 
                     <td className="py-3 px-4 font-semibold text-slate-900">
-                      <div className="flex flex-col text-left">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const pacienteObj = pacientes.find(
-                                (p) =>
-                                  p.id === item.pacienteId ||
-                                  (p.cpf && item.cpf && p.cpf.replace(/\D/g, '') === item.cpf.replace(/\D/g, '')) ||
-                                  p.nome === item.pacienteNome
-                              );
-                              aoVerHistoricoPaciente?.({
-                                id: item.pacienteId || pacienteObj?.id || item.id,
-                                nome: item.pacienteNome,
-                                cpf: item.cpf,
-                                dataNascimento: pacienteObj?.dataNascimento,
-                                escolaNome: item.escolaNome,
-                              });
+                      {(() => {
+                        const pacienteObj = pacientes.find(
+                          (p) =>
+                            p.id === item.pacienteId ||
+                            (p.cpf && item.cpf && p.cpf.replace(/\D/g, '') === item.cpf.replace(/\D/g, '')) ||
+                            p.nome === item.pacienteNome
+                        );
+                        const pacienteCompleto: ItemPaciente = (pacienteObj && 'termoConsentimentoStatus' in pacienteObj)
+                          ? (pacienteObj as ItemPaciente)
+                          : {
+                              id: item.pacienteId || pacienteObj?.id || item.id,
+                              nome: item.pacienteNome,
+                              cpf: item.cpf,
+                              dataNascimento: (pacienteObj as any)?.dataNascimento || '',
+                              escolaNome: item.escolaNome || 'Não informada',
+                              termoConsentimentoStatus: 'PENDENTE',
+                              atendimentosCount: 1,
+                              criadoEm: item.dataChegada || new Date().toISOString(),
+                            };
+
+                        return (
+                          <CardHoverPaciente
+                            paciente={pacienteCompleto}
+                            aoVerDetalhes={() => {
+                              aoVerHistoricoPaciente?.(pacienteCompleto);
                             }}
-                            className="text-left font-semibold text-slate-900 uppercase tracking-tight text-xs hover:text-blue-600 hover:underline transition-colors cursor-pointer"
-                            title="Clique para abrir o Histórico Clínico deste paciente"
                           >
-                            {item.pacienteNome}
-                          </button>
-                          {item.prioridade && (
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-100 text-rose-800 uppercase">
-                              Prioridade
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px] text-slate-500 font-normal mt-0.5">
-                          <span>CPF: {item.cpf ? censurarCpf(item.cpf) : 'Não informado'}</span>
-                        </div>
-                      </div>
+                            <div className="flex flex-col text-left">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    aoVerHistoricoPaciente?.(pacienteCompleto);
+                                  }}
+                                  className="text-left font-semibold text-slate-900 uppercase tracking-tight text-xs hover:text-blue-600 hover:underline transition-colors cursor-pointer"
+                                  title="Clique para abrir o Histórico Clínico deste paciente"
+                                >
+                                  {item.pacienteNome}
+                                </button>
+                                {item.prioridade && (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-100 text-rose-800 uppercase">
+                                    Prioridade
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-[11px] text-slate-500 font-normal mt-0.5">
+                                <span>CPF: {item.cpf ? censurarCpf(item.cpf) : 'Não informado'}</span>
+                              </div>
+                            </div>
+                          </CardHoverPaciente>
+                        );
+                      })()}
                     </td>
 
                     <td className="py-3 px-3">
@@ -999,81 +1020,91 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                           </>
                         )}
 
-                        {/* CONCLUIDO — Opções de atendimento disponíveis exclusivamente para administradores */}
+                        {/* PASSO 4: CONCLUIDO */}
                         {item.status === 'CONCLUIDO' && (
-                          ehAdmin ? (
-                            <div className="relative inline-flex items-center">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setConfirmandoAlteracaoId(confirmandoAlteracaoId === item.id ? null : item.id);
-                                  setConfirmandoCancelamentoId(null);
-                                  setConfirmandoPresencaId(null);
-                                  setConfirmandoReativacaoId(null);
-                                }}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-transparent hover:border-slate-200 hover:bg-slate-50 text-[11px] text-slate-500 hover:text-blue-700 font-medium transition-colors cursor-pointer group/finalizado"
-                              >
-                                <span>Finalizado</span>
-                                <span className="text-slate-400 group-hover/finalizado:text-blue-600">▾</span>
-                              </button>
-                              {confirmandoAlteracaoId === item.id && (
-                                <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-1 p-2 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in min-w-[170px] text-left">
-                                  <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
-                                  <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                                    Opções do atendimento
-                                  </p>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setConfirmandoAlteracaoId(null);
-                                      abrirModalProntuario(item, true);
-                                    }}
-                                    className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
-                                  >
-                                    <RotateCcw className="w-3.5 h-3.5 text-blue-600" />
-                                    Alterar atendimento
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setConfirmandoCancelamentoId(item.id);
-                                      setConfirmandoAlteracaoId(null);
-                                    }}
-                                    className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
-                                  >
-                                    <Ban className="w-3.5 h-3.5 text-rose-600" />
-                                    Cancelar atendimento
-                                  </button>
-                                </div>
-                              )}
-                              {confirmandoCancelamentoId === item.id && (
-                                <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
-                                  <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
-                                  <span className="text-[11.5px] font-bold text-slate-700">Deseja cancelar este atendimento finalizado?</span>
-                                  <div className="flex items-center justify-end gap-2">
+                          <div className="relative inline-flex items-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConfirmandoAlteracaoId(confirmandoAlteracaoId === item.id ? null : item.id);
+                                setConfirmandoCancelamentoId(null);
+                                setConfirmandoPresencaId(null);
+                                setConfirmandoReativacaoId(null);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-transparent hover:border-slate-200 hover:bg-slate-50 text-[11px] text-slate-500 hover:text-blue-700 font-medium transition-colors cursor-pointer group/finalizado"
+                              title="Clique para opções ou visualizar o prontuário"
+                            >
+                              <span>Finalizado</span>
+                              <span className="text-slate-400 group-hover/finalizado:text-blue-600">▾</span>
+                            </button>
+                            {confirmandoAlteracaoId === item.id && (
+                              <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-1 p-2 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in min-w-[190px] text-left">
+                                <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                                  Opções do atendimento
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConfirmandoAlteracaoId(null);
+                                    abrirModalProntuario(item, false, true);
+                                  }}
+                                  className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-blue-700 hover:text-blue-800 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-blue-600" />
+                                  Visualizar prontuário
+                                </button>
+                                {ehAdmin && (
+                                  <>
                                     <button
                                       type="button"
-                                      onClick={() => setConfirmandoCancelamentoId(null)}
-                                      className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                      onClick={() => {
+                                        setConfirmandoAlteracaoId(null);
+                                        abrirModalProntuario(item, true, false);
+                                      }}
+                                      className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
                                     >
-                                      Voltar
+                                      <RotateCcw className="w-3.5 h-3.5 text-blue-600" />
+                                      Alterar atendimento
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => handleCancelarAtendimento(item.id)}
-                                      className="px-2.5 py-1 text-[11px] bg-rose-600 text-white hover:bg-rose-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                      onClick={() => {
+                                        setConfirmandoCancelamentoId(item.id);
+                                        setConfirmandoAlteracaoId(null);
+                                      }}
+                                      className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
                                     >
-                                      Sim, cancelar
+                                      <Ban className="w-3.5 h-3.5 text-rose-600" />
+                                      Cancelar atendimento
                                     </button>
-                                  </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                            {confirmandoCancelamentoId === item.id && (
+                              <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
+                                <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                <span className="text-[11.5px] font-bold text-slate-700">Deseja cancelar este atendimento finalizado?</span>
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmandoCancelamentoId(null)}
+                                    className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                  >
+                                    Voltar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelarAtendimento(item.id)}
+                                    className="px-2.5 py-1 text-[11px] bg-rose-600 text-white hover:bg-rose-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                  >
+                                    Sim, cancelar
+                                  </button>
                                 </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-[11px] text-slate-400 font-medium px-2 py-1 select-none">
-                              Finalizado
-                            </span>
-                          )
+                              </div>
+                            )}
+                          </div>
                         )}
 
                         {/* CANCELADO — Exibição e opção de reativar (reativar apenas para admin) */}
@@ -1158,9 +1189,11 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       <ModalIniciarAtendimento
         aberto={modalAtendimentoAberto}
         dados={dadosAtendimentoAtivo}
+        somenteLeitura={modalModoVisualizacao}
         aoFechar={() => {
           setModalAtendimentoAberto(false);
           setDadosAtendimentoAtivo(null);
+          setModalModoVisualizacao(false);
         }}
         aoConfirmar={handleSalvarAtendimentoProntuario}
       />

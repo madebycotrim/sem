@@ -17,6 +17,8 @@ import { STATUS_ATENDIMENTO_LABELS, StatusAtendimento } from '../../compartilhad
 import { StatusAtendimentoBadge } from './StatusAtendimentoBadge.tsx';
 import { ModalIniciarAtendimento, type DadosAtendimento } from './ModalIniciarAtendimento.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
+import { CardHoverPaciente } from './CardHoverPaciente.tsx';
+import { type ItemPaciente, calcularIdade } from './TabelaPacientes.tsx';
 
 export interface ItemAtendimentoLista {
   id: string;
@@ -47,9 +49,10 @@ export interface AtendimentosProps {
   aoAtualizarStatus?: (id: string, status: StatusAtendimento) => void | Promise<void>;
   aoSalvarAtendimento?: (atendimento: ItemAtendimentoLista) => void;
   ehAdmin?: boolean;
-  pacientes?: Array<{ id: string; nome: string; cpf?: string; idade?: number }>;
+  pacientes?: ItemPaciente[];
   escolas?: Array<{ id: string; nome: string }>;
   profissionais?: Array<{ id: string; nome: string; registro?: string; registroConselho?: string; conselho?: string }>;
+  aoVerHistoricoPaciente?: (paciente: ItemPaciente) => void;
 }
 
 export const Atendimentos: FC<AtendimentosProps> = ({
@@ -60,6 +63,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   pacientes = [],
   escolas = [],
   profissionais = [],
+  aoVerHistoricoPaciente,
 }) => {
   const [atendimentosLocais, setAtendimentosLocais] = useState<ItemAtendimentoLista[]>(atendimentosProp);
 
@@ -71,6 +75,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
 
   const [modalAtendimentoAberto, setModalAtendimentoAberto] = useState(false);
   const [dadosAtendimentoAtivo, setDadosAtendimentoAtivo] = useState<DadosAtendimento | null>(null);
+  const [modalModoVisualizacao, setModalModoVisualizacao] = useState(false);
   const [confirmandoAlteracaoId, setConfirmandoAlteracaoId] = useState<string | null>(null);
   const [confirmandoCancelamentoId, setConfirmandoCancelamentoId] = useState<string | null>(null);
   const [confirmandoPresencaId, setConfirmandoPresencaId] = useState<string | null>(null);
@@ -140,7 +145,11 @@ export const Atendimentos: FC<AtendimentosProps> = ({
     await handleAlterarStatus(id, StatusAtendimento.CANCELADO);
   };
 
-  const abrirModalProntuario = async (item: ItemAtendimentoLista, alterarParaEmAtendimento = false) => {
+  const abrirModalProntuario = async (
+    item: ItemAtendimentoLista,
+    alterarParaEmAtendimento = false,
+    somenteLeitura = false
+  ) => {
     if (alterarParaEmAtendimento && item.status !== StatusAtendimento.EM_ATENDIMENTO) {
       await handleAlterarStatus(item.id, StatusAtendimento.EM_ATENDIMENTO);
     }
@@ -164,7 +173,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
       escolaId: item.escolaId || escolaEncontrada?.id,
       pacienteNome: item.pacienteNome,
       cpf: pacienteEncontrado?.cpf,
-      idade: pacienteEncontrado?.idade ?? 0,
+      idade: pacienteEncontrado?.dataNascimento ? calcularIdade(pacienteEncontrado.dataNascimento) : 0,
       escolaNome: item.escolaNome,
       especialidade: item.especialidade,
       profissional: item.profissionalNome,
@@ -174,6 +183,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
       horarioChegada: hora !== 'Invalid Date' ? hora : '--:--',
       anotacoes: item.resumo || '',
     });
+    setModalModoVisualizacao(somenteLeitura);
     setModalAtendimentoAberto(true);
   };
 
@@ -218,8 +228,8 @@ export const Atendimentos: FC<AtendimentosProps> = ({
     }
   };
   const [busca, setBusca] = useState('');
-  // O histórico clínico começa mostrando apenas consultas concluídas.
-  const [statusFiltro, setStatusFiltro] = useState(StatusAtendimento.CONCLUIDO);
+  // O histórico clínico começa mostrando todos os atendimentos por padrão.
+  const [statusFiltro, setStatusFiltro] = useState('');
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
   const [periodoSelecionado, setPeriodoSelecionado] = useState<number | 'mes' | 'tudo' | null>(null);
@@ -369,13 +379,16 @@ export const Atendimentos: FC<AtendimentosProps> = ({
               <SelectModal
                 value={statusFiltro}
                 onChange={(evento) => setStatusFiltro(evento.target.value)}
-                placeholder="Todos os status"
-                className="!h-10 !w-[170px] !min-w-0 shrink-0 [&>button]:!h-10 [&>button]:!rounded-2xl [&>button]:!border-slate-200 [&>button]:!bg-white [&>button]:!px-3 [&>button]:!text-xs"
+                placeholder="Todos"
+                className="!h-10 !w-[170px] !min-w-0 shrink-0 [&>button]:!h-10 [&>button]:!rounded-2xl [&>button]:!border-slate-200 [&>button]:!bg-white [&>button]:!px-3 [&>button]:!text-xs [&>button_span]:!text-slate-800"
                 pesquisavel={false}
-                opcoes={Object.entries(STATUS_ATENDIMENTO_LABELS).map(([valor, rotulo]) => ({
-                  valor,
-                  rotulo: String(rotulo),
-                }))}
+                opcoes={[
+                  { valor: '', rotulo: 'Todos' },
+                  ...Object.entries(STATUS_ATENDIMENTO_LABELS).map(([valor, rotulo]) => ({
+                    valor,
+                    rotulo: String(rotulo),
+                  })),
+                ]}
               />
               <label className="relative flex h-10 cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300" onClick={(evento) => { evento.preventDefault(); dataInicioRef.current?.showPicker?.(); }}>
                 <span className="shrink-0">De</span>
@@ -409,7 +422,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
               <button type="button" onClick={() => aplicarPeriodo('mes')} className={`hidden h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors lg:block ${periodoSelecionado === 'mes' ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Este mês</button>
               <button type="button" onClick={() => aplicarPeriodo('tudo')} className={`h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-bold transition-colors ${periodoSelecionado === 'tudo' ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Tudo</button>
               <span className="mx-0.5 h-6 w-px bg-slate-200" aria-hidden="true" />
-              <button type="button" onClick={() => { setBusca(''); setStatusFiltro(StatusAtendimento.CONCLUIDO); setDataInicio(''); setDataFim(''); setPeriodoSelecionado(null); setDiaSelecionado(null); }} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-rose-600 transition-colors hover:bg-rose-50">
+              <button type="button" onClick={() => { setBusca(''); setStatusFiltro(''); setDataInicio(''); setDataFim(''); setPeriodoSelecionado(null); setDiaSelecionado(null); }} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-rose-600 transition-colors hover:bg-rose-50">
                 <RotateCcw className="h-3.5 w-3.5" /> Limpar
               </button>
             </div>
@@ -437,7 +450,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                   colunaId="profissionalNome"
                   rotulo="PROFISSIONAL"
                   estado={filtroExcel}
-                  className="px-3.5 py-3"
+                  className="px-3.5 py-3 max-w-[180px] xl:max-w-[220px]"
                 />
                 <CabecalhoColunaExcel
                   colunaId="especialidade"
@@ -499,37 +512,83 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                   </td>
                 </tr>
               ) : (
-                dadosPaginados.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/70 transition-colors group border-b border-slate-100 last:border-0">
-                    <td className="py-3 px-4.5 font-semibold text-slate-900">
-                      <div className="flex items-center gap-3">
-                        {(() => {
-                          const estilo = obterEstiloAvatarGoogle(item.pacienteNome);
-                          return (
-                            <div
-                              style={estilo.style}
-                              className="w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs select-none ring-2 ring-white"
-                            >
-                              {item.pacienteNome.charAt(0).toUpperCase()}
+                dadosPaginados.map((item) => {
+                  const pacienteEncontrado = pacientes.find(
+                    (p) =>
+                      p.id === item.pacienteId ||
+                      (p.nome && item.pacienteNome && p.nome.trim().toLowerCase() === item.pacienteNome.trim().toLowerCase())
+                  );
+                  const pacienteCompleto: ItemPaciente = pacienteEncontrado || {
+                    id: item.pacienteId || item.id,
+                    nome: item.pacienteNome,
+                    dataNascimento: '',
+                    escolaNome: item.escolaNome || 'Não informada',
+                    termoConsentimentoStatus: 'PENDENTE',
+                    atendimentosCount: 1,
+                    criadoEm: item.criadoEm || new Date().toISOString(),
+                  };
+
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/70 transition-colors group border-b border-slate-100 last:border-0">
+                      <td className="py-3 px-4.5 font-semibold text-slate-900">
+                        <CardHoverPaciente
+                          paciente={pacienteCompleto}
+                          aoVerDetalhes={aoVerHistoricoPaciente ? () => aoVerHistoricoPaciente(pacienteCompleto) : undefined}
+                        >
+                          <div className="flex items-center gap-3">
+                            {(() => {
+                              const estilo = obterEstiloAvatarGoogle(item.pacienteNome);
+                              return (
+                                <div
+                                  style={estilo.style}
+                                  className="w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs select-none ring-2 ring-white"
+                                >
+                                  {item.pacienteNome.charAt(0).toUpperCase()}
+                                </div>
+                              );
+                            })()}
+                            <div className="flex flex-col text-left">
+                              <button
+                                type="button"
+                                onClick={() => aoVerHistoricoPaciente?.(pacienteCompleto)}
+                                className="text-left font-semibold text-slate-900 uppercase tracking-tight text-xs hover:text-blue-600 hover:underline transition-colors cursor-pointer"
+                                title="Clique para abrir o Histórico Clínico deste paciente"
+                              >
+                                {item.pacienteNome}
+                              </button>
                             </div>
-                          );
-                        })()}
-                        <div className="flex flex-col">
-                          <span className="font-medium text-slate-900 uppercase tracking-tight text-xs">
-                            {item.pacienteNome}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3.5 text-slate-600 font-medium">
-                      {item.profissionalNome}
-                    </td>
+                          </div>
+                        </CardHoverPaciente>
+                      </td>
+                      <td className="py-3 px-3.5 text-slate-600 font-medium max-w-[180px] xl:max-w-[220px]">
+                        <span
+                          className="block truncate max-w-[180px] xl:max-w-[220px] text-xs font-semibold text-slate-800 uppercase tracking-tight"
+                          title={item.profissionalNome}
+                        >
+                          {item.profissionalNome}
+                        </span>
+                      </td>
                     <td className="py-3 px-3.5">
                       <EspecialidadeBadge especialidade={item.especialidade} compacto />
                     </td>
                     <td className="py-3 px-3.5 text-slate-600 font-medium">{item.escolaNome}</td>
-                    <td className="py-3 px-3.5 text-slate-500 font-mono text-[11px]">
-                      {new Date(item.criadoEm).toLocaleDateString('pt-BR')} {new Date(item.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    <td className="py-3 px-3.5">
+                      {(() => {
+                        const d = new Date(item.criadoEm);
+                        const valido = !isNaN(d.getTime());
+                        const hora = valido ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                        const data = valido ? d.toLocaleDateString('pt-BR') : '--/--/----';
+                        return (
+                          <div className="flex flex-col text-left">
+                            <span className="font-mono font-extrabold text-xs text-slate-900 tracking-tight">
+                              {hora}
+                            </span>
+                            <span className="text-[10.5px] font-medium text-slate-400 font-mono mt-0.5">
+                              {data}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="py-3 px-3.5">
                       <StatusAtendimentoBadge status={item.status || StatusAtendimento.CONCLUIDO} />
@@ -729,79 +788,89 @@ export const Atendimentos: FC<AtendimentosProps> = ({
 
                         {/* PASSO 4: CONCLUIDO */}
                         {(!item.status || item.status === 'CONCLUIDO') && (
-                          ehAdmin ? (
-                            <div className="relative inline-flex items-center">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setConfirmandoAlteracaoId(confirmandoAlteracaoId === item.id ? null : item.id);
-                                  setConfirmandoCancelamentoId(null);
-                                  setConfirmandoPresencaId(null);
-                                  setConfirmandoReativacaoId(null);
-                                }}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-transparent hover:border-slate-200 hover:bg-slate-50 text-[11px] text-slate-500 hover:text-blue-700 font-medium transition-colors cursor-pointer group/finalizado"
-                              >
-                                <span>Finalizado</span>
-                                <span className="text-slate-400 group-hover/finalizado:text-blue-600">▾</span>
-                              </button>
-                              {confirmandoAlteracaoId === item.id && (
-                                <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-1 p-2 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in min-w-[170px] text-left">
-                                  <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
-                                  <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                                    Opções do atendimento
-                                  </p>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setConfirmandoAlteracaoId(null);
-                                      abrirModalProntuario(item, false);
-                                    }}
-                                    className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
-                                  >
-                                    <RotateCcw className="w-3.5 h-3.5 text-blue-600" />
-                                    Alterar atendimento
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setConfirmandoCancelamentoId(item.id);
-                                      setConfirmandoAlteracaoId(null);
-                                    }}
-                                    className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
-                                  >
-                                    <Ban className="w-3.5 h-3.5 text-rose-600" />
-                                    Cancelar atendimento
-                                  </button>
-                                </div>
-                              )}
-                              {confirmandoCancelamentoId === item.id && (
-                                <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
-                                  <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
-                                  <span className="text-[11.5px] font-bold text-slate-700">Deseja cancelar este atendimento finalizado?</span>
-                                  <div className="flex items-center justify-end gap-2">
+                          <div className="relative inline-flex items-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConfirmandoAlteracaoId(confirmandoAlteracaoId === item.id ? null : item.id);
+                                setConfirmandoCancelamentoId(null);
+                                setConfirmandoPresencaId(null);
+                                setConfirmandoReativacaoId(null);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-transparent hover:border-slate-200 hover:bg-slate-50 text-[11px] text-slate-500 hover:text-blue-700 font-medium transition-colors cursor-pointer group/finalizado"
+                              title="Clique para opções ou visualizar o prontuário"
+                            >
+                              <span>Finalizado</span>
+                              <span className="text-slate-400 group-hover/finalizado:text-blue-600">▾</span>
+                            </button>
+                            {confirmandoAlteracaoId === item.id && (
+                              <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-1 p-2 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in min-w-[190px] text-left">
+                                <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                                  Opções do atendimento
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConfirmandoAlteracaoId(null);
+                                    abrirModalProntuario(item, false, true);
+                                  }}
+                                  className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-blue-700 hover:text-blue-800 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-blue-600" />
+                                  Visualizar prontuário
+                                </button>
+                                {ehAdmin && (
+                                  <>
                                     <button
                                       type="button"
-                                      onClick={() => setConfirmandoCancelamentoId(null)}
-                                      className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                      onClick={() => {
+                                        setConfirmandoAlteracaoId(null);
+                                        abrirModalProntuario(item, false, false);
+                                      }}
+                                      className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
                                     >
-                                      Voltar
+                                      <RotateCcw className="w-3.5 h-3.5 text-blue-600" />
+                                      Alterar atendimento
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => handleCancelarAtendimento(item.id)}
-                                      className="px-2.5 py-1 text-[11px] bg-rose-600 text-white hover:bg-rose-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                      onClick={() => {
+                                        setConfirmandoCancelamentoId(item.id);
+                                        setConfirmandoAlteracaoId(null);
+                                      }}
+                                      className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
                                     >
-                                      Sim, cancelar
+                                      <Ban className="w-3.5 h-3.5 text-rose-600" />
+                                      Cancelar atendimento
                                     </button>
-                                  </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                            {confirmandoCancelamentoId === item.id && (
+                              <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
+                                <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                <span className="text-[11.5px] font-bold text-slate-700">Deseja cancelar este atendimento finalizado?</span>
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmandoCancelamentoId(null)}
+                                    className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                  >
+                                    Voltar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelarAtendimento(item.id)}
+                                    className="px-2.5 py-1 text-[11px] bg-rose-600 text-white hover:bg-rose-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                  >
+                                    Sim, cancelar
+                                  </button>
                                 </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-[11px] text-slate-400 font-medium px-2 py-1 select-none">
-                              Finalizado
-                            </span>
-                          )
+                              </div>
+                            )}
+                          </div>
                         )}
 
                         {/* PASSO 5: CANCELADO */}
@@ -855,7 +924,8 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -873,9 +943,11 @@ export const Atendimentos: FC<AtendimentosProps> = ({
       <ModalIniciarAtendimento
         aberto={modalAtendimentoAberto}
         dados={dadosAtendimentoAtivo}
+        somenteLeitura={modalModoVisualizacao}
         aoFechar={() => {
           setModalAtendimentoAberto(false);
           setDadosAtendimentoAtivo(null);
+          setModalModoVisualizacao(false);
         }}
         aoConfirmar={handleSalvarAtendimentoProntuario}
       />

@@ -910,6 +910,10 @@ export function App() {
                 pacientes={pacientes}
                 escolas={escolasGlobais}
                 profissionais={profissionais}
+                aoVerHistoricoPaciente={(p) => {
+                  const pacienteCompleto = pacientes.find((item) => item.id === p.id || item.nome === p.nome) || p;
+                  setPacienteHistoricoDrawer(pacienteCompleto);
+                }}
               />
             );
           }

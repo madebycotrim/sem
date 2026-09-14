@@ -38,6 +38,7 @@ export interface ModalIniciarAtendimentoProps {
   dados: DadosAtendimento | null;
   aoFechar: () => void;
   aoConfirmar: (itemId: string, anotacoes: string, dados: DadosAtendimento) => Promise<void> | void;
+  somenteLeitura?: boolean;
 }
 
 /** Gera iniciais do nome */
@@ -65,6 +66,7 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
   dados,
   aoFechar,
   aoConfirmar,
+  somenteLeitura = false,
 }) => {
   const [anotacoes, setAnotacoes] = useState(dados?.anotacoes || '');
   const [salvando, setSalvando] = useState(false);
@@ -77,9 +79,11 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
       setAnotacoes(dados?.anotacoes || '');
       setErro(null);
       setSalvando(false);
-      setTimeout(() => textareaRef.current?.focus(), 200);
+      if (!somenteLeitura) {
+        setTimeout(() => textareaRef.current?.focus(), 200);
+      }
     }
-  }, [aberto, dados?.anotacoes, dados?.itemId]);
+  }, [aberto, dados?.anotacoes, dados?.itemId, somenteLeitura]);
 
   if (!dados) return null;
 
@@ -114,54 +118,77 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
       aoFechar={() => {
         if (!salvando) aoFechar();
       }}
-      titulo="Finalizar Atendimento"
-      subtitulo="Registre as informações da consulta antes de finalizar."
+      titulo={somenteLeitura ? "Prontuário do Atendimento" : "Finalizar Atendimento"}
+      subtitulo={somenteLeitura ? "Registro clínico e anotações do atendimento finalizado." : "Registre as informações da consulta antes de finalizar."}
       tamanho="lg"
-      icone={<Check className="w-5 h-5 text-blue-600" />}
+      icone={somenteLeitura ? <FileText className="w-5 h-5 text-blue-600" /> : <Check className="w-5 h-5 text-blue-600" />}
       contentClassName="p-0"
       rodape={
-        <>
+        somenteLeitura ? (
           <BotaoModal
             variante="secundario"
-            rotulo="Cancelar"
+            rotulo="Fechar"
             aoClicar={aoFechar}
-            desabilitado={salvando}
           />
-          <BotaoModal
-            variante="primario"
-            desabilitado={salvando}
-            rotulo={
-              <span className="flex items-center gap-2">
-                {salvando ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Salvando no banco...
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Finalizar Atendimento
-                  </>
-                )}
-              </span>
-            }
-            aoClicar={handleConfirmar}
-          />
-        </>
+        ) : (
+          <>
+            <BotaoModal
+              variante="secundario"
+              rotulo="Cancelar"
+              aoClicar={aoFechar}
+              desabilitado={salvando}
+            />
+            <BotaoModal
+              variante="primario"
+              desabilitado={salvando}
+              rotulo={
+                <span className="flex items-center gap-2">
+                  {salvando ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Salvando no banco...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Salvar Atendimento
+                    </>
+                  )}
+                </span>
+              }
+              aoClicar={handleConfirmar}
+            />
+          </>
+        )
       }
     >
       <div className="bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_72%)] px-7 py-7 space-y-5">
 
-        <div className="flex items-center justify-between gap-3 px-1">
-          <div>
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-600">Etapa 2 de 2</p>
-            <p className="mt-1 text-[13px] font-bold text-slate-800">Finalize o atendimento deste paciente</p>
+        {somenteLeitura ? (
+          <div className="flex items-center justify-between gap-3 px-1">
+            <div>
+              <span className="inline-flex items-center gap-1.5 text-[10.5px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl shadow-2xs">
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                Atendimento Concluído
+              </span>
+              <p className="mt-1 text-[13px] font-bold text-slate-800">Prontuário Clínico Registrado</p>
+            </div>
+            <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-xl">
+              Modo de Leitura
+            </span>
           </div>
-          <div className="flex items-center gap-1" aria-hidden="true">
-            <span className="h-1.5 w-2 rounded-full bg-blue-300" />
-            <span className="h-1.5 w-7 rounded-full bg-blue-600" />
+        ) : (
+          <div className="flex items-center justify-between gap-3 px-1">
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-600">Etapa 2 de 2</p>
+              <p className="mt-1 text-[13px] font-bold text-slate-800">Finalize o atendimento deste paciente</p>
+            </div>
+            <div className="flex items-center gap-1" aria-hidden="true">
+              <span className="h-1.5 w-2 rounded-full bg-blue-300" />
+              <span className="h-1.5 w-7 rounded-full bg-blue-600" />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ─── Card de Identificação ─────────────────────────────────────── */}
         <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 overflow-hidden">
@@ -215,37 +242,57 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
         </div>
 
         {/* ─── Anotações da Consulta ─────────────────────────────────────── */}
-        <ModalCampo
-          rotulo="O que foi feito nesta consulta"
-          dica="Descreva procedimentos, exames, orientações e condutas clínicas adotadas."
-        >
-          <div className="relative">
-            <div className="absolute top-3 left-4 pointer-events-none">
-              <FileText className="w-4 h-4 text-slate-300" />
+        {somenteLeitura ? (
+          <ModalCampo
+            rotulo="Evolução e Conduta Clínica Registrada"
+            dica="Anotações e procedimentos salvos pelo profissional responsável no encerramento da consulta."
+          >
+            <div className="p-4 rounded-xl bg-slate-50/90 border border-slate-200/90 text-[13px] font-medium text-slate-800 leading-relaxed whitespace-pre-wrap select-text min-h-[130px]">
+              <div className="flex items-start gap-3">
+                <FileText className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  {anotacoes && anotacoes.trim() ? (
+                    <p className="text-slate-800 font-normal leading-relaxed">{anotacoes}</p>
+                  ) : (
+                    <p className="text-slate-400 italic">Nenhuma anotação registrada para este atendimento.</p>
+                  )}
+                </div>
+              </div>
             </div>
-            <textarea
-              ref={textareaRef}
-              value={anotacoes}
-              onChange={(e) => setAnotacoes(e.target.value)}
-              placeholder="Descreva detalhadamente o que foi feito nesta consulta: procedimentos realizados, orientações dadas, condutas clínicas e evolução do paciente..."
-              rows={7}
-              className="w-full pl-10 pr-4 pt-3 pb-3 text-[13px] font-medium text-slate-800 bg-slate-50/80 border border-slate-200/90 rounded-xl outline-none resize-none transition-all duration-150 focus:bg-white focus:border-blue-500 focus:ring-3 focus:ring-blue-100 placeholder:text-slate-400 leading-relaxed"
-            />
-            {anotacoes.length > 0 && (
-              <div className="absolute bottom-3 right-3">
-                <span className="text-[10px] font-semibold text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-lg">
-                  {anotacoes.length} caracteres
-                </span>
+          </ModalCampo>
+        ) : (
+          <ModalCampo
+            rotulo="O que foi feito nesta consulta"
+            dica="Descreva procedimentos, exames, orientações e condutas clínicas adotadas."
+          >
+            <div className="relative">
+              <div className="absolute top-3 left-4 pointer-events-none">
+                <FileText className="w-4 h-4 text-slate-300" />
+              </div>
+              <textarea
+                ref={textareaRef}
+                value={anotacoes}
+                onChange={(e) => setAnotacoes(e.target.value)}
+                placeholder="Descreva detalhadamente o que foi feito nesta consulta: procedimentos realizados, orientações dadas, condutas clínicas e evolução do paciente..."
+                rows={7}
+                className="w-full pl-10 pr-4 pt-3 pb-3 text-[13px] font-medium text-slate-800 bg-slate-50/80 border border-slate-200/90 rounded-xl outline-none resize-none transition-all duration-150 focus:bg-white focus:border-blue-500 focus:ring-3 focus:ring-blue-100 placeholder:text-slate-400 leading-relaxed"
+              />
+              {anotacoes.length > 0 && (
+                <div className="absolute bottom-3 right-3">
+                  <span className="text-[10px] font-semibold text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-lg">
+                    {anotacoes.length} caracteres
+                  </span>
+                </div>
+              )}
+            </div>
+            {erro && (
+              <div className="mt-2.5 flex items-center gap-2 px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold animate-fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{erro}</span>
               </div>
             )}
-          </div>
-          {erro && (
-            <div className="mt-2.5 flex items-center gap-2 px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold animate-fade-in">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-              <span>{erro}</span>
-            </div>
-          )}
-        </ModalCampo>
+          </ModalCampo>
+        )}
 
       </div>
     </Modal>
