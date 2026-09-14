@@ -12,6 +12,7 @@ import { verificarSenha, gerarHashSenha } from '../../infraestrutura/criptografi
 import { middlewareAutenticacao, type AppVariables, type PayloadJwt } from '../../middlewares/autenticacao.js';
 import { verificarBloqueioLogin, registrarTentativaLogin } from '../../middlewares/brute-force.js';
 import { registrarAuditoria } from '../../middlewares/auditoria.js';
+import { limpezaOportunista } from '../../infraestrutura/limpeza.js';
 import type { Bindings } from '../../config/env.js';
 
 export const rotasAuth = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
@@ -121,6 +122,18 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
     entidadeId: jti,
     ip,
   });
+
+  // Limpeza oportunista: dispara manutenção do banco em background (1/20 logins)
+  // usando waitUntil para não bloquear a resposta ao usuário.
+  const ctx = (c.env as unknown as { executionCtx?: ExecutionContext })?.executionCtx;
+  if (ctx?.waitUntil) {
+    ctx.waitUntil(limpezaOportunista(c.env.DB));
+  } else {
+    // Fallback: dispara sem aguardar em ambientes sem ExecutionContext (dev local)
+    limpezaOportunista(c.env.DB).catch((err) =>
+      console.error(JSON.stringify({ tipo: 'LIMPEZA_ERRO_FALLBACK', erro: String(err) }))
+    );
+  }
 
   return c.json({
     usuario: {
