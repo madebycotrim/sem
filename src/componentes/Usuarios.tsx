@@ -341,8 +341,15 @@ export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
                   </td>
                 </tr>
               ) : (
-                dadosPaginados.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50/70 transition-colors group border-b border-slate-100 last:border-0">
+                dadosPaginados.map((u, index) => {
+                  const abrirParaCima = index >= 2 && index >= dadosPaginados.length - 3;
+                  return (
+                    <tr
+                      key={u.id}
+                      className={`hover:bg-slate-50/70 transition-colors group border-b border-slate-100 last:border-0 ${
+                        menuAcoesAbertoId === u.id ? 'relative z-30' : ''
+                      }`}
+                    >
                     <td className="py-3 px-4.5 font-semibold text-slate-900">
                       <div className="flex items-center gap-3">
                         {(() => {
@@ -433,8 +440,8 @@ export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
                       {u.ultimoAcesso || 'Não informado'}
                     </td>
 
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5 relative" onClick={(e) => e.stopPropagation()}>
+                    <td className={`py-3 px-4 text-right ${menuAcoesAbertoId === u.id ? 'relative z-30' : ''}`}>
+                      <div className={`flex items-center justify-end gap-1.5 relative ${menuAcoesAbertoId === u.id ? 'z-30' : ''}`} onClick={(e) => e.stopPropagation()}>
                         {/* Botão Redefinir Senha */}
                         <button
                           type="button"
@@ -456,7 +463,7 @@ export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
                         </button>
 
                         {/* Dropdown de Opções */}
-                        <div className="relative">
+                        <div className={`relative ${menuAcoesAbertoId === u.id ? 'z-50' : ''}`}>
                           <button
                             type="button"
                             onClick={() => setMenuAcoesAbertoId(menuAcoesAbertoId === u.id ? null : u.id)}
@@ -475,7 +482,13 @@ export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
                           {menuAcoesAbertoId === u.id && (
                             <>
                               <div className="fixed inset-0 z-40" onClick={() => setMenuAcoesAbertoId(null)} />
-                              <div className="absolute right-0 top-full mt-1.5 w-44 bg-white border border-slate-200/95 rounded-2xl shadow-xl z-50 py-1.5 text-left text-xs animate-dropdown origin-top-right ring-1 ring-black/5">
+                              <div
+                                className={`absolute right-0 w-44 bg-white border border-slate-200/95 rounded-2xl shadow-xl z-50 py-1.5 text-left text-xs animate-dropdown ring-1 ring-black/5 ${
+                                  abrirParaCima
+                                    ? 'bottom-full mb-1.5 origin-bottom-right'
+                                    : 'top-full mt-1.5 origin-top-right'
+                                }`}
+                              >
                                 <button
                                   type="button"
                                   onClick={() => { setMenuAcoesAbertoId(null); setUsuarioEditando(u); }}
@@ -508,7 +521,8 @@ export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
                       </div>
                     </td>
                   </tr>
-                ))
+                );
+              })
               )}
             </tbody>
           </table>

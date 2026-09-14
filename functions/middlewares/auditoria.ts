@@ -20,7 +20,7 @@ export interface DadosAuditoria {
  * Registra auditoria apenas no stdout/streaming de logs da Cloudflare (zero custo de storage D1).
  */
 export async function registrarAuditoria(
-  _prisma: unknown,
+  _db: unknown,
   dados: DadosAuditoria
 ): Promise<void> {
   console.info(

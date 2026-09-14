@@ -154,3 +154,27 @@ export async function descriptografarPii(
   const decoder = new TextDecoder();
   return decoder.decode(decifrado);
 }
+
+/**
+ * Gera um Blind Index determinístico usando HMAC-SHA-256.
+ * Utilizado para busca rápida e unicidade O(1) de CPF sem expor o dado em texto claro.
+ * Normaliza o CPF para apenas dígitos antes de assinar.
+ */
+export async function gerarBlindIndex(
+  cpf: string,
+  secretHex: string
+): Promise<string> {
+  const secretBytes = parseKek(secretHex);
+  const chaveHmac = await crypto.subtle.importKey(
+    'raw',
+    secretBytes.buffer as ArrayBuffer,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const encoder = new TextEncoder();
+  const cpfDigitos = cpf.trim().replace(/\D/g, '');
+  const dadoBytes = encoder.encode(cpfDigitos);
+  const assinatura = await crypto.subtle.sign('HMAC', chaveHmac, dadoBytes);
+  return bufferParaHex(assinatura);
+}

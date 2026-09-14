@@ -1099,6 +1099,7 @@ export function App() {
               <Escolas
                 escolas={escolasGlobais}
                 escolaAtivaId={escolaAtivaId}
+                atendimentos={todosAtendimentos}
                 podeGerenciar={usuarioLogado?.perfil === 'ADMIN' || usuarioLogado?.perfil === 'BOOTSTRAP'}
                 aoSelecionarEscolaAtiva={async (id) => {
                   setEscolaAtivaId(id);

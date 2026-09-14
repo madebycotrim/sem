@@ -295,14 +295,18 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                   </td>
                 </tr>
               ) : (
-                dadosPaginados.map((paciente) => (
-                  <tr
-                    key={paciente.id}
-                    className="transition-colors group border-b border-slate-100 last:border-0"
-                    style={{}}
-                    onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = 'rgba(3,75,127,0.03)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = 'transparent'; }}
-                  >
+                dadosPaginados.map((paciente, index) => {
+                  const abrirParaCima = index >= 2 && index >= dadosPaginados.length - 3;
+                  return (
+                    <tr
+                      key={paciente.id}
+                      className={`transition-colors group border-b border-slate-100 last:border-0 ${
+                        menuAcoesAbertoId === paciente.id ? 'relative z-30' : ''
+                      }`}
+                      style={{}}
+                      onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = 'rgba(3,75,127,0.03)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = 'transparent'; }}
+                    >
                     {/* Nome do Paciente (Foto de Perfil com cor dinâmica + Nome escuro + Subtítulo + Hover Card) */}
                     <td className="py-3 px-4.5 font-semibold text-slate-900">
                       <CardHoverPaciente
@@ -381,8 +385,8 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                     </td>
 
                     {/* Ações */}
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5 relative" onClick={(e) => e.stopPropagation()}>
+                    <td className={`py-3 px-4 text-right ${menuAcoesAbertoId === paciente.id ? 'relative z-30' : ''}`}>
+                      <div className={`flex items-center justify-end gap-1.5 relative ${menuAcoesAbertoId === paciente.id ? 'z-30' : ''}`} onClick={(e) => e.stopPropagation()}>
                         {/* Botão Histórico / Prontuário */}
                         <button
                           type="button"
@@ -412,7 +416,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                         </button>
 
                         {/* Dropdown de Opções (Substitui os 3 pontinhos) */}
-                        <div className="relative" onClick={(e) => e.stopPropagation()}>
+                        <div className={`relative ${menuAcoesAbertoId === paciente.id ? 'z-50' : ''}`} onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -441,7 +445,13 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                                   setMenuAcoesAbertoId(null);
                                 }}
                               />
-                              <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-slate-200/95 rounded-2xl shadow-xl z-50 py-1.5 text-left text-xs animate-dropdown origin-top-right ring-1 ring-black/5">
+                              <div
+                                className={`absolute right-0 w-48 bg-white border border-slate-200/95 rounded-2xl shadow-xl z-50 py-1.5 text-left text-xs animate-dropdown ring-1 ring-black/5 ${
+                                  abrirParaCima
+                                    ? 'bottom-full mb-1.5 origin-bottom-right'
+                                    : 'top-full mt-1.5 origin-top-right'
+                                }`}
+                              >
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -504,7 +514,8 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
                       </div>
                     </td>
                   </tr>
-                ))
+                );
+              })
               )}
             </tbody>
           </table>

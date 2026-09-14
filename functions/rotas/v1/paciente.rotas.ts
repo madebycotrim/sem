@@ -3,10 +3,11 @@ import { zValidator } from '@hono/zod-validator';
 import { criarPacienteSchema, atualizarPacienteSchema } from '../../../compartilhado/index.js';
 import { getDb, type AppDatabase } from '../../infraestrutura/banco/drizzle.js';
 import { pacientes, escolasLocais, consentimentos } from '../../infraestrutura/banco/schema.js';
-import { eq, and, desc, count } from 'drizzle-orm';
+import { eq, and, desc, count, ne, isNull } from 'drizzle-orm';
 import {
   criptografarPii,
   descriptografarPii,
+  gerarBlindIndex,
 } from '../../infraestrutura/criptografia/crypto.js';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis, autorizarAcao } from '../../middlewares/autorizacao.js';
@@ -35,15 +36,33 @@ const verificarCpfDuplicado = async (
   ignorarPacienteId?: string
 ) => {
   const cpfNormalizado = normalizarCpf(cpf);
+  if (cpfNormalizado.length !== 11) return false;
 
-  const pacientesList = await db.query.pacientes.findMany({
-    where: eq(pacientes.ativo, true),
+  const cpfHash = await gerarBlindIndex(cpfNormalizado, kekHex);
+
+  // 1. Busca ultra-rápida O(1) via Blind Index indexado
+  const pacienteExistente = await db.query.pacientes.findFirst({
+    where: and(
+      eq(pacientes.cpfHash, cpfHash),
+      eq(pacientes.ativo, true),
+      ignorarPacienteId ? ne(pacientes.id, ignorarPacienteId) : undefined
+    ),
+    columns: { id: true },
+  });
+
+  if (pacienteExistente) return true;
+
+  // 2. Fallback seguro para registros legados criados antes da migração do blind index
+  const pacientesLegados = await db.query.pacientes.findMany({
+    where: and(
+      isNull(pacientes.cpfHash),
+      eq(pacientes.ativo, true),
+      ignorarPacienteId ? ne(pacientes.id, ignorarPacienteId) : undefined
+    ),
     columns: { id: true, nomeEnc: true, dekCifrada: true, ivPii: true, tagPii: true },
   });
 
-  for (const paciente of pacientesList) {
-    if (ignorarPacienteId && paciente.id === ignorarPacienteId) continue;
-
+  for (const paciente of pacientesLegados) {
     try {
       const pii = JSON.parse(
         await descriptografarPii(
@@ -55,7 +74,12 @@ const verificarCpfDuplicado = async (
         )
       ) as { cpf?: string };
 
-      if (normalizarCpf(pii.cpf) === cpfNormalizado && cpfNormalizado.length === 11) {
+      if (normalizarCpf(pii.cpf) === cpfNormalizado) {
+        // Auto-migra o cpfHash para acelerar as próximas consultas a O(1)
+        await db
+          .update(pacientes)
+          .set({ cpfHash })
+          .where(eq(pacientes.id, paciente.id));
         return true;
       }
     } catch {
@@ -75,7 +99,8 @@ rotasPaciente.use(
 
 /**
  * POST /pacientes
- * Cadastra um novo paciente com dados PII criptografados (AES-256-GCM Envelope).
+ * Cadastra um novo paciente com dados PII criptografados (AES-256-GCM Envelope)
+ * e Blind Index O(1) para busca e unicidade.
  */
 rotasPaciente.post('/', autorizarAcao('criarPaciente'), zValidator('json', criarPacienteSchema), async (c) => {
   const dados = c.req.valid('json');
@@ -107,6 +132,7 @@ rotasPaciente.post('/', autorizarAcao('criarPaciente'), zValidator('json', criar
   });
 
   const piiCifrada = await criptografarPii(piiTextoPlano, kekHex);
+  const cpfHash = cpfNormalizado.length === 11 ? await gerarBlindIndex(cpfNormalizado, kekHex) : null;
 
   const retencaoDias = Number(c.env.PATIENT_DATA_RETENTION_DAYS ?? 365);
   const retencaoExpiraEm = new Date();
@@ -115,6 +141,7 @@ rotasPaciente.post('/', autorizarAcao('criarPaciente'), zValidator('json', criar
   const [paciente] = await db.insert(pacientes).values({
     nomeEnc: piiCifrada.dadosCifrados,
     cpfEnc: '',
+    cpfHash,
     dataNascimentoEnc: '',
     telefoneEnc: null,
     dekCifrada: piiCifrada.dekCifrada,
@@ -281,8 +308,11 @@ rotasPaciente.patch('/:id', autorizarAcao('editarPaciente'), zValidator('json', 
     sexo: dados.sexo ?? piiAtual.sexo ?? null,
   }), c.env.KEK_HEX);
 
+  const cpfHashAtualizado = cpfNovo.length === 11 ? await gerarBlindIndex(cpfNovo, c.env.KEK_HEX) : null;
+
   const [atualizado] = await db.update(pacientes).set({
     nomeEnc: piiCifrada.dadosCifrados,
+    cpfHash: cpfHashAtualizado,
     dekCifrada: piiCifrada.dekCifrada,
     ivPii: piiCifrada.iv,
     tagPii: piiCifrada.tag,
@@ -317,6 +347,46 @@ rotasPaciente.post('/:id/arquivar', autorizarAcao('arquivarPaciente'), async (c)
     ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1',
   });
   return c.json({ id, arquivado: true });
+});
+
+/**
+ * POST /pacientes/:id/anonimizar
+ * Executa Crypto-Shredding para direito de eliminação/expurgo (Art. 18 LGPD).
+ * Invalida a chave de dados (DEK) e anula o Blind Index, tornando os dados pessoais
+ * matematicamente irrecuperáveis enquanto preserva as contagens estatísticas de saúde.
+ */
+rotasPaciente.post('/:id/anonimizar', autorizarPerfis(['BOOTSTRAP', 'ADMIN']), async (c) => {
+  const usuario = c.get('usuario');
+  const db = getDb(c.env.DB);
+  const id = c.req.param('id');
+  const existente = await db.query.pacientes.findFirst({ where: eq(pacientes.id, id) });
+  if (!existente) return c.json({ erro: 'Paciente não encontrado.' }, 404);
+
+  await db.update(pacientes).set({
+    nomeEnc: 'ANONIMIZADO_LGPD',
+    cpfHash: null,
+    dekCifrada: 'REVOGADA_EXPURGO_LGPD',
+    ivPii: '000000000000000000000000',
+    tagPii: '00000000000000000000000000000000',
+    ativo: false,
+    atualizadoEm: new Date().toISOString(),
+  }).where(eq(pacientes.id, id));
+
+  await registrarAuditoria(db, {
+    userId: usuario.userId,
+    acao: 'DELETE',
+    entidade: 'Paciente',
+    entidadeId: id,
+    diffAnterior: { ativo: existente.ativo },
+    diffPosterior: { ativo: false, anonimizado: true },
+    ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1',
+  });
+
+  return c.json({
+    id,
+    anonimizado: true,
+    mensagem: 'Dados pessoais anonimizados via Crypto-Shredding com sucesso.',
+  });
 });
 
 /**

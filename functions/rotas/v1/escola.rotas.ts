@@ -27,23 +27,33 @@ rotasEscola.get('/', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 
         columns: { id: true },
       },
       atendimentos: {
-        columns: { id: true },
+        columns: { id: true, especialidade: true },
       },
     },
   });
   
-  const mapeado = escolas.map((e) => ({
-    id: e.id,
-    nome: e.nome,
-    cnpj: e.cnpj || undefined,
-    regiao: `${e.cidade} / ${e.uf}`,
-    endereco: e.endereco,
-    diretoriaRegional: e.diretoriaRegional || 'Não informada',
-    alunosMatriculados: e.pacientes?.length ?? e.alunosMatriculados,
-    totalAtendimentos: e.atendimentos?.length ?? 0,
-    unidadesMoveisEstacionadas: e.unidadesMoveis,
-    status: e.statusOperacao,
-  }));
+  const mapeado = escolas.map((e) => {
+    const atendimentosPorEspecialidade: Record<string, number> = {};
+    for (const a of e.atendimentos || []) {
+      if (a.especialidade) {
+        atendimentosPorEspecialidade[a.especialidade] =
+          (atendimentosPorEspecialidade[a.especialidade] || 0) + 1;
+      }
+    }
+    return {
+      id: e.id,
+      nome: e.nome,
+      cnpj: e.cnpj || undefined,
+      regiao: `${e.cidade} / ${e.uf}`,
+      endereco: e.endereco,
+      diretoriaRegional: e.diretoriaRegional || 'Não informada',
+      alunosMatriculados: e.pacientes?.length ?? e.alunosMatriculados,
+      totalAtendimentos: e.atendimentos?.length ?? 0,
+      atendimentosPorEspecialidade,
+      unidadesMoveisEstacionadas: e.unidadesMoveis,
+      status: e.statusOperacao,
+    };
+  });
 
   return c.json({ dados: mapeado });
 });

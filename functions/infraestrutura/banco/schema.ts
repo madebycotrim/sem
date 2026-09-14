@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
 import { relations, sql } from 'drizzle-orm';
 
 // ─── Tabela: usuarios ────────────────────────────────────────────────────────
@@ -53,6 +53,7 @@ export const pacientes = sqliteTable('pacientes', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   nomeEnc: text('nome_enc').notNull(),
   cpfEnc: text('cpf_enc').notNull(),
+  cpfHash: text('cpf_hash'),
   dataNascimentoEnc: text('data_nascimento_enc').notNull(),
   telefoneEnc: text('telefone_enc'),
   dekCifrada: text('dek_cifrada').notNull(),
@@ -64,7 +65,11 @@ export const pacientes = sqliteTable('pacientes', {
   ativo: integer('ativo', { mode: 'boolean' }).notNull().default(true),
   criadoEm: text('criado_em').default(sql`CURRENT_TIMESTAMP`),
   atualizadoEm: text('atualizado_em').default(sql`CURRENT_TIMESTAMP`),
-});
+}, (table) => [
+  uniqueIndex('idx_pacientes_cpf_hash').on(table.cpfHash).where(sql`ativo = 1 AND cpf_hash IS NOT NULL`),
+  index('idx_pacientes_escola_ativo').on(table.escolaLocalId, table.ativo),
+  index('idx_pacientes_retencao').on(table.retencaoExpiraEm).where(sql`retencao_expira_em IS NOT NULL AND ativo = 1`),
+]);
 
 export const pacientesRelations = relations(pacientes, ({ one, many }) => ({
   escolaLocal: one(escolasLocais, {
@@ -85,7 +90,9 @@ export const consentimentos = sqliteTable('consentimentos', {
   consentimentoDispensado: integer('consentimento_dispensado', { mode: 'boolean' }).default(false),
   justificativaDispensa: text('justificativa_dispensa'),
   criadoEm: text('criado_em').default(sql`CURRENT_TIMESTAMP`),
-});
+}, (table) => [
+  index('idx_consentimentos_paciente').on(table.pacienteId),
+]);
 
 export const consentimentosRelations = relations(consentimentos, ({ one }) => ({
   paciente: one(pacientes, {
@@ -112,7 +119,13 @@ export const atendimentos = sqliteTable('atendimentos', {
   criadoEm: text('criado_em').default(sql`CURRENT_TIMESTAMP`),
   atualizadoEm: text('atualizado_em').default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
-  uniqueIndex('atendimentos_paciente_especialidade_key').on(table.pacienteId, table.especialidade),
+  uniqueIndex('idx_atendimentos_ativo_especialidade')
+    .on(table.pacienteId, table.especialidade)
+    .where(sql`status IN ('AGENDADO', 'CONFIRMADO', 'EM_ATENDIMENTO')`),
+  index('idx_atendimentos_paciente').on(table.pacienteId),
+  index('idx_atendimentos_escola_data').on(table.escolaLocalId, table.criadoEm),
+  index('idx_atendimentos_status_data').on(table.status, table.criadoEm),
+  index('idx_atendimentos_usuario').on(table.usuarioId),
 ]);
 
 export const atendimentosRelations = relations(atendimentos, ({ one }) => ({

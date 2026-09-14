@@ -10,7 +10,7 @@ import {
 } from '../../../compartilhado/index.js';
 import { getDb } from '../../infraestrutura/banco/drizzle.js';
 import { atendimentos, pacientes, escolasLocais, usuarios } from '../../infraestrutura/banco/schema.js';
-import { eq, and, desc, asc, count, gte, lte } from 'drizzle-orm';
+import { eq, and, desc, asc, count, gte, lte, inArray } from 'drizzle-orm';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import { middlewareIdempotencia } from '../../middlewares/idempotencia.js';
@@ -96,10 +96,13 @@ rotasAtendimento.post(
 
     const profissionalId = profissional.id;
 
+    // Busca apenas consulta ATIVA em andamento/agendada para esta especialidade.
+    // Consultas anteriores concluídas ou canceladas permitem a criação de um novo atendimento.
     const consultaExistente = await db.query.atendimentos.findFirst({
       where: and(
         eq(atendimentos.pacienteId, dados.pacienteId),
-        eq(atendimentos.especialidade, dados.especialidade)
+        eq(atendimentos.especialidade, dados.especialidade),
+        inArray(atendimentos.status, ['AGENDADO', 'CONFIRMADO', 'EM_ATENDIMENTO'])
       ),
       columns: { id: true, resumo: true },
     });

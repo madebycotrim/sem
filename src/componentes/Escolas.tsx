@@ -3,7 +3,21 @@ import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import { ModalNovaEscola } from './ModalNovaEscola.tsx';
 import { Modal, BotaoModal } from './Modal.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
-import { Building2, ChevronDown, MapPin, Pencil, Trash2, X } from 'lucide-react';
+import type { ItemAtendimentoLista } from './Atendimentos.tsx';
+import {
+  Apple,
+  Brain,
+  Building2,
+  ChevronDown,
+  Ear,
+  Eye,
+  MapPin,
+  Pencil,
+  Smile,
+  Trash2,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 
 export interface EscolaPolo {
   id: string;
@@ -14,6 +28,7 @@ export interface EscolaPolo {
   diretoriaRegional?: string;
   alunosMatriculados: number;
   totalAtendimentos?: number;
+  atendimentosPorEspecialidade?: Record<string, number>;
   unidadesMoveisEstacionadas?: number;
   status?: 'ESTACIONADA_HOJE' | 'PROGRAMADA' | 'CONCLUIDA';
 }
@@ -24,7 +39,81 @@ export interface EscolasProps {
   aoSelecionarEscolaAtiva: (escolaId: string) => void;
   aoRecarregarEscolas: () => void;
   podeGerenciar: boolean;
+  atendimentos?: ItemAtendimentoLista[];
 }
+
+interface ConfigEspecialidade {
+  id: string;
+  nome: string;
+  icone: LucideIcon;
+  fundo: string;
+  borda: string;
+  texto: string;
+}
+
+const ESPECIALIDADES_CATALOGO: ConfigEspecialidade[] = [
+  { id: 'ODONTOLOGIA', nome: 'Odontologia', icone: Smile, fundo: 'bg-rose-50', borda: 'border-rose-200', texto: 'text-rose-700' },
+  { id: 'PSICOLOGIA', nome: 'Psicologia', icone: Brain, fundo: 'bg-indigo-50', borda: 'border-indigo-200', texto: 'text-indigo-700' },
+  { id: 'OFTALMOLOGIA', nome: 'Oftalmologia', icone: Eye, fundo: 'bg-teal-50', borda: 'border-teal-200', texto: 'text-teal-700' },
+  { id: 'AUDIOMETRIA', nome: 'Audiometria', icone: Ear, fundo: 'bg-blue-50', borda: 'border-blue-200', texto: 'text-blue-700' },
+  { id: 'NUTRICAO', nome: 'Nutrição', icone: Apple, fundo: 'bg-emerald-50', borda: 'border-emerald-200', texto: 'text-emerald-700' },
+];
+
+const normalizarTexto = (s?: string) =>
+  (s || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+export const calcularMetricasEscola = (
+  escola: EscolaPolo,
+  atendimentos?: ItemAtendimentoLista[]
+) => {
+  const contagem: Record<string, number> = {
+    ...(escola.atendimentosPorEspecialidade || {}),
+  };
+
+  if (atendimentos && atendimentos.length > 0) {
+    const nomeEscolaNorm = normalizarTexto(escola.nome);
+
+    const atendimentosDestaEscola = atendimentos.filter((a) => {
+      if (a.escolaId && a.escolaId === escola.id) return true;
+      const nomeAtendNorm = normalizarTexto(a.escolaNome);
+      if (!nomeAtendNorm || nomeAtendNorm === 'nao informada') return false;
+      return (
+        nomeAtendNorm === nomeEscolaNorm ||
+        nomeEscolaNorm.includes(nomeAtendNorm) ||
+        nomeAtendNorm.includes(nomeEscolaNorm)
+      );
+    });
+
+    if (atendimentosDestaEscola.length > 0) {
+      const contagemLocal: Record<string, number> = {};
+      for (const a of atendimentosDestaEscola) {
+        if (a.especialidade) {
+          const esp = a.especialidade.toUpperCase();
+          contagemLocal[esp] = (contagemLocal[esp] || 0) + 1;
+        }
+      }
+      Object.entries(contagemLocal).forEach(([esp, qtd]) => {
+        contagem[esp] = Math.max(contagem[esp] || 0, qtd);
+      });
+    }
+  }
+
+  const ativas = ESPECIALIDADES_CATALOGO.map((esp) => ({
+    ...esp,
+    total: contagem[esp.id] || 0,
+  })).filter((esp) => esp.total > 0);
+
+  const totalAtendimentosCalculado = Math.max(
+    escola.totalAtendimentos ?? 0,
+    ativas.reduce((acc, curr) => acc + curr.total, 0)
+  );
+
+  return { ativas, totalAtendimentosCalculado };
+};
 
 export const Escolas: FC<EscolasProps> = ({
   escolas,
@@ -32,6 +121,7 @@ export const Escolas: FC<EscolasProps> = ({
   aoSelecionarEscolaAtiva,
   aoRecarregarEscolas,
   podeGerenciar,
+  atendimentos,
 }) => {
   const [busca, setBusca] = useState('');
   const [modalAberto, setModalAberto] = useState(false);
@@ -91,6 +181,7 @@ export const Escolas: FC<EscolasProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtradas.map((escola) => {
             const estaAtiva = escola.id === escolaAtivaId || escola.status === 'ESTACIONADA_HOJE';
+            const { ativas: especialidadesAtivas, totalAtendimentosCalculado } = calcularMetricasEscola(escola, atendimentos);
             return (
               <div
                 key={escola.id}
@@ -124,15 +215,44 @@ export const Escolas: FC<EscolasProps> = ({
                     <span className="text-slate-500">{escola.endereco}</span>
                   </p>
 
-                  {/* Métricas: Estudantes & Atendimentos */}
-                  <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50/80 border border-slate-100 rounded-2xl text-xs mb-3.5">
+                  {/* Métricas: Estudantes & Atendimentos com Por Especialidade logo abaixo de Total de Atendimentos */}
+                  <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50/80 border border-slate-100 rounded-2xl text-xs mb-3.5 items-start">
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total de Estudantes</span>
                       <p className="font-semibold text-slate-800 mt-0.5">{escola.alunosMatriculados || 0} estudantes</p>
                     </div>
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total de Atendimentos</span>
-                      <p className="font-semibold text-slate-800 mt-0.5">{escola.totalAtendimentos ?? 0} atendimentos</p>
+                      <p className="font-semibold text-slate-800 mt-0.5">{totalAtendimentosCalculado} atendimentos</p>
+
+                      {/* A BAIXO DE TOTAL DE ATENDIMENTO: Por Especialidade */}
+                      <div className="mt-2.5 pt-2 border-t border-slate-200/70">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                          Por Especialidade
+                        </span>
+                        {especialidadesAtivas.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {especialidadesAtivas.map((esp) => {
+                              const Icone = esp.icone;
+                              return (
+                                <span
+                                  key={esp.id}
+                                  title={`${esp.nome}: ${esp.total} atendimento(s) nesta instituição`}
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border shadow-2xs transition-all hover:scale-105 select-none ${esp.fundo} ${esp.borda} ${esp.texto}`}
+                                >
+                                  <Icone className="w-3 h-3 shrink-0" />
+                                  <span>{esp.nome}:</span>
+                                  <span className="font-extrabold">{esp.total}</span>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 font-medium italic">
+                            {totalAtendimentosCalculado > 0 ? 'Sem divisão' : 'Nenhum atendimento'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
