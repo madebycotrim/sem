@@ -1,4 +1,5 @@
 import { type FC, useState, useId } from 'react';
+import { PieChart } from 'lucide-react';
 
 export interface ItemGraficoPizza {
   id: string;
@@ -86,7 +87,7 @@ export const GraficoPizzaDonut: FC<GraficoPizzaDonutProps> = ({
   const itemAtivo = fatiaHover || (fatias.length > 0 ? fatias[0] : null);
 
   return (
-    <div className="flex flex-col h-full rounded-2xl border border-slate-200/80 bg-slate-50/30 p-5 sm:p-6 shadow-2xs">
+    <div className="flex flex-col min-h-[300px] rounded-2xl border border-slate-200/80 bg-slate-50/30 p-5 sm:p-6 shadow-2xs justify-between">
       {/* Cabeçalho do Card */}
       <div className="mb-4 flex items-center justify-between border-b border-slate-200/70 pb-3.5">
         <div className="flex items-center gap-2.5">
@@ -106,8 +107,12 @@ export const GraficoPizzaDonut: FC<GraficoPizzaDonutProps> = ({
       </div>
 
       {total === 0 ? (
-        <div className="my-auto flex h-52 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-xs font-medium text-slate-400">
-          Sem dados suficientes para exibição do gráfico
+        <div className="flex flex-col items-center justify-center py-10 px-4 rounded-xl border border-dashed border-slate-200 bg-white/70 text-center my-auto">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-400 mb-2">
+            {iconeCabecalho || <PieChart className="h-5 w-5" />}
+          </div>
+          <p className="text-xs font-bold text-slate-600">Sem dados suficientes para exibição do gráfico</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Nenhum atendimento corresponde aos filtros no período</p>
         </div>
       ) : (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-6 my-auto pt-2">

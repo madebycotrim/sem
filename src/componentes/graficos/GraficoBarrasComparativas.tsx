@@ -36,7 +36,7 @@ export const GraficoBarrasComparativas: FC<GraficoBarrasComparativasProps> = ({
   const totalGeral = totalA + totalB;
 
   return (
-    <div className="flex flex-col h-full rounded-2xl border border-slate-200/80 bg-slate-50/30 p-5 sm:p-6 shadow-2xs">
+    <div className="flex flex-col min-h-[300px] rounded-2xl border border-slate-200/80 bg-slate-50/30 p-5 sm:p-6 shadow-2xs justify-between">
       {/* Cabeçalho */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 pb-3.5">
         <div className="flex items-center gap-2.5">
@@ -63,8 +63,12 @@ export const GraficoBarrasComparativas: FC<GraficoBarrasComparativasProps> = ({
       </div>
 
       {totalGeral === 0 ? (
-        <div className="my-auto flex h-48 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-xs font-medium text-slate-400">
-          Nenhuma consulta registrada no período
+        <div className="flex flex-col items-center justify-center py-10 px-4 rounded-xl border border-dashed border-slate-200 bg-white/70 text-center my-auto">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-400 mb-2">
+            <BarChart2 className="h-5 w-5" />
+          </div>
+          <p className="text-xs font-bold text-slate-600">Nenhuma consulta registrada no período</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Sem agendamentos ou consultas concluídas nos dias da semana</p>
         </div>
       ) : (
         <div className="my-auto pt-4">

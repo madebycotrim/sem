@@ -98,4 +98,35 @@ describe('Inteligência Analítica e Métricas dos Gráficos do Dashboard', () =
     const taxaEvasao = ((cancelados + faltas) / totalDemanda) * 100;
     expect(taxaEvasao).toBe(40);
   });
+
+  it('deve lidar com 0 registros no Funil Assistencial sem gerar divisão por zero', () => {
+    const etapasVazias = [
+      { id: 'etapa1', rotulo: 'Demanda Total', total: 0, corHex: '#2563eb', descricao: '' },
+      { id: 'etapa2', rotulo: 'Confirmados', total: 0, corHex: '#4f46e5', descricao: '' },
+      { id: 'etapa3', rotulo: 'Em Consulta', total: 0, corHex: '#0284c7', descricao: '' },
+      { id: 'etapa4', rotulo: 'Concluídos', total: 0, corHex: '#10b981', descricao: '' },
+    ];
+
+    const baseTotal = etapasVazias[0]?.total || 0;
+    const totalConcluido = etapasVazias[etapasVazias.length - 1]?.total || 0;
+    const taxaResolutividade = baseTotal > 0 ? ((totalConcluido / baseTotal) * 100).toFixed(1) : '0.0';
+
+    expect(baseTotal).toBe(0);
+    expect(totalConcluido).toBe(0);
+    expect(taxaResolutividade).toBe('0.0');
+  });
+
+  it('deve incluir todos os registros quando filtros de data estiverem vazios', () => {
+    const dataInicio: string = '';
+    const dataFim: string = '';
+
+    const filtrados = atendimentosSimulados.filter((a) => {
+      const data = (a.criadoEm || '').slice(0, 10);
+      const dentroInicio = !dataInicio || data >= dataInicio;
+      const dentroFim = !dataFim || data <= dataFim;
+      return dentroInicio && dentroFim;
+    });
+
+    expect(filtrados).toHaveLength(atendimentosSimulados.length);
+  });
 });

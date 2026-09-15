@@ -92,7 +92,7 @@ export const GraficoLinhaDoTempo: FC<GraficoLinhaDoTempoProps> = ({
   );
 
   return (
-    <div className="flex flex-col h-full rounded-2xl border border-slate-200/80 bg-slate-50/30 p-5 sm:p-6 shadow-2xs">
+    <div className="flex flex-col min-h-[300px] rounded-2xl border border-slate-200/80 bg-slate-50/30 p-5 sm:p-6 shadow-2xs justify-between">
       {/* Cabeçalho */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 pb-3.5">
         <div className="flex items-center gap-2.5">
@@ -140,8 +140,10 @@ export const GraficoLinhaDoTempo: FC<GraficoLinhaDoTempoProps> = ({
       </div>
 
       {pontos.length === 0 ? (
-        <div className="my-auto flex h-52 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-xs font-medium text-slate-400">
-          Nenhum registro cronológico encontrado no período filtrado
+        <div className="flex flex-col items-center justify-center py-10 px-4 rounded-xl border border-dashed border-slate-200 bg-white/70 text-center my-auto">
+          <Calendar className="h-8 w-8 text-slate-300 mb-2" />
+          <p className="text-xs font-bold text-slate-600">Nenhum registro cronológico encontrado no período filtrado</p>
+          <p className="text-[11px] text-slate-400 mt-1">Ajuste os filtros de datas acima para visualizar a linha de evolução temporal</p>
         </div>
       ) : (
         <div className="relative w-full overflow-hidden my-auto">

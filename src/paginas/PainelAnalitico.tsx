@@ -21,10 +21,21 @@ import {
   ShieldCheck,
   Smile,
   Trophy,
+  Upload,
   UsersRound,
   XCircle,
 } from 'lucide-react';
-import { ESPECIALIDADE_LABELS, STATUS_ATENDIMENTO_LABELS, StatusAtendimento, type Especialidade, formatarDataBrasilia, obterDataHojeBrasilia } from '../../compartilhado/index.ts';
+import { utils, writeFile } from 'xlsx';
+import {
+  ESPECIALIDADE_LABELS,
+  STATUS_ATENDIMENTO_LABELS,
+  StatusAtendimento,
+  type Especialidade,
+  formatarDataBrasilia,
+  formatarDataEHoraBrasilia,
+  obterDataHojeBrasilia,
+  parseDataBrasilia,
+} from '../../compartilhado/index.ts';
 import { CabecalhoPagina } from '../componentes/CabecalhoPagina.tsx';
 import { EspecialidadeBadge } from '../componentes/EspecialidadeVisual.tsx';
 import { SeletorFiltroUniversal } from '../componentes/Modal.tsx';
@@ -62,7 +73,7 @@ const formatarDataBr = (dataIso: string): string => {
   return `${dia}/${mes}/${ano}`;
 };
 
-interface AtendimentoAnalitico {
+export interface AtendimentoAnalitico {
   id: string;
   pacienteNome: string;
   especialidade: string;
@@ -72,32 +83,40 @@ interface AtendimentoAnalitico {
   status?: StatusAtendimento | string;
 }
 
-interface PacienteAnalitico {
+export interface PacienteAnalitico {
   termoConsentimentoStatus: string;
 }
 
-
-interface EscolaAnalitica {
+export interface EscolaAnalitica {
   id: string;
   nome: string;
 }
 
-interface PainelAnaliticoProps {
+export interface PainelAnaliticoProps {
   atendimentos: AtendimentoAnalitico[];
   pacientes: PacienteAnalitico[];
   escolas: EscolaAnalitica[];
+  carregando?: boolean;
+  aoNavegarFila?: () => void;
+  aoImportarPlanilha?: () => void;
 }
 
-export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacientes, escolas }) => {
-  const [dataInicio, setDataInicio] = useState(() => `${new Date().getFullYear()}-01-01`);
-  const [dataFim, setDataFim] = useState(() => obterDataHojeBrasilia());
+export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
+  atendimentos,
+  pacientes,
+  escolas,
+  carregando = false,
+  aoNavegarFila,
+  aoImportarPlanilha,
+}) => {
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('');
   const [especialidade, setEspecialidade] = useState('');
   const [profissional, setProfissional] = useState('');
   const [escola, setEscola] = useState('');
   const [profissionaisSaude, setProfissionaisSaude] = useState<Array<{ id: string; nome: string; especialidade?: string | null }>>([]);
 
-  // O painel analítico reflete estritamente os atendimentos reais persistidos no banco de dados
   const todosAtendimentos = atendimentos;
 
   useEffect(() => {
@@ -121,7 +140,6 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
   const opcoesProfissionais = useMemo(() => {
     const mapaNomes = new Map<string, { valor: string; rotulo: string; especialidade?: string | null }>();
 
-    // 1. Inclui todos os usuários cadastrados com cargo de profissional de saúde
     profissionaisSaude.forEach((p) => {
       if (p.nome && p.nome.trim()) {
         mapaNomes.set(p.nome.trim(), {
@@ -132,7 +150,6 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
       }
     });
 
-    // 2. Inclui também profissionais que já possuem atendimentos registrados no histórico
     todosAtendimentos.forEach((a) => {
       if (a.profissionalNome && a.profissionalNome.trim() && !mapaNomes.has(a.profissionalNome.trim())) {
         mapaNomes.set(a.profissionalNome.trim(), {
@@ -145,23 +162,65 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
     return Array.from(mapaNomes.values()).sort((a, b) => a.rotulo.localeCompare(b.rotulo));
   }, [profissionaisSaude, todosAtendimentos]);
 
-  const atendimentosFiltrados = todosAtendimentos.filter((atendimento) => {
-    const data = (atendimento.criadoEm || '').slice(0, 10);
-    const dentroDataInicio = !dataInicio || data >= dataInicio;
-    const dentroDataFim = !dataFim || data <= dataFim;
-    return (
-      dentroDataInicio &&
-      dentroDataFim &&
-      (!especialidade || atendimento.especialidade === especialidade) &&
-      (!profissional || atendimento.profissionalNome === profissional) &&
-      (!escola || atendimento.escolaNome === escola) &&
-      (!statusFiltro || (atendimento.status || StatusAtendimento.CONCLUIDO) === statusFiltro)
-    );
-  });
+  // Presets de filtro por período
+  const definirPresetData = (preset: 'todos' | 'hoje' | '7dias' | '30dias' | 'mes' | 'ano') => {
+    const hojeIso = obterDataHojeBrasilia();
+    if (preset === 'todos') {
+      setDataInicio('');
+      setDataFim('');
+    } else if (preset === 'hoje') {
+      setDataInicio(hojeIso);
+      setDataFim(hojeIso);
+    } else if (preset === '7dias') {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      setDataInicio(d.toISOString().slice(0, 10));
+      setDataFim(hojeIso);
+    } else if (preset === '30dias') {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      setDataInicio(d.toISOString().slice(0, 10));
+      setDataFim(hojeIso);
+    } else if (preset === 'mes') {
+      const d = new Date();
+      const mes = String(d.getMonth() + 1).padStart(2, '0');
+      setDataInicio(`${d.getFullYear()}-${mes}-01`);
+      setDataFim(hojeIso);
+    } else if (preset === 'ano') {
+      const d = new Date();
+      setDataInicio(`${d.getFullYear()}-01-01`);
+      setDataFim(`${d.getFullYear()}-12-31`);
+    }
+  };
+
+  const presetAtivo = useMemo(() => {
+    if (!dataInicio && !dataFim) return 'todos';
+    const hojeIso = obterDataHojeBrasilia();
+    if (dataInicio === hojeIso && dataFim === hojeIso) return 'hoje';
+    const anoAtual = new Date().getFullYear();
+    if (dataInicio === `${anoAtual}-01-01` && dataFim === `${anoAtual}-12-31`) return 'ano';
+    return null;
+  }, [dataInicio, dataFim]);
+
+  const atendimentosFiltrados = useMemo(() => {
+    return todosAtendimentos.filter((atendimento) => {
+      const data = (atendimento.criadoEm || '').slice(0, 10);
+      const dentroDataInicio = !dataInicio || (data && data >= dataInicio);
+      const dentroDataFim = !dataFim || (data && data <= dataFim);
+      return (
+        dentroDataInicio &&
+        dentroDataFim &&
+        (!especialidade || atendimento.especialidade === especialidade) &&
+        (!profissional || atendimento.profissionalNome === profissional) &&
+        (!escola || atendimento.escolaNome === escola) &&
+        (!statusFiltro || (atendimento.status || StatusAtendimento.CONCLUIDO) === statusFiltro)
+      );
+    });
+  }, [todosAtendimentos, dataInicio, dataFim, especialidade, profissional, escola, statusFiltro]);
 
   const totalConsultasTodasUnidades = todosAtendimentos.length;
   const totalConsultasConcluidas = todosAtendimentos.filter((atendimento) =>
-    (atendimento.status === 'CONCLUIDO' || !atendimento.status)
+    atendimento.status === 'CONCLUIDO' || !atendimento.status
   ).length;
   const totalConsultasPendentes = todosAtendimentos.filter((atendimento) =>
     ['AGUARDANDO', 'CONFIRMADO', 'EM_ATENDIMENTO', 'AGENDADO', 'PENDENTE'].includes(atendimento.status || '')
@@ -188,38 +247,66 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
     }
     if (dataInicio) return `A partir de ${formatarDataBr(dataInicio)}`;
     if (dataFim) return `Até ${formatarDataBr(dataFim)}`;
-    return 'Todo o período';
+    return 'Todo o período histórico';
   }, [dataInicio, dataFim]);
-  const rankingProfissionais = Object.entries(atendimentosFiltrados.reduce<Record<string, number>>((resultado, atendimento) => {
-    const nome = atendimento.profissionalNome || 'Profissional não informado';
-    resultado[nome] = (resultado[nome] || 0) + 1;
-    return resultado;
-  }, {})).sort(([, totalA], [, totalB]) => totalB - totalA).slice(0, 6);
-  const rankingUnidades = Object.entries(atendimentosFiltrados.reduce<Record<string, number>>((resultado, atendimento) => {
-    resultado[atendimento.escolaNome] = (resultado[atendimento.escolaNome] || 0) + 1;
-    return resultado;
-  }, {})).sort(([, totalA], [, totalB]) => totalB - totalA);
+
+  const rankingProfissionais = useMemo(() => {
+    return Object.entries(atendimentosFiltrados.reduce<Record<string, number>>((resultado, atendimento) => {
+      const nome = atendimento.profissionalNome || 'Profissional não informado';
+      resultado[nome] = (resultado[nome] || 0) + 1;
+      return resultado;
+    }, {})).sort(([, totalA], [, totalB]) => totalB - totalA).slice(0, 6);
+  }, [atendimentosFiltrados]);
+
+  const rankingUnidades = useMemo(() => {
+    return Object.entries(atendimentosFiltrados.reduce<Record<string, number>>((resultado, atendimento) => {
+      const nome = atendimento.escolaNome || 'Instituição não informada';
+      resultado[nome] = (resultado[nome] || 0) + 1;
+      return resultado;
+    }, {})).sort(([, totalA], [, totalB]) => totalB - totalA);
+  }, [atendimentosFiltrados]);
+
   const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-  const consultasPorDia = diasSemana.map((dia, indice) => ({
-    dia,
-    total: atendimentosFiltrados.filter((atendimento) => new Date(atendimento.criadoEm).getDay() === indice).length,
-  }));
-  const diaDePico = atendimentosFiltrados.length
-    ? consultasPorDia.reduce((pico, item) => item.total > pico.total ? item : pico, consultasPorDia[0])
-    : null;
-  const horas = Array.from({ length: 10 }, (_, indice) => indice + 8).map((hora) => ({
-    hora: `${String(hora).padStart(2, '0')}h`,
-    total: atendimentosFiltrados.filter((atendimento) => new Date(atendimento.criadoEm).getHours() === hora).length,
-  }));
+  const consultasPorDia = useMemo(() => {
+    return diasSemana.map((dia, indice) => ({
+      dia,
+      total: atendimentosFiltrados.filter((atendimento) => {
+        const d = parseDataBrasilia(atendimento.criadoEm);
+        return d ? d.getDay() === indice : false;
+      }).length,
+    }));
+  }, [atendimentosFiltrados]);
+
+  const diaDePico = useMemo(() => {
+    return atendimentosFiltrados.length
+      ? consultasPorDia.reduce((pico, item) => (item.total > pico.total ? item : pico), consultasPorDia[0])
+      : null;
+  }, [atendimentosFiltrados, consultasPorDia]);
+
+  const horas = useMemo(() => {
+    return Array.from({ length: 11 }, (_, indice) => indice + 8).map((hora) => ({
+      hora: `${String(hora).padStart(2, '0')}h`,
+      total: atendimentosFiltrados.filter((atendimento) => {
+        const d = parseDataBrasilia(atendimento.criadoEm);
+        return d ? d.getHours() === hora : false;
+      }).length,
+    }));
+  }, [atendimentosFiltrados]);
+
   const maiorHora = Math.max(...horas.map((item) => item.total), 1);
-  const horaDePico = atendimentosFiltrados.length
-    ? horas.reduce((pico, item) => item.total > pico.total ? item : pico, horas[0])
-    : null;
-  const contagemStatus = Object.keys(STATUS_ATENDIMENTO_LABELS).map((status) => ({
-    id: status as StatusAtendimento,
-    nome: STATUS_ATENDIMENTO_LABELS[status as StatusAtendimento],
-    total: atendimentosFiltrados.filter((atendimento) => (atendimento.status || StatusAtendimento.CONCLUIDO) === status).length,
-  }));
+  const horaDePico = useMemo(() => {
+    return atendimentosFiltrados.length
+      ? horas.reduce((pico, item) => (item.total > pico.total ? item : pico), horas[0])
+      : null;
+  }, [atendimentosFiltrados, horas]);
+
+  const contagemStatus = useMemo(() => {
+    return Object.keys(STATUS_ATENDIMENTO_LABELS).map((status) => ({
+      id: status as StatusAtendimento,
+      nome: STATUS_ATENDIMENTO_LABELS[status as StatusAtendimento],
+      total: atendimentosFiltrados.filter((atendimento) => (atendimento.status || StatusAtendimento.CONCLUIDO) === status).length,
+    }));
+  }, [atendimentosFiltrados]);
 
   // ─── 1. Dados para a Linha do Tempo (Timeline Diária) ───────────────
   const pontosLinhaDoTempo = useMemo(() => {
@@ -283,25 +370,26 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
     const filaEspera = atendimentosFiltrados.filter((a) =>
       ['AGENDADO', 'CONFIRMADO', 'AGUARDANDO'].includes(a.status || '')
     ).length;
-    const canceladosFaltas = atendimentosFiltrados.filter((a) =>
+    const canceladosEFaltas = atendimentosFiltrados.filter((a) =>
       ['CANCELADO', 'FALTOU'].includes(a.status || '')
     ).length;
 
     return [
-      { id: 'CONCLUIDO', rotulo: 'Concluído (Alta)', valor: concluidos, corHex: '#10b981', subrotulo: 'Resolvidos com sucesso' },
-      { id: 'EM_ATENDIMENTO', rotulo: 'Em Atendimento', valor: emAndamento, corHex: '#3b82f6', subrotulo: 'No consultório móvel' },
-      { id: 'FILA', rotulo: 'Fila / Agendados', valor: filaEspera, corHex: '#f59e0b', subrotulo: 'Em triagem ou espera' },
-      { id: 'CANCELADO_FALTA', rotulo: 'Cancelados / Faltas', valor: canceladosFaltas, corHex: '#f43f5e', subrotulo: 'Desistências / absenteísmo' },
+      { id: 'concluidos', rotulo: 'Concluídos', valor: concluidos, corHex: '#10b981', subrotulo: 'Resolutividade' },
+      { id: 'em_atendimento', rotulo: 'Em Atendimento', valor: emAndamento, corHex: '#f59e0b', subrotulo: 'No consultório' },
+      { id: 'aguardando', rotulo: 'Agendados / Fila', valor: filaEspera, corHex: '#3b82f6', subrotulo: 'Aguardando' },
+      { id: 'cancelados', rotulo: 'Cancelados / Faltas', valor: canceladosEFaltas, corHex: '#f43f5e', subrotulo: 'Absenteísmo' },
     ];
   }, [atendimentosFiltrados]);
 
-  // ─── 4. Dados para Barras Comparativas (Consultas por Dia da Semana) ─────
+  // ─── 4. Dados para as Barras Comparativas por Dia da Semana ─────────
   const dadosComparativosDiaSemana = useMemo(() => {
     const diasNomes = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     return diasNomes.map((dia, indice) => {
-      const atendimentosDoDia = atendimentosFiltrados.filter(
-        (a) => new Date(a.criadoEm).getDay() === indice
-      );
+      const atendimentosDoDia = atendimentosFiltrados.filter((a) => {
+        const d = parseDataBrasilia(a.criadoEm);
+        return d ? d.getDay() === indice : false;
+      });
       const concluidos = atendimentosDoDia.filter(
         (a) => a.status === 'CONCLUIDO' || !a.status
       ).length;
@@ -342,13 +430,119 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
   const totalCanceladosPeriodo = atendimentosFiltrados.filter((a) => a.status === 'CANCELADO').length;
   const totalFaltasPeriodo = atendimentosFiltrados.filter((a) => a.status === 'FALTOU').length;
 
+  // ─── Exportação Executiva em Excel ─────────────────────────────────
+  const handleExportarExcel = () => {
+    const dadosGerais = [
+      ['RELATÓRIO GERENCIAL DE INTELIGÊNCIA CLÍNICA & BI — CATRAKI & SESI SAÚDE'],
+      ['Gerado em', formatarDataEHoraBrasilia(new Date())],
+      ['Período Analisado', periodoLabel],
+      [''],
+      ['INDICADORES CONSOLIDADOS', 'VALOR'],
+      ['Total de Consultas no Período', atendimentosFiltrados.length],
+      ['Total Histórico Geral (Todas as Unidades)', totalConsultasTodasUnidades],
+      ['Total Concluídas', totalConsultasConcluidas],
+      ['Total Pendentes / Em Fila', totalConsultasPendentes],
+      ['Total Canceladas / Faltas', totalConsultasCanceladas],
+      ['Taxa de Resolutividade Global', totalConsultasTodasUnidades > 0 ? `${Math.round((totalConsultasConcluidas / totalConsultasTodasUnidades) * 100)}%` : '0%'],
+    ];
+
+    const dadosEsp = [
+      ['Especialidade', 'Total de Consultas', 'Participação %'],
+      ...dadosPizzaEspecialidades.map((e) => [
+        e.rotulo,
+        e.valor,
+        atendimentosFiltrados.length > 0 ? `${((e.valor / atendimentosFiltrados.length) * 100).toFixed(1)}%` : '0%',
+      ]),
+    ];
+
+    const dadosProf = [
+      ['Profissional de Saúde', 'Total de Consultas', 'Participação %'],
+      ...rankingProfissionais.map(([nome, total]) => [
+        nome,
+        total,
+        atendimentosFiltrados.length > 0 ? `${((total / atendimentosFiltrados.length) * 100).toFixed(1)}%` : '0%',
+      ]),
+    ];
+
+    const dadosUnid = [
+      ['Instituição Escolar', 'Total de Atendimentos', 'Participação %'],
+      ...rankingUnidades.map(([nome, total]) => [
+        nome,
+        total,
+        atendimentosFiltrados.length > 0 ? `${((total / atendimentosFiltrados.length) * 100).toFixed(1)}%` : '0%',
+      ]),
+    ];
+
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, utils.aoa_to_sheet(dadosGerais), 'Métricas Gerais');
+    utils.book_append_sheet(wb, utils.aoa_to_sheet(dadosEsp), 'Especialidades');
+    utils.book_append_sheet(wb, utils.aoa_to_sheet(dadosProf), 'Profissionais');
+    utils.book_append_sheet(wb, utils.aoa_to_sheet(dadosUnid), 'Unidades');
+    writeFile(wb, `relatorio_bi_catraki_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  if (carregando) {
+    return (
+      <div className="flex flex-1 flex-col animate-fade-in font-sans pb-10">
+        <CabecalhoPagina
+          titulo="Painel BI & Inteligência Clínica"
+          subtitulo="INDICADORES ESTATÍSTICOS, CONVERSÃO E PRODUTIVIDADE OPERACIONAL"
+          fixo={false}
+        />
+        <div className="flex flex-col items-center justify-center py-24 rounded-3xl border border-slate-200/80 bg-white shadow-xs">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent mb-4" />
+          <p className="text-sm font-bold text-slate-700">Consolidando inteligência clínica e métricas...</p>
+          <p className="text-xs text-slate-400 mt-1">Carregando dados estatísticos e indicadores em tempo real</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-1 flex-col animate-fade-in font-sans pb-10">
       <CabecalhoPagina
-        titulo="Dashboard"
-        subtitulo="VISÃO OPERACIONAL E INDICADORES DE ATENDIMENTO"
-        fixo
+        titulo="Painel BI & Inteligência Clínica"
+        subtitulo="INDICADORES ESTATÍSTICOS, CONVERSÃO E PRODUTIVIDADE OPERACIONAL"
+        fixo={false}
+        aoExportar={handleExportarExcel}
       />
+
+      {/* ─── Banner de Onboarding quando não há atendimentos no sistema ──── */}
+      {totalConsultasTodasUnidades === 0 && (
+        <div className="rounded-3xl border border-blue-200/80 bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/50 p-6 sm:p-8 shadow-xs text-center relative overflow-hidden mb-6">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-8 ring-blue-100 mb-4">
+            <BarChart3 className="h-7 w-7 stroke-[2.2]" />
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black text-[#0b2545] tracking-tight">
+            Painel de Inteligência Clínica Aguardando Dados
+          </h2>
+          <p className="mt-2 text-sm text-slate-500 max-w-xl mx-auto leading-relaxed">
+            O Business Intelligence (BI) consolida indicadores clínicos, taxa de conversão assistencial, curva horária e produtividade por especialidade em tempo real. Importe uma planilha de consultas ou inicie atendimentos na Fila do Dia para visualizar as projeções.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            {aoImportarPlanilha && (
+              <button
+                type="button"
+                onClick={aoImportarPlanilha}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+              >
+                <Upload className="h-4 w-4" />
+                <span>Importar Planilha de Atendimentos</span>
+              </button>
+            )}
+            {aoNavegarFila && (
+              <button
+                type="button"
+                onClick={aoNavegarFila}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              >
+                <Activity className="h-4 w-4 text-blue-600" />
+                <span>Iniciar Fila do Dia</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ─── Card 1: Visão Operacional Acumulada ───────────────────────── */}
       <div className="mb-6 rounded-3xl border border-slate-200/80 bg-white p-5 sm:p-7 shadow-xs relative overflow-hidden">
@@ -379,7 +573,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-xl bg-slate-50 px-3 py-1.5 text-[11px] font-bold text-slate-600 border border-slate-200/80">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                Todo o período histórico
+                Todo o histórico ativo
               </span>
             </div>
           </div>
@@ -550,14 +744,46 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
                 setEspecialidade('');
                 setStatusFiltro('');
                 setProfissional('');
-                setDataInicio(`${new Date().getFullYear()}-01-01`);
-                setDataFim(new Date().toISOString().slice(0, 10));
+                setDataInicio('');
+                setDataFim('');
               }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50/70 hover:bg-rose-100/80 text-rose-600 border border-rose-100 text-[11.5px] font-bold transition-colors cursor-pointer group"
             >
               <RotateCcw className="h-3.5 w-3.5 transition-transform group-hover:-rotate-90 duration-300" />
               <span>Limpar filtros</span>
             </button>
+          </div>
+
+          {/* Presets Rápidos de Período */}
+          <div className="mb-3.5 flex flex-wrap items-center gap-1.5">
+            <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
+              <Clock3 className="h-3 w-3" />
+              Período rápido:
+            </span>
+            {[
+              { id: 'todos', rotulo: 'Todo o Histórico' },
+              { id: 'hoje', rotulo: 'Hoje' },
+              { id: '7dias', rotulo: 'Últimos 7 dias' },
+              { id: '30dias', rotulo: 'Últimos 30 dias' },
+              { id: 'mes', rotulo: 'Este Mês' },
+              { id: 'ano', rotulo: 'Este Ano' },
+            ].map((p) => {
+              const ativo = presetAtivo === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => definirPresetData(p.id as any)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                    ativo
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                  }`}
+                >
+                  {p.rotulo}
+                </button>
+              );
+            })}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[145px_145px_1.2fr_1.6fr_1.5fr_1.2fr] items-center gap-3 w-full min-w-0">
@@ -573,7 +799,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="shrink-0 text-slate-400 font-bold text-[11px]">De</span>
                 <span className="pointer-events-none whitespace-nowrap font-medium text-slate-700 text-xs">
-                  {dataInicio ? formatarDataBrasilia(dataInicio) : 'dd/mm/aaaa'}
+                  {dataInicio ? formatarDataBrasilia(dataInicio) : 'Início'}
                 </span>
               </div>
               <CalendarDays className="pointer-events-none h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -601,7 +827,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="shrink-0 text-slate-400 font-bold text-[11px]">Até</span>
                 <span className="pointer-events-none whitespace-nowrap font-medium text-slate-700 text-xs">
-                  {dataFim ? formatarDataBrasilia(dataFim) : 'dd/mm/aaaa'}
+                  {dataFim ? formatarDataBrasilia(dataFim) : 'Fim'}
                 </span>
               </div>
               <CalendarDays className="pointer-events-none h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -676,6 +902,40 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
             </div>
           </div>
         </section>
+
+        {/* Aviso amigável quando o filtro zera resultados */}
+        {totalConsultasTodasUnidades > 0 && atendimentosFiltrados.length === 0 && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-extrabold uppercase tracking-wide text-amber-950">
+                  Nenhum atendimento encontrado para os filtros selecionados
+                </h4>
+                <p className="text-xs text-amber-800/80 mt-0.5">
+                  Existem {totalConsultasTodasUnidades} atendimentos no histórico geral, mas nenhum corresponde aos parâmetros aplicados.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setDataInicio('');
+                setDataFim('');
+                setEspecialidade('');
+                setProfissional('');
+                setEscola('');
+                setStatusFiltro('');
+              }}
+              className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white hover:bg-amber-100/60 text-amber-900 border border-amber-300 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>Exibir Todo o Histórico</span>
+            </button>
+          </div>
+        )}
 
         {/* 2. Resultados da Pesquisa */}
         <section aria-label="Resultados da pesquisa" className="pt-2 border-t border-slate-100">
@@ -904,8 +1164,10 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
                 </div>
               </div>
             ) : (
-              <div className="flex h-20 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-xs font-medium text-slate-400">
-                Nenhuma consulta registrada nas faixas de horário do período
+              <div className="flex flex-col items-center justify-center py-6 px-4 rounded-xl border border-dashed border-slate-200 bg-white/70 text-center">
+                <Flame className="h-6 w-6 text-slate-300 mb-1.5" />
+                <p className="text-xs font-bold text-slate-600">Nenhuma consulta registrada nas faixas de horário do período</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">As métricas horárias serão projetadas após o registro de atendimentos</p>
               </div>
             )}
           </div>
@@ -949,14 +1211,18 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
                         <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                           <div
                             className="h-full rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 transition-all duration-500"
-                            style={{ width: `${(total / rankingProfissionais[0][1]) * 100}%` }}
+                            style={{ width: `${(total / (rankingProfissionais[0]?.[1] || 1)) * 100}%` }}
                           />
                         </div>
                       </div>
                     );
                   })
                 ) : (
-                  <p className="py-8 text-center text-xs text-slate-400 font-medium">Nenhum profissional com registro no período.</p>
+                  <div className="flex flex-col items-center justify-center py-8 px-4 rounded-xl border border-dashed border-slate-200 bg-white/70 text-center">
+                    <UsersRound className="h-6 w-6 text-slate-300 mb-1.5" />
+                    <p className="text-xs font-bold text-slate-600">Nenhum profissional com registro no período</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Vincule profissionais aos atendimentos para visualizar o ranking</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -990,13 +1256,17 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
                       <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                         <div
                           className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-500"
-                          style={{ width: `${(total / rankingUnidades[0][1]) * 100}%` }}
+                          style={{ width: `${(total / (rankingUnidades[0]?.[1] || 1)) * 100}%` }}
                         />
                       </div>
                     </div>
                   ))
                 ) : (
-                  <p className="py-8 text-center text-xs text-slate-400 font-medium">Nenhuma unidade escolar com registro no período.</p>
+                  <div className="flex flex-col items-center justify-center py-8 px-4 rounded-xl border border-dashed border-slate-200 bg-white/70 text-center">
+                    <Building2 className="h-6 w-6 text-slate-300 mb-1.5" />
+                    <p className="text-xs font-bold text-slate-600">Nenhuma unidade escolar com registro no período</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">As instituições com consultas registradas aparecerão aqui</p>
+                  </div>
                 )}
               </div>
             </div>

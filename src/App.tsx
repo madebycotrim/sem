@@ -813,6 +813,24 @@ export function App() {
           pacienteCpf: f.cpf || existente.pacienteCpf,
           escolaNome: f.escolaNome || existente.escolaNome,
         });
+      } else {
+        mapa.set(chave, {
+          id: chave,
+          pacienteId: f.pacienteId || '',
+          pacienteNome: f.pacienteNome || 'Paciente',
+          pacienteCpf: f.cpf,
+          especialidade: f.especialidade,
+          escolaNome: f.escolaNome || 'Não informada',
+          profissionalNome: f.profissional || 'Profissional de Saúde',
+          profissionalConselho: f.profissionalConselho,
+          profissionalRegistro: f.profissionalRegistro,
+          resumo: f.anotacoes || '',
+          criadoEm: f.dataChegada && f.horarioChegada ? `${f.dataChegada} ${f.horarioChegada}` : new Date().toISOString(),
+          entradaFilaEm: f.dataChegada && f.horarioChegada ? `${f.dataChegada} ${f.horarioChegada}` : undefined,
+          escolaId: f.escolaId,
+          profissionalId: f.profissionalId,
+          status: statusFinal,
+        });
       }
     });
 
@@ -1071,9 +1089,12 @@ export function App() {
           if (secaoAtiva === 'bi') {
             return (
               <PainelAnalitico
-                atendimentos={atendimentos}
+                atendimentos={todosAtendimentos}
                 pacientes={pacientes}
                 escolas={escolasGlobais}
+                carregando={carregandoAtendimentos}
+                aoNavegarFila={() => navegarParaSecao('filaDia')}
+                aoImportarPlanilha={() => setModalImportarPlanilhaAberto(true)}
               />
             );
           }
