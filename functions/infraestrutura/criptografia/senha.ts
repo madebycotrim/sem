@@ -19,6 +19,9 @@ function bufferParaHex(buffer: ArrayBuffer | Uint8Array): string {
 }
 
 function hexParaBuffer(hex: string): Uint8Array {
+  if (!hex || typeof hex !== 'string' || hex.length % 2 !== 0) {
+    return new Uint8Array(0);
+  }
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
     bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
@@ -53,7 +56,7 @@ export async function gerarHashSenha(senhaTextoPlano: string): Promise<string> {
 
   const chaveImportada = await crypto.subtle.importKey(
     'raw',
-    senhaBuffer.buffer as ArrayBuffer,
+    senhaBuffer,
     { name: 'PBKDF2' },
     false,
     ['deriveBits']
@@ -62,7 +65,7 @@ export async function gerarHashSenha(senhaTextoPlano: string): Promise<string> {
   const hashBuffer = await crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
-      salt: salt.buffer as ArrayBuffer,
+      salt: salt,
       iterations: ITERACOES,
       hash: 'SHA-512',
     },
@@ -87,56 +90,65 @@ export async function verificarSenha(
   senhaTextoPlano: string,
   hashArmazenado: string
 ): Promise<boolean> {
-  if (!hashArmazenado || !hashArmazenado.startsWith('pbkdf2:sha512:')) {
-    return false;
-  }
+  try {
+    if (!hashArmazenado || typeof hashArmazenado !== 'string' || !hashArmazenado.startsWith('pbkdf2:sha512:')) {
+      return false;
+    }
 
-  const partes = hashArmazenado.split(':');
-  if (partes.length !== 5) {
-    return false;
-  }
+    const partes = hashArmazenado.split(':');
+    if (partes.length !== 5) {
+      return false;
+    }
 
-  const [, , iteracoesStr, saltHex, hashEsperadoHex] = partes;
-  const iteracoes = parseInt(iteracoesStr, 10);
-  if (isNaN(iteracoes) || iteracoes <= 0) {
-    return false;
-  }
+    const [, , iteracoesStr, saltHex, hashEsperadoHex] = partes;
+    const iteracoes = parseInt(iteracoesStr, 10);
+    if (isNaN(iteracoes) || iteracoes <= 0) {
+      return false;
+    }
 
-  // Previne término do processo pelo Cloudflare (Erro 1102 / Worker exceeded CPU limit):
-  // Hashes legados gerados com 100.000 iterações consomem >40ms de CPU, estourando o teto de 10ms.
-  if (iteracoes > ITERACOES_MAX_SEGURAS_EDGE) {
-    console.error(
-      `[SEGURANÇA] Hash de senha com ${iteracoes} iterações excede o limite de CPU do Cloudflare Free (10ms). Atualize a senha para 5.000 iterações.`
+    // Previne término do processo pelo Cloudflare (Erro 1102 / Worker exceeded CPU limit):
+    // Hashes legados gerados com 100.000 iterações consomem >40ms de CPU, estourando o teto de 10ms.
+    if (iteracoes > ITERACOES_MAX_SEGURAS_EDGE) {
+      console.error(
+        `[SEGURANÇA] Hash de senha com ${iteracoes} iterações excede o limite de CPU do Cloudflare Free (10ms). Atualize a senha para 5.000 iterações.`
+      );
+      return false;
+    }
+
+    const salt = hexParaBuffer(saltHex);
+    const hashEsperado = hexParaBuffer(hashEsperadoHex);
+
+    if (salt.length === 0 || hashEsperado.length === 0) {
+      return false;
+    }
+
+    const encoder = new TextEncoder();
+    const senhaBuffer = encoder.encode(senhaTextoPlano);
+
+    const chaveImportada = await crypto.subtle.importKey(
+      'raw',
+      senhaBuffer,
+      { name: 'PBKDF2' },
+      false,
+      ['deriveBits']
     );
+
+    const hashCalculadoBuffer = await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        salt: salt as unknown as BufferSource,
+        iterations: iteracoes,
+        hash: 'SHA-512',
+      },
+      chaveImportada,
+      hashEsperado.length * 8
+    );
+
+    const hashCalculado = new Uint8Array(hashCalculadoBuffer);
+
+    return comparacaoTempoConstante(hashCalculado, hashEsperado);
+  } catch (erro) {
+    console.error('Erro ao verificar senha com PBKDF2:', erro);
     return false;
   }
-
-  const salt = hexParaBuffer(saltHex);
-  const hashEsperado = hexParaBuffer(hashEsperadoHex);
-
-  const encoder = new TextEncoder();
-  const senhaBuffer = encoder.encode(senhaTextoPlano);
-
-  const chaveImportada = await crypto.subtle.importKey(
-    'raw',
-    senhaBuffer.buffer as ArrayBuffer,
-    { name: 'PBKDF2' },
-    false,
-    ['deriveBits']
-  );
-
-  const hashCalculadoBuffer = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: salt.buffer as ArrayBuffer,
-      iterations: iteracoes,
-      hash: 'SHA-512',
-    },
-    chaveImportada,
-    hashEsperado.length * 8
-  );
-
-  const hashCalculado = new Uint8Array(hashCalculadoBuffer);
-
-  return comparacaoTempoConstante(hashCalculado, hashEsperado);
 }

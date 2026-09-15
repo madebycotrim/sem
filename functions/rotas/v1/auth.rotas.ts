@@ -126,9 +126,13 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
     // Registrar tentativa de sucesso
     await registrarTentativaLogin(c.env.DB, body.email, ip, true);
 
-    await db.update(usuarios)
-      .set({ ultimoAcesso: new Date().toISOString() })
-      .where(eq(usuarios.id, usuario.id));
+    try {
+      await db.update(usuarios)
+        .set({ ultimoAcesso: new Date().toISOString() })
+        .where(eq(usuarios.id, usuario.id));
+    } catch (errDb) {
+      console.warn('Aviso: Falha ao atualizar ultimo_acesso no banco (não impeditivo):', errDb);
+    }
 
     const jti = crypto.randomUUID();
     const payload = {
@@ -139,30 +143,35 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
       exp: Math.floor(Date.now() / 1000) + 60 * 60 * 8, // 8h
     };
 
-    const token = await sign(payload, c.env.JWT_SECRET);
+    const jwtSecret = c.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET não configurado nas variáveis de ambiente da Cloudflare.');
+    }
+
+    const token = await sign(payload, jwtSecret);
 
     setCookie(c, 'token', token, obterOpcoesCookie(c));
 
-    await registrarAuditoria(db, {
-      userId: usuario.id,
-      acao: 'LOGIN',
-      entidade: 'Sessao',
-      entidadeId: jti,
-      ip,
-    });
+    try {
+      await registrarAuditoria(db, {
+        userId: usuario.id,
+        acao: 'LOGIN',
+        entidade: 'Sessao',
+        entidadeId: jti,
+        ip,
+      });
+    } catch (errAuditoria) {
+      console.warn('Aviso: Falha ao registrar auditoria de login:', errAuditoria);
+    }
 
     // Limpeza oportunista: dispara manutenção do banco em background (1/20 logins)
-    // usando c.executionCtx.waitUntil de forma segura (sem lançar se não houver ExecutionContext)
     try {
-      const executionCtx = (c as any).executionCtx;
+      const executionCtx = (c.env as any)?.eventContext ?? (c as any).executionCtx;
       if (executionCtx?.waitUntil) {
         executionCtx.waitUntil(limpezaOportunista(c.env.DB));
       }
     } catch {
-      // Em ambientes sem ExecutionContext (testes unitários / dev local), dispara em background
-      limpezaOportunista(c.env.DB).catch((err) =>
-        console.error(JSON.stringify({ tipo: 'LIMPEZA_ERRO_FALLBACK', erro: String(err) }))
-      );
+      // Ignora silenciosamente em ambientes onde waitUntil não está disponível
     }
 
     return c.json({
@@ -175,8 +184,15 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
       trocaSenhaObrigatoria: usuario.senhaTemporaria,
     });
   } catch (erro) {
+    const detalhe = erro instanceof Error ? `${erro.name}: ${erro.message}` : String(erro);
     console.error('Erro no processamento do login:', erro);
-    return c.json({ erro: 'Falha interna durante a autenticação. Tente novamente.' }, 500);
+    return c.json(
+      {
+        erro: `Falha interna durante a autenticação: ${detalhe}`,
+        detalhe,
+      },
+      500
+    );
   }
 });
 

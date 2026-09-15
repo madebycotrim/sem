@@ -22,6 +22,7 @@ function parseArgumentos() {
     if (args[i] === '--email' && args[i + 1]) params.email = args[++i];
     if (args[i] === '--nome' && args[i + 1]) params.nome = args[++i];
     if (args[i] === '--senha' && args[i + 1]) params.senha = args[++i];
+    if (args[i] === '--todos' || args[i] === '--all') params.todos = true;
   }
   return params;
 }
@@ -35,77 +36,71 @@ async function perguntar(rl, pergunta, esconder = false) {
 }
 
 async function main() {
-  let { email, nome, senha } = parseArgumentos();
+  let { email, nome, senha, todos } = parseArgumentos();
 
-  if (!email || !nome || !senha) {
+  if (!senha) {
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
     });
 
     console.log('\n============================================================');
-    console.log('👤 CATRAKI — GERADOR DE USUÁRIO BOOTSTRAP (SQL SEGURO - 5.000 ITERAÇÕES)');
+    console.log('👤 CATRAKI — GERADOR DE SENHAS & BOOTSTRAP (EDGE 5.000 ITERAÇÕES)');
     console.log('============================================================\n');
 
-    if (!nome) nome = await perguntar(rl, 'Nome Completo: ');
-    if (!email) email = await perguntar(rl, 'E-mail: ');
-    if (!senha) senha = await perguntar(rl, 'Senha de Acesso: ');
+    senha = await perguntar(rl, 'Senha de Acesso (ex: Sesi2026): ');
+    if (!todos && (!email || !nome)) {
+      const respTodos = await perguntar(rl, 'Deseja aplicar para TODOS os usuários do sistema? (s/n): ');
+      if (respTodos.toLowerCase().startsWith('s')) {
+        todos = true;
+      } else {
+        if (!nome) nome = await perguntar(rl, 'Nome Completo: ');
+        if (!email) email = await perguntar(rl, 'E-mail: ');
+      }
+    }
 
     rl.close();
   }
 
-  if (!nome || !email || !senha) {
-    console.error('❌ Erro: Nome, e-mail e senha são obrigatórios.');
+  if (!senha) {
+    console.error('❌ Erro: Senha de acesso é obrigatória.');
     process.exit(1);
   }
 
-  const id = crypto.randomUUID();
   const senhaHash = gerarHashSenha(senha);
-  const emailSanitizado = email.toLowerCase().replace(/'/g, "''");
-  const nomeSanitizado = nome.replace(/'/g, "''");
-
-  const sqlInsert = `INSERT INTO usuarios (
-  id,
-  email,
-  senha_hash,
-  nome_completo,
-  perfil,
-  ativo,
-  mfa_ativo,
-  senha_temporaria,
-  criado_em,
-  atualizado_em
-) VALUES (
-  '${id}',
-  '${emailSanitizado}',
-  '${senhaHash}',
-  '${nomeSanitizado}',
-  'BOOTSTRAP',
-  1,
-  0,
-  0,
-  datetime('now'),
-  datetime('now')
-);`;
-
-  const sqlUpdate = `UPDATE usuarios SET senha_hash = '${senhaHash}', atualizado_em = datetime('now') WHERE email = '${emailSanitizado}';`;
 
   console.log('\n============================================================');
   console.log('🔑 HASH GERADO (5.000 iterações — compatível com Edge 10ms CPU):');
   console.log(senhaHash);
   console.log('============================================================\n');
 
-  console.log('------------------------------------------------------------');
-  console.log('🔄 CASO 1: SE O USUÁRIO JÁ EXISTE NO BANCO (ATUALIZAR SENHA)');
-  console.log('------------------------------------------------------------\n');
-  const sqlUpdateLinha = sqlUpdate.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ');
-  console.log(`npx wrangler d1 execute sem_catraki_db --remote --command="${sqlUpdateLinha}"\n`);
+  // Comando universal para TODOS os usuários cadastrados
+  const sqlUpdateTodos = `UPDATE usuarios SET senha_hash = '${senhaHash}', atualizado_em = datetime('now');`;
 
-  console.log('------------------------------------------------------------');
-  console.log('➕ CASO 2: SE FOR UM NOVO USUÁRIO (CRIAR NO BANCO)');
-  console.log('------------------------------------------------------------\n');
-  const sqlInsertLinha = sqlInsert.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ');
-  console.log(`npx wrangler d1 execute sem_catraki_db --remote --command="${sqlInsertLinha}"\n`);
+  console.log('============================================================');
+  console.log('🌐 COMANDO 1: ATUALIZAR TODOS OS USUÁRIOS DO SISTEMA');
+  console.log('============================================================\n');
+  console.log('🚀 PARA APLICAR EM PRODUÇÃO (CLOUDFLARE D1 REMOTO):');
+  console.log(`npx wrangler d1 execute sem_catraki_db --remote --command="${sqlUpdateTodos}"\n`);
+  console.log('💻 PARA APLICAR NO BANCO LOCAL:');
+  console.log(`npx wrangler d1 execute sem_catraki_db --local --command="${sqlUpdateTodos}"\n`);
+
+  if (email) {
+    const id = crypto.randomUUID();
+    const emailSanitizado = email.toLowerCase().replace(/'/g, "''");
+    const nomeSanitizado = (nome || 'Administrador').replace(/'/g, "''");
+
+    const sqlUpdateIndividual = `UPDATE usuarios SET senha_hash = '${senhaHash}', atualizado_em = datetime('now') WHERE email = '${emailSanitizado}';`;
+    const sqlInsertIndividual = `INSERT INTO usuarios ( id, email, senha_hash, nome_completo, perfil, ativo, mfa_ativo, senha_temporaria, criado_em, atualizado_em ) VALUES ( '${id}', '${emailSanitizado}', '${senhaHash}', '${nomeSanitizado}', 'BOOTSTRAP', 1, 0, 0, datetime('now'), datetime('now') );`;
+
+    console.log('============================================================');
+    console.log(`👤 COMANDO 2: ESPECÍFICO PARA O USUÁRIO (${emailSanitizado})`);
+    console.log('============================================================\n');
+    console.log('🔄 Se o usuário já existe:');
+    console.log(`npx wrangler d1 execute sem_catraki_db --remote --command="${sqlUpdateIndividual}"\n`);
+    console.log('➕ Se for um novo usuário bootstrap:');
+    console.log(`npx wrangler d1 execute sem_catraki_db --remote --command="${sqlInsertIndividual}"\n`);
+  }
 }
 
 main();
