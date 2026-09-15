@@ -443,10 +443,10 @@ rotasImportacao.post(
         // 3. Se ainda não existir no sistema, provisiona como PROFISSIONAL_SAUDE ativo em lote
         // garantindo que a consulta fique 100% vinculada a ele sem round-trip individual
         if (!profissional) {
+          const novoUserId = crypto.randomUUID();
           const slugNome = (nomeProfissionalCanonico || 'prof').replace(/[^a-z0-9]/g, '.');
           const slugImportacao = importacaoId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
-          const emailAuto = `prof.${slugNome}.${slugImportacao}.${crypto.randomUUID().slice(0, 4)}@catraki.saude`;
-          const novoUserId = crypto.randomUUID();
+          const emailAuto = `prof.${slugNome}.${slugImportacao}.${novoUserId.slice(0, 8)}@catraki.saude`;
 
           const novoUsuarioObj = {
             id: novoUserId,
@@ -622,24 +622,26 @@ rotasImportacao.post(
       }
     }
 
-    // ── E. Execução em Lote (Bulk Inserts Concorrentes) no Cloudflare D1 ───────────
-    // Reduz o tempo de subrequests executando inserções de tabelas independentes em paralelo
+    // ── E. Execução em Lote com Ordem Estrita de Chaves Estrangeiras no Cloudflare D1 ───
+    // D1/SQLite exige que os registros pais existam no banco antes dos dependentes (Foreign Keys):
+    // 1. usuarios (profissionais de saúde) - sem FK pendente
+    // 2. pacientes (alunos) - depende de escolaLocalId (já existente no banco)
+    // 3. consentimentos - depende de pacienteId (inserido no passo 2)
+    // 4. atendimentos - depende de pacienteId, usuarioId e escolaLocalId (inseridos nos passos 1 e 2)
+    // ATENÇÃO: NUNCA usar Promise.all paralelo aqui, pois requisições concorrentes causam
+    // erro de "D1_ERROR: FOREIGN KEY constraint failed: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_FOREIGNKEY)"
     try {
-      const operacoesEmLote: Promise<any>[] = [];
       if (novosUsuariosParaInserir.length > 0) {
-        operacoesEmLote.push(db.insert(usuarios).values(novosUsuariosParaInserir).onConflictDoNothing());
+        await db.insert(usuarios).values(novosUsuariosParaInserir).onConflictDoNothing();
       }
       if (novosPacientesParaInserir.length > 0) {
-        operacoesEmLote.push(db.insert(pacientes).values(novosPacientesParaInserir).onConflictDoNothing());
+        await db.insert(pacientes).values(novosPacientesParaInserir).onConflictDoNothing();
       }
       if (novosConsentimentosParaInserir.length > 0) {
-        operacoesEmLote.push(db.insert(consentimentos).values(novosConsentimentosParaInserir).onConflictDoNothing());
+        await db.insert(consentimentos).values(novosConsentimentosParaInserir).onConflictDoNothing();
       }
       if (novosAtendimentosParaInserir.length > 0) {
-        operacoesEmLote.push(db.insert(atendimentos).values(novosAtendimentosParaInserir).onConflictDoNothing());
-      }
-      if (operacoesEmLote.length > 0) {
-        await Promise.all(operacoesEmLote);
+        await db.insert(atendimentos).values(novosAtendimentosParaInserir).onConflictDoNothing();
       }
     } catch (erroBanco: any) {
       const detalheErro =
@@ -658,9 +660,9 @@ rotasImportacao.post(
           pacientesCriados: 0,
           pacientesReaproveitados,
           profissionaisCriados: 0,
-          atendimentosCriadosIds: [],
-          pacientesCriadosIds: [],
-          profissionaisCriadosIds: [],
+          atendimentosCriadosIds,
+          pacientesCriadosIds,
+          profissionaisCriadosIds,
           totalFalhas: falhas.length + 1,
           falhas: [
             ...falhas,

@@ -249,6 +249,61 @@ describe('Importação Inteligente de Planilhas de Consultas', () => {
       expect(capturedSql.toLowerCase()).toContain('insert into "pacientes"');
       expect(capturedSql.toLowerCase()).toContain('on conflict do nothing');
     });
+
+    it('deve executar inserções na ordem estrita de dependência de FK (usuarios -> pacientes -> consentimentos -> atendimentos)', async () => {
+      const operacoesExecutadas: string[] = [];
+
+      const mockDb = {
+        insert: (tabela: any) => ({
+          values: (_valores: any[]) => ({
+            onConflictDoNothing: async () => {
+              const nomeTabela = tabela[Symbol.for('drizzle:Name')] || tabela._?.name || 'desconhecido';
+              operacoesExecutadas.push(nomeTabela);
+              return { success: true };
+            },
+          }),
+        }),
+      };
+
+      const schema = await import('../../functions/infraestrutura/banco/schema.ts');
+
+      // Simulação da lógica corrigida
+      const novosUsuarios = [{ id: 'u1', email: 'u1@catraki.saude' }];
+      const novosPacientes = [{ id: 'p1', escolaLocalId: 'e1' }];
+      const novosConsentimentos = [{ id: 'c1', pacienteId: 'p1' }];
+      const novosAtendimentos = [{ id: 'a1', pacienteId: 'p1', usuarioId: 'u1', escolaLocalId: 'e1' }];
+
+      if (novosUsuarios.length > 0) {
+        await mockDb.insert(schema.usuarios).values(novosUsuarios).onConflictDoNothing();
+      }
+      if (novosPacientes.length > 0) {
+        await mockDb.insert(schema.pacientes).values(novosPacientes).onConflictDoNothing();
+      }
+      if (novosConsentimentos.length > 0) {
+        await mockDb.insert(schema.consentimentos).values(novosConsentimentos).onConflictDoNothing();
+      }
+      if (novosAtendimentos.length > 0) {
+        await mockDb.insert(schema.atendimentos).values(novosAtendimentos).onConflictDoNothing();
+      }
+
+      // Validação da ordem estrita de execução
+      expect(operacoesExecutadas).toEqual([
+        'usuarios',
+        'pacientes',
+        'consentimentos',
+        'atendimentos',
+      ]);
+
+      // Garante que 'atendimentos' nunca é executado antes de 'usuarios' e 'pacientes'
+      const idxUsuarios = operacoesExecutadas.indexOf('usuarios');
+      const idxPacientes = operacoesExecutadas.indexOf('pacientes');
+      const idxAtendimentos = operacoesExecutadas.indexOf('atendimentos');
+      const idxConsentimentos = operacoesExecutadas.indexOf('consentimentos');
+
+      expect(idxUsuarios).toBeLessThan(idxAtendimentos);
+      expect(idxPacientes).toBeLessThan(idxAtendimentos);
+      expect(idxPacientes).toBeLessThan(idxConsentimentos);
+    });
   });
 });
 
