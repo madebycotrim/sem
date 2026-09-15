@@ -192,22 +192,12 @@ export const ConsoleBootstrap: FC<ConsoleBootstrapProps> = ({ aberto, aoFechar, 
           total?: number;
         }>('/pacientes?pagina=1&porPagina=100');
 
-        const restantes = await Promise.all(
-          Array.from({ length: Math.max(0, primeira.totalPaginas - 1) }, (_, i) =>
-            requisicaoApi<{ dados: Array<{ id: string; nome: string; cpf?: string; turma?: string; escolaLocal?: string }> }>(
-              `/pacientes?pagina=${i + 2}&porPagina=100`
-            )
-          )
-        );
-
-        const lista = [primeira, ...restantes]
-          .flatMap((r) => r.dados || [])
-          .map((item) => ({
-            id: item.id,
-            rotulo: item.nome,
-            detalhe: item.cpf ? `CPF: ${item.cpf}` : 'Sem CPF informado',
-            subinfo: [item.turma ? `Turma: ${item.turma}` : null, item.escolaLocal].filter(Boolean).join(' · '),
-          }));
+        const lista = (primeira.dados || []).map((item) => ({
+          id: item.id,
+          rotulo: item.nome,
+          detalhe: item.cpf ? `CPF: ${item.cpf}` : 'Sem CPF informado',
+          subinfo: [item.turma ? `Turma: ${item.turma}` : null, item.escolaLocal].filter(Boolean).join(' · '),
+        }));
 
         setRegistros(lista);
         setMetricas((m) => ({ ...m, pacientes: primeira.total ?? lista.length }));
@@ -225,22 +215,7 @@ export const ConsoleBootstrap: FC<ConsoleBootstrapProps> = ({ aberto, aoFechar, 
           total?: number;
         }>('/atendimentos?pagina=1&porPagina=100');
 
-        const restantes = await Promise.all(
-          Array.from({ length: Math.max(0, primeira.totalPaginas - 1) }, (_, i) =>
-            requisicaoApi<{
-              dados: Array<{
-                id: string;
-                pacienteNome: string;
-                especialidade: string;
-                criadoEm: string;
-                escolaLocal?: string;
-                status?: string;
-              }>;
-            }>(`/atendimentos?pagina=${i + 2}&porPagina=100`)
-          )
-        );
-
-        const lista = [primeira, ...restantes].flatMap((r) => r.dados || []).map((item) => ({
+        const lista = (primeira.dados || []).map((item) => ({
           id: item.id,
           rotulo: `${item.pacienteNome} · ${item.especialidade}`,
           detalhe: `${formatarHoraBrasilia(new Date(item.criadoEm))} · ${new Date(item.criadoEm).toLocaleDateString('pt-BR')}`,

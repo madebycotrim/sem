@@ -6,6 +6,7 @@ export interface PaginacaoProps {
   totalPaginas: number;
   totalRegistros: number;
   aoMudarPagina: (pagina: number) => void;
+  itensPorPagina?: number;
   className?: string;
 }
 
@@ -18,6 +19,7 @@ export const Paginacao: FC<PaginacaoProps> = ({
   totalPaginas,
   totalRegistros,
   aoMudarPagina,
+  itensPorPagina = 10,
   className = '',
 }) => {
   const paginasVisiveis = useMemo(() => {
@@ -52,8 +54,9 @@ export const Paginacao: FC<PaginacaoProps> = ({
     ];
   }, [paginaAtual, totalPaginas]);
 
-  const paginaInicio = totalRegistros === 0 ? 0 : (paginaAtual - 1) * 10 + 1;
-  const paginaFim = totalRegistros === 0 ? 0 : Math.min(paginaAtual * 10, totalRegistros);
+  const porPag = itensPorPagina > 0 ? itensPorPagina : 10;
+  const paginaInicio = totalRegistros === 0 ? 0 : (paginaAtual - 1) * porPag + 1;
+  const paginaFim = totalRegistros === 0 ? 0 : Math.min(paginaAtual * porPag, totalRegistros);
 
   return (
     <div

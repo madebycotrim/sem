@@ -112,6 +112,10 @@ interface TabelaPacientesProps {
   aoEditarPaciente?: (paciente: ItemPaciente) => void;
   aoExcluirPaciente?: (paciente: ItemPaciente) => void;
   ehAdminGeral?: boolean;
+  paginaServidor?: number;
+  totalPaginasServidor?: number;
+  totalRegistrosServidor?: number;
+  aoMudarPaginaServidor?: (pagina: number) => void;
 }
 
 export const TabelaPacientes: FC<TabelaPacientesProps> = ({
@@ -122,9 +126,11 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
   aoVerDetalhes,
   aoEditarPaciente,
   aoExcluirPaciente,
+  paginaServidor,
+  totalPaginasServidor,
+  totalRegistrosServidor,
+  aoMudarPaginaServidor,
 }) => {
-  const [paginaAtual, setPaginaAtual] = useState(1);
-  const itensPorPagina = 10;
   const [menuAcoesAbertoId, setMenuAcoesAbertoId] = useState<string | null>(null);
   const [pacienteConfirmarExclusao, setPacienteConfirmarExclusao] = useState<ItemPaciente | null>(null);
   const [pacienteParaComprovante, setPacienteParaComprovante] = useState<ItemPaciente | null>(null);
@@ -183,11 +189,34 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
 
   const { dadosFiltrados, temAlgumFiltroAtivo } = filtroExcel;
 
-  // Paginação
-  const totalPaginas = Math.max(1, Math.ceil(dadosFiltrados.length / itensPorPagina));
-  const paginaCorrigida = Math.min(paginaAtual, totalPaginas);
-  const indiceInicio = (paginaCorrigida - 1) * itensPorPagina;
-  const dadosPaginados = dadosFiltrados.slice(indiceInicio, indiceInicio + itensPorPagina);
+  // Paginação sob demanda com suporte a servidor
+  const [paginaLocal, setPaginaLocal] = useState(1);
+  const itensPorPagina = 10;
+  const usandoPaginacaoServidor = typeof totalPaginasServidor === 'number' && totalPaginasServidor > 1;
+
+  const totalPaginas = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+    ? totalPaginasServidor
+    : Math.max(1, Math.ceil(dadosFiltrados.length / itensPorPagina));
+
+  const totalRegistros = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+    ? (totalRegistrosServidor ?? dadosFiltrados.length)
+    : dadosFiltrados.length;
+
+  const paginaExibida = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+    ? (paginaServidor ?? 1)
+    : Math.min(paginaLocal, totalPaginas);
+
+  const dadosPaginados = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+    ? dadosFiltrados
+    : dadosFiltrados.slice((paginaExibida - 1) * itensPorPagina, paginaExibida * itensPorPagina);
+
+  const handleMudarPagina = (novaPagina: number) => {
+    if (usandoPaginacaoServidor && !temAlgumFiltroAtivo && aoMudarPaginaServidor) {
+      aoMudarPaginaServidor(novaPagina);
+    } else {
+      setPaginaLocal(novaPagina);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4 flex-1">
@@ -520,10 +549,11 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
         {/* ─── Rodapé & Paginação da Tabela ─────────────────────────────────── */}
         <div className="py-2 px-4 border-t border-slate-200/90 bg-slate-50/40">
           <Paginacao
-            paginaAtual={paginaCorrigida}
+            paginaAtual={paginaExibida}
             totalPaginas={totalPaginas}
-            totalRegistros={dadosFiltrados.length}
-            aoMudarPagina={(novaPagina) => setPaginaAtual(novaPagina)}
+            totalRegistros={totalRegistros}
+            itensPorPagina={usandoPaginacaoServidor && !temAlgumFiltroAtivo ? pacientes.length : itensPorPagina}
+            aoMudarPagina={handleMudarPagina}
           />
         </div>
       </div>

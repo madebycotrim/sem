@@ -64,6 +64,10 @@ export interface AtendimentosProps {
   escolas?: Array<{ id: string; nome: string }>;
   profissionais?: Array<{ id: string; nome: string; registro?: string; registroConselho?: string; conselho?: string; conselhoProfissional?: string; registroProfissional?: string }>;
   aoVerHistoricoPaciente?: (paciente: ItemPaciente) => void;
+  paginaServidor?: number;
+  totalPaginasServidor?: number;
+  totalRegistrosServidor?: number;
+  aoMudarPaginaServidor?: (pagina: number) => void;
 }
 
 export const Atendimentos: FC<AtendimentosProps> = ({
@@ -76,6 +80,12 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   escolas = [],
   profissionais = [],
   aoVerHistoricoPaciente,
+  statusSincronizacaoCatraki,
+  aoNovoAtendimento,
+  paginaServidor,
+  totalPaginasServidor,
+  totalRegistrosServidor,
+  aoMudarPaginaServidor,
 }) => {
   const [atendimentosLocais, setAtendimentosLocais] = useState<ItemAtendimentoLista[]>(atendimentosProp);
 
@@ -399,12 +409,33 @@ export const Atendimentos: FC<AtendimentosProps> = ({
 
   const { dadosFiltrados, temAlgumFiltroAtivo } = filtroExcel;
 
-  const [paginaAtual, setPaginaAtual] = useState(1);
+  const [paginaLocal, setPaginaLocal] = useState(1);
   const itensPorPagina = 10;
-  const totalPaginas = Math.max(1, Math.ceil(dadosFiltrados.length / itensPorPagina));
-  const paginaCorrigida = Math.min(paginaAtual, totalPaginas);
-  const indiceInicio = (paginaCorrigida - 1) * itensPorPagina;
-  const dadosPaginados = dadosFiltrados.slice(indiceInicio, indiceInicio + itensPorPagina);
+  const usandoPaginacaoServidor = typeof totalPaginasServidor === 'number' && totalPaginasServidor > 1;
+
+  const totalPaginas = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+    ? totalPaginasServidor
+    : Math.max(1, Math.ceil(dadosFiltrados.length / itensPorPagina));
+
+  const totalRegistros = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+    ? (totalRegistrosServidor ?? dadosFiltrados.length)
+    : dadosFiltrados.length;
+
+  const paginaExibida = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+    ? (paginaServidor ?? 1)
+    : Math.min(paginaLocal, totalPaginas);
+
+  const dadosPaginados = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+    ? dadosFiltrados
+    : dadosFiltrados.slice((paginaExibida - 1) * itensPorPagina, paginaExibida * itensPorPagina);
+
+  const handleMudarPagina = (novaPagina: number) => {
+    if (usandoPaginacaoServidor && !temAlgumFiltroAtivo && aoMudarPaginaServidor) {
+      aoMudarPaginaServidor(novaPagina);
+    } else {
+      setPaginaLocal(novaPagina);
+    }
+  };
 
   return (
     <div className="flex flex-col flex-1 animate-fade-in font-sans">
@@ -417,6 +448,8 @@ export const Atendimentos: FC<AtendimentosProps> = ({
           aoMudar: setBusca,
           placeholder: 'Buscar paciente, profissional ou especialidade...',
         }}
+        statusSincronizacaoCatraki={statusSincronizacaoCatraki}
+        acaoPrimaria={aoNovoAtendimento ? { rotulo: 'Novo Atendimento', aoClicar: aoNovoAtendimento } : undefined}
         acoesExtras={
           <div className="flex flex-col items-end gap-1.5">
             <div className="flex flex-nowrap items-center justify-end gap-2">
@@ -559,7 +592,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                   setPeriodoSelecionado('tudo');
                   setDiaSelecionado(null);
                   filtroExcel.limparTodosFiltros();
-                  setPaginaAtual(1);
+                  handleMudarPagina(1);
                 }}
                 className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-rose-600 transition-colors hover:bg-rose-50 cursor-pointer"
               >
@@ -1095,10 +1128,11 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         </div>
         <div className="py-2 px-4 border-t border-slate-200/90 bg-slate-50/40">
           <Paginacao
-            paginaAtual={paginaCorrigida}
+            paginaAtual={paginaExibida}
             totalPaginas={totalPaginas}
-            totalRegistros={dadosFiltrados.length}
-            aoMudarPagina={(novaPagina) => setPaginaAtual(novaPagina)}
+            totalRegistros={totalRegistros}
+            itensPorPagina={usandoPaginacaoServidor && !temAlgumFiltroAtivo ? atendimentosProp.length : itensPorPagina}
+            aoMudarPagina={handleMudarPagina}
           />
         </div>
       </div>

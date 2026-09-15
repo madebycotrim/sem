@@ -38,11 +38,17 @@ interface RespostaListaPacientes {
     atendimentosCount?: number;
     termoConsentimentoStatus?: ItemPaciente['termoConsentimentoStatus'];
   }>;
+  total?: number;
+  pagina?: number;
+  porPagina?: number;
   totalPaginas: number;
 }
 
 interface RespostaListaAtendimentos {
   dados: Array<Record<string, unknown>>;
+  total?: number;
+  pagina?: number;
+  porPagina?: number;
   totalPaginas: number;
 }
 
@@ -310,20 +316,32 @@ export function App() {
     setTimeout(() => setToastNotificacao(null), 3000);
   };
 
+  // Paginação sob demanda e contadores reais
+  const [paginaPacientes, setPaginaPacientes] = useState<number>(1);
+  const [totalPacientes, setTotalPacientes] = useState<number>(0);
+  const [totalPaginasPacientes, setTotalPaginasPacientes] = useState<number>(1);
+
+  const [paginaAtendimentos, setPaginaAtendimentos] = useState<number>(1);
+  const [totalAtendimentos, setTotalAtendimentos] = useState<number>(0);
+  const [totalPaginasAtendimentos, setTotalPaginasAtendimentos] = useState<number>(1);
+
   useEffect(() => {
     if (!autenticado) return;
     let ativo = true;
     const carregarPacientes = async () => {
       if ((window as any)?.__importacaoEmAndamento || modalImportarPlanilhaAberto) return;
       try {
-        const primeiraPagina = await requisicaoApi<RespostaListaPacientes>('/pacientes?pagina=1&porPagina=100');
-        const paginasRestantes = Array.from({ length: Math.max(0, primeiraPagina.totalPaginas - 1) }, (_, indice) => indice + 2);
-        const respostasRestantes = await Promise.all(
-          paginasRestantes.map((pagina) => requisicaoApi<RespostaListaPacientes>(`/pacientes?pagina=${pagina}&porPagina=100`))
-        );
-        if (ativo) {
-          const dados = [primeiraPagina, ...respostasRestantes].flatMap((resposta) => resposta.dados);
-          setPacientes(dados.map(converterPacienteApi));
+        const resposta = await requisicaoApi<RespostaListaPacientes>(`/pacientes?pagina=${paginaPacientes}&porPagina=50`);
+        if (ativo && resposta?.dados) {
+          setPacientes(resposta.dados.map(converterPacienteApi));
+          if (typeof resposta.total === 'number') {
+            setTotalPacientes(resposta.total);
+          } else if (resposta.dados.length > 0 && totalPacientes === 0) {
+            setTotalPacientes(resposta.dados.length);
+          }
+          if (typeof resposta.totalPaginas === 'number') {
+            setTotalPaginasPacientes(resposta.totalPaginas);
+          }
         }
       } catch (erro) {
         if (ativo) {
@@ -335,12 +353,12 @@ export function App() {
       }
     };
     carregarPacientes();
-    const intervalo = window.setInterval(carregarPacientes, 30_000);
+    const intervalo = window.setInterval(carregarPacientes, 60_000);
     return () => {
       ativo = false;
       window.clearInterval(intervalo);
     };
-  }, [autenticado, gatilhoRecarregar]);
+  }, [autenticado, gatilhoRecarregar, paginaPacientes]);
 
   // Lista de Atendimentos (estado puro em memória diretamente alimentado pela API)
   const [atendimentos, setAtendimentos] = useState<ItemAtendimentoLista[]>([]);
@@ -352,17 +370,9 @@ export function App() {
     const carregarAtendimentos = async () => {
       if ((window as any)?.__importacaoEmAndamento || modalImportarPlanilhaAberto) return;
       try {
-        const primeiraPagina = await requisicaoApi<RespostaListaAtendimentos>('/atendimentos?pagina=1&porPagina=100');
-        const paginasRestantes = Array.from(
-          { length: Math.max(0, primeiraPagina.totalPaginas - 1) },
-          (_, indice) => indice + 2
-        );
-        const respostasRestantes = await Promise.all(
-          paginasRestantes.map((pagina) => requisicaoApi<RespostaListaAtendimentos>(`/atendimentos?pagina=${pagina}&porPagina=100`))
-        );
-        if (ativo && primeiraPagina?.dados) {
-          const dados = [primeiraPagina, ...respostasRestantes].flatMap((resposta) => resposta.dados);
-          const listaMapeada: ItemAtendimentoLista[] = dados.map((d: any) => ({
+        const resposta = await requisicaoApi<RespostaListaAtendimentos>(`/atendimentos?pagina=${paginaAtendimentos}&porPagina=50`);
+        if (ativo && resposta?.dados) {
+          const listaMapeada: ItemAtendimentoLista[] = resposta.dados.map((d: any) => ({
             id: String(d.id),
             pacienteId: String(d.pacienteId),
             pacienteNome: String(d.pacienteNome || 'Paciente'),
@@ -380,6 +390,14 @@ export function App() {
             status: d.status as ItemAtendimentoLista['status'],
           }));
           setAtendimentos(listaMapeada);
+          if (typeof resposta.total === 'number') {
+            setTotalAtendimentos(resposta.total);
+          } else if (resposta.dados.length > 0 && totalAtendimentos === 0) {
+            setTotalAtendimentos(resposta.dados.length);
+          }
+          if (typeof resposta.totalPaginas === 'number') {
+            setTotalPaginasAtendimentos(resposta.totalPaginas);
+          }
         }
       } catch (erro) {
         if (ativo) {
@@ -391,12 +409,12 @@ export function App() {
       }
     };
     carregarAtendimentos();
-    const intervalo = window.setInterval(carregarAtendimentos, 30_000);
+    const intervalo = window.setInterval(carregarAtendimentos, 60_000);
     return () => {
       ativo = false;
       window.clearInterval(intervalo);
     };
-  }, [autenticado, gatilhoRecarregar]);
+  }, [autenticado, gatilhoRecarregar, paginaAtendimentos]);
 
   useEffect(() => {
     if (!autenticado || carregandoAtendimentos) return;
@@ -998,6 +1016,10 @@ export function App() {
             <TabelaPacientes
               pacientes={pacientesFiltrados}
               carregando={carregandoPacientes}
+              paginaServidor={paginaPacientes}
+              totalPaginasServidor={totalPaginasPacientes}
+              totalRegistrosServidor={totalPacientes > 0 ? totalPacientes : pacientesFiltrados.length}
+              aoMudarPaginaServidor={(novaPagina) => setPaginaPacientes(novaPagina)}
               aoNovoPaciente={() => {
                 setPacienteParaEditar(null);
                 setModalNovoPacienteAberto(true);
@@ -1052,6 +1074,10 @@ export function App() {
             return (
               <Atendimentos
                 atendimentos={todosAtendimentos}
+                paginaServidor={paginaAtendimentos}
+                totalPaginasServidor={totalPaginasAtendimentos}
+                totalRegistrosServidor={totalAtendimentos > 0 ? totalAtendimentos : todosAtendimentos.length}
+                aoMudarPaginaServidor={(novaPagina) => setPaginaAtendimentos(novaPagina)}
                 aoSincronizar={recarregarDados}
                 statusSincronizacaoCatraki={statusSincronizacaoCatraki}
                 aoAtualizarStatus={handleAtualizarStatusAtendimento}
@@ -1072,8 +1098,8 @@ export function App() {
           if (secaoAtiva === 'dashboard') {
             return (
               <Dashboard
-                totalPacientes={pacientes.length}
-                totalAtendimentos={todosAtendimentos.length}
+                totalPacientes={totalPacientes > 0 ? totalPacientes : pacientes.length}
+                totalAtendimentos={totalAtendimentos > 0 ? totalAtendimentos : todosAtendimentos.length}
                 totalInstituicoes={escolasGlobais.length}
                 pacientes={pacientes}
                 atendimentos={todosAtendimentos}
@@ -1161,8 +1187,8 @@ export function App() {
           }
           
           return <Dashboard
-            totalPacientes={pacientes.length}
-            totalAtendimentos={atendimentos.length}
+            totalPacientes={totalPacientes > 0 ? totalPacientes : pacientes.length}
+            totalAtendimentos={totalAtendimentos > 0 ? totalAtendimentos : todosAtendimentos.length}
             totalInstituicoes={escolasGlobais.length}
             pacientes={pacientes}
             atendimentos={atendimentos}
