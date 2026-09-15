@@ -22,7 +22,7 @@ const envSchema = z.object({
 
   CORS_ORIGINS: z.string().min(1, 'CORS_ORIGINS deve listar as origens autorizadas'),
 
-  RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(100),
+  RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(300),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60_000),
 
   LOG_LEVEL: z

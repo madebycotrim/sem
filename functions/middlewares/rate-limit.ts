@@ -13,16 +13,38 @@ import type { Bindings } from '../config/env.js';
  * Estratégia: janela fixa baseada em timestamp truncado ao minuto.
  */
 export const middlewareRateLimit: MiddlewareHandler<{ Bindings: Bindings }> = async (c, next) => {
-  const limite = c.env.RATE_LIMIT_MAX;
-  const janelaMs = c.env.RATE_LIMIT_WINDOW_MS;
+  // 1. Ignorar preflight CORS OPTIONS para não quebrar CORS nem consumir cota
+  if (c.req.method === 'OPTIONS') {
+    return next();
+  }
+
+  // 2. Isentar health check, checagem de sessão do usuário e rotas de importação administrativa
+  const path = c.req.path;
+  if (
+    path === '/api/health' ||
+    path === '/api/v1/auth/me' ||
+    path.startsWith('/api/v1/importacao')
+  ) {
+    return next();
+  }
+
+  // 3. Fallbacks seguros com coerção numérica rigorosa (evita NaN caso env não esteja configurado no Cloudflare Dashboard)
+  const limite = Number(c.env?.RATE_LIMIT_MAX) > 0 ? Number(c.env.RATE_LIMIT_MAX) : 300;
+  const janelaMs = Number(c.env?.RATE_LIMIT_WINDOW_MS) > 0 ? Number(c.env.RATE_LIMIT_WINDOW_MS) : 60_000;
   const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? 'unknown';
 
-  // Truncar timestamp para a janela atual (em segundos)
+  // Truncar timestamp para a janela atual (em milissegundos)
   const agora = Date.now();
   const janelaInicio = Math.floor(agora / janelaMs) * janelaMs;
 
   try {
     const db = getDb(c.env.DB);
+
+    // 4. Limpeza oportunista de janelas expiradas ou registros corrompidos (NaN / 0 / antigas)
+    // Garante desbloqueio imediato de IPs que ficaram presos em janelas antigas/inválidas
+    await db
+      .delete(rateLimitTable)
+      .where(sql`${rateLimitTable.janelaInicio} < ${agora - janelaMs} OR ${rateLimitTable.janelaInicio} IS NULL OR ${rateLimitTable.janelaInicio} = 0`);
 
     // Tentar incrementar contador existente
     const [existente] = await db

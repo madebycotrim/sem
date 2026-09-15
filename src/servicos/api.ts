@@ -71,6 +71,18 @@ export async function requisicaoApi<T = unknown>(
           mensagemErro = erroBody.message;
         }
 
+        // Tratamento especial de Rate Limit (HTTP 429): aguarda intervalo e tenta novamente
+        if (resposta.status === 429) {
+          if (tentativa < tentativasMaximas - 1) {
+            const retryHeader = resposta.headers.get('Retry-After');
+            const esperaSeg = retryHeader ? parseInt(retryHeader, 10) : 2;
+            const esperaMs = (!isNaN(esperaSeg) && esperaSeg > 0 ? esperaSeg : 2) * 1000;
+            await new Promise((r) => setTimeout(r, Math.min(esperaMs, 5000)));
+            throw new Error('Limite de requisições temporariamente excedido (HTTP 429). Tentando novamente...');
+          }
+          throw new ErroApi(429, mensagemErro ?? 'Limite de requisições excedido. Tente novamente mais tarde.');
+        }
+
         // Não fazer retry em erros de validação/autenticação (4xx)
         if (resposta.status >= 400 && resposta.status < 500) {
           const detalhes = erroBody.detalhes

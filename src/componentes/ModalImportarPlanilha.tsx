@@ -145,19 +145,36 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
   const inputArquivoRef = useRef<HTMLInputElement>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  // Carrega metadados do backend ao abrir
+  // Carrega metadados do backend ao abrir com resiliência e retry automático
   useEffect(() => {
     if (aberto) {
-      requisicaoApi<{ sucesso: boolean; escolas: Array<{ id: string; nome: string }>; profissionais: Array<{ id: string; nome: string }> }>('/importacao/metadados')
-        .then((res) => {
-          if (res?.sucesso) {
-            setEscolasSistema(res.escolas || []);
-            setProfissionaisSistema(res.profissionais || []);
+      let cancelado = false;
+      const carregarMetadados = async (tentativas = 3) => {
+        for (let t = 1; t <= tentativas; t++) {
+          if (cancelado) return;
+          try {
+            const res = await requisicaoApi<{
+              sucesso: boolean;
+              escolas: Array<{ id: string; nome: string }>;
+              profissionais: Array<{ id: string; nome: string }>;
+            }>('/importacao/metadados');
+            if (res?.sucesso && !cancelado) {
+              setEscolasSistema(res.escolas || []);
+              setProfissionaisSistema(res.profissionais || []);
+              return;
+            }
+          } catch (err) {
+            console.error(`Erro ao carregar metadados para importação (tentativa ${t}/${tentativas}):`, err);
+            if (t < tentativas && !cancelado) {
+              await new Promise((r) => setTimeout(r, 1500 * t));
+            }
           }
-        })
-        .catch((err) => {
-          console.error('Erro ao carregar metadados para importação:', err);
-        });
+        }
+      };
+      carregarMetadados();
+      return () => {
+        cancelado = true;
+      };
     } else {
       // Resetar ao fechar
       setEtapa('upload');
@@ -612,9 +629,23 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
           }
         } catch (err: any) {
           ultimoErroLote = err;
-          const eh503OuRede = err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('Failed to fetch') || err?.message?.includes('Network');
-          if (!eh503OuRede || tentativasLote >= 3) {
+          const ehRetryavel =
+            err?.status === 503 ||
+            err?.status === 429 ||
+            err?.message?.includes('503') ||
+            err?.message?.includes('429') ||
+            err?.message?.includes('Limite de requisições') ||
+            err?.message?.includes('Failed to fetch') ||
+            err?.message?.includes('Network');
+          if (!ehRetryavel || tentativasLote >= 3) {
             break;
+          }
+          if (err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('Limite de requisições')) {
+            adicionarLog(
+              `Aguardando liberação de requisições (HTTP 429) antes da tentativa ${tentativasLote + 1}...`,
+              'aviso'
+            );
+            await new Promise((r) => setTimeout(r, 2000));
           }
         }
       }
