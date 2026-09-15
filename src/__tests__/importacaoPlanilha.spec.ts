@@ -4,6 +4,7 @@ import {
   mapearEspecialidade,
   mapearStatusAtendimento,
   extrairNomeCanonicoProfissional,
+  inserirEmSubLotesSeguros,
 } from '../../functions/rotas/v1/importacao.rotas.ts';
 import { Especialidade, StatusAtendimento } from '../../compartilhado/index.ts';
 
@@ -303,6 +304,84 @@ describe('Importação Inteligente de Planilhas de Consultas', () => {
       expect(idxUsuarios).toBeLessThan(idxAtendimentos);
       expect(idxPacientes).toBeLessThan(idxAtendimentos);
       expect(idxPacientes).toBeLessThan(idxConsentimentos);
+    });
+
+    it('deve particionar inserções em sub-lotes seguros para nunca exceder o limite de 100 variáveis SQL do Cloudflare D1', async () => {
+      const chamadasInsert: Array<{ registrosCount: number; parametrosCount: number }> = [];
+
+      const mockDb = {
+        insert: () => ({
+          values: (chunk: any[]) => ({
+            onConflictDoNothing: async () => {
+              const colunas = Object.keys(chunk[0] || {}).length;
+              chamadasInsert.push({
+                registrosCount: chunk.length,
+                parametrosCount: chunk.length * colunas,
+              });
+              return { success: true };
+            },
+          }),
+        }),
+      };
+
+      // Simula 10 pacientes com 15 colunas cada (total 150 variáveis se fosse em query única)
+      const dezPacientes = Array.from({ length: 10 }, (_, i) => ({
+        id: `p-${i}`,
+        nomeEnc: 'enc',
+        cpfEnc: 'enc',
+        cpfHash: `hash-${i}`,
+        dataNascimentoEnc: 'enc',
+        telefoneEnc: null,
+        dekCifrada: 'dek',
+        ivPii: 'iv',
+        tagPii: 'tag',
+        turma: 'Geral',
+        escolaLocalId: 'esc-1',
+        retencaoExpiraEm: '2027-01-01',
+        ativo: true,
+        criadoEm: '2026-09-15',
+        atualizadoEm: '2026-09-15',
+      }));
+
+      // Executa o particionador seguro
+      await inserirEmSubLotesSeguros(mockDb, {} as any, dezPacientes, 75);
+
+      // Deve ter dividido em 2 sub-lotes de 5 registros (5 * 15 = 75 variáveis cada)
+      expect(chamadasInsert).toHaveLength(2);
+      for (const chamada of chamadasInsert) {
+        expect(chamada.registrosCount).toBe(5);
+        expect(chamada.parametrosCount).toBeLessThanOrEqual(75);
+        expect(chamada.parametrosCount).toBeLessThan(100); // 100% abaixo do limite crítico do D1
+      }
+
+      // Simula 10 atendimentos com 10 colunas cada (total 100 variáveis)
+      chamadasInsert.length = 0;
+      const dezAtendimentos = Array.from({ length: 10 }, (_, i) => ({
+        id: `at-${i}`,
+        pacienteId: `p-${i}`,
+        escolaLocalId: 'esc-1',
+        usuarioId: 'u-1',
+        especialidade: 'Oftalmologia',
+        status: 'CONCLUIDO',
+        resumo: 'Atendimento',
+        chaveIdempotencia: `idemp-${i}`,
+        criadoEm: '2026-09-15',
+        atualizadoEm: '2026-09-15',
+      }));
+
+      await inserirEmSubLotesSeguros(mockDb, {} as any, dezAtendimentos, 75);
+
+      // 75 / 10 = 7 linhas por sub-lote -> lote 1 com 7 (70 vars), lote 2 com 3 (30 vars)
+      expect(chamadasInsert).toHaveLength(2);
+      expect(chamadasInsert[0].registrosCount).toBe(7);
+      expect(chamadasInsert[0].parametrosCount).toBe(70);
+      expect(chamadasInsert[1].registrosCount).toBe(3);
+      expect(chamadasInsert[1].parametrosCount).toBe(30);
+
+      // Toda chamada gerada obrigatoriamente tem menos de 100 variáveis
+      for (const chamada of chamadasInsert) {
+        expect(chamada.parametrosCount).toBeLessThan(100);
+      }
     });
   });
 });

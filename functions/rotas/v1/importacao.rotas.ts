@@ -162,6 +162,30 @@ export function extrairNomeCanonicoProfissional(nome?: string | null): string {
     .trim();
 }
 
+/**
+ * O Cloudflare D1 limita estritamente cada query a 100 parâmetros SQL vinculados (?1 .. ?100).
+ * Em operações de inserção em lote, o total de variáveis geradas pelo ORM é (linhas * colunas).
+ * Exemplo: 10 pacientes com 15 colunas geram 150 variáveis (> 100), provocando D1_ERROR: too many SQL variables.
+ *
+ * Esta função particiona os registros em sub-lotes garantindo que nenhuma query individual exceda o teto
+ * seguro de parâmetros (padrão: 75 parâmetros por query).
+ */
+export async function inserirEmSubLotesSeguros<T extends Record<string, any>>(
+  db: any,
+  tabela: any,
+  registros: T[],
+  maxParametrosPorQuery = 75
+): Promise<void> {
+  if (!registros || registros.length === 0) return;
+  const colunasPorLinha = Math.max(1, Object.keys(registros[0]).length);
+  const linhasPorSubLote = Math.max(1, Math.floor(maxParametrosPorQuery / colunasPorLinha));
+
+  for (let i = 0; i < registros.length; i += linhasPorSubLote) {
+    const chunk = registros.slice(i, i + linhasPorSubLote);
+    await db.insert(tabela).values(chunk).onConflictDoNothing();
+  }
+}
+
 // ─── Schemas Zod ────────────────────────────────────────────────────────────
 
 const itemImportacaoSchema = z.object({
@@ -312,46 +336,54 @@ rotasImportacao.post(
     const mapaPacientesPorHash = new Map<string, string>();
     const todosHashes = Array.from(new Set(mapaCpfParaHash.values()));
     if (todosHashes.length > 0) {
-      // Busca direta via select de TODOS os pacientes com esses hashes, sem filtrar por ativo
-      // para garantir que pacientes pré-existentes (mesmo inativos ou de execuções anteriores) sejam reaproveitados
-      const pacientesExistentes = await db
-        .select({
-          id: pacientes.id,
-          cpfHash: pacientes.cpfHash,
-          ativo: pacientes.ativo,
-        })
-        .from(pacientes)
-        .where(inArray(pacientes.cpfHash, todosHashes));
+      // Chunking para inArray em sub-lotes de 50 para respeitar o limite estrito de 100 parâmetros do D1
+      for (let i = 0; i < todosHashes.length; i += 50) {
+        const chunkHashes = todosHashes.slice(i, i + 50);
+        const pacientesExistentes = await db
+          .select({
+            id: pacientes.id,
+            cpfHash: pacientes.cpfHash,
+            ativo: pacientes.ativo,
+          })
+          .from(pacientes)
+          .where(inArray(pacientes.cpfHash, chunkHashes));
 
-      const pacientesInativosIds: string[] = [];
-      for (const p of pacientesExistentes) {
-        if (p.cpfHash) {
-          mapaPacientesPorHash.set(p.cpfHash, p.id);
-          if (!p.ativo) {
-            pacientesInativosIds.push(p.id);
+        const pacientesInativosIds: string[] = [];
+        for (const p of pacientesExistentes) {
+          if (p.cpfHash) {
+            mapaPacientesPorHash.set(p.cpfHash, p.id);
+            if (!p.ativo) {
+              pacientesInativosIds.push(p.id);
+            }
+          }
+        }
+
+        // Reativa silenciosamente pacientes pré-existentes que estavam marcados como inativos
+        if (pacientesInativosIds.length > 0) {
+          for (let j = 0; j < pacientesInativosIds.length; j += 50) {
+            const chunkInativos = pacientesInativosIds.slice(j, j + 50);
+            await db
+              .update(pacientes)
+              .set({ ativo: true, atualizadoEm: new Date().toISOString() })
+              .where(inArray(pacientes.id, chunkInativos));
           }
         }
       }
-
-      // Reativa silenciosamente pacientes pré-existentes que estavam marcados como inativos
-      if (pacientesInativosIds.length > 0) {
-        await db
-          .update(pacientes)
-          .set({ ativo: true, atualizadoEm: new Date().toISOString() })
-          .where(inArray(pacientes.id, pacientesInativosIds));
-      }
     }
 
-    // 4. Pré-busca em lote de atendimentos para os pacientes conhecidos (evita N queries)
+    // 4. Pré-busca em lote de atendimentos para os pacientes conhecidos (evita N queries e respeita D1)
     const idsPacientesConhecidos = Array.from(new Set(mapaPacientesPorHash.values()));
     const setConsultasExistentesBanco = new Set<string>();
     if (idsPacientesConhecidos.length > 0) {
-      const atendimentosBanco = await db.query.atendimentos.findMany({
-        where: inArray(atendimentos.pacienteId, idsPacientesConhecidos),
-        columns: { pacienteId: true, especialidade: true },
-      });
-      for (const at of atendimentosBanco) {
-        setConsultasExistentesBanco.add(`${at.pacienteId}:${at.especialidade}`);
+      for (let i = 0; i < idsPacientesConhecidos.length; i += 50) {
+        const chunkIds = idsPacientesConhecidos.slice(i, i + 50);
+        const atendimentosBanco = await db.query.atendimentos.findMany({
+          where: inArray(atendimentos.pacienteId, chunkIds),
+          columns: { pacienteId: true, especialidade: true },
+        });
+        for (const at of atendimentosBanco) {
+          setConsultasExistentesBanco.add(`${at.pacienteId}:${at.especialidade}`);
+        }
       }
     }
 
@@ -628,20 +660,25 @@ rotasImportacao.post(
     // 2. pacientes (alunos) - depende de escolaLocalId (já existente no banco)
     // 3. consentimentos - depende de pacienteId (inserido no passo 2)
     // 4. atendimentos - depende de pacienteId, usuarioId e escolaLocalId (inseridos nos passos 1 e 2)
-    // ATENÇÃO: NUNCA usar Promise.all paralelo aqui, pois requisições concorrentes causam
-    // erro de "D1_ERROR: FOREIGN KEY constraint failed: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_FOREIGNKEY)"
+    //
+    // LIMITAÇÃO CRÍTICA DO CLOUDFLARE D1:
+    // O Cloudflare D1 limita cada consulta a no máximo 100 variáveis SQL vinculadas (?1 .. ?100).
+    // Para inserções em massa, o total de variáveis geradas pelo ORM é (linhas * colunas).
+    // Exemplo: 10 pacientes com 15 colunas geram 150 variáveis (> 100), provocando o erro
+    // "D1_ERROR: too many SQL variables at offset 550: SQLITE_ERROR".
+    // Usamos inserirEmSubLotesSeguros para nunca ultrapassar 75 variáveis por query.
     try {
       if (novosUsuariosParaInserir.length > 0) {
-        await db.insert(usuarios).values(novosUsuariosParaInserir).onConflictDoNothing();
+        await inserirEmSubLotesSeguros(db, usuarios, novosUsuariosParaInserir);
       }
       if (novosPacientesParaInserir.length > 0) {
-        await db.insert(pacientes).values(novosPacientesParaInserir).onConflictDoNothing();
+        await inserirEmSubLotesSeguros(db, pacientes, novosPacientesParaInserir);
       }
       if (novosConsentimentosParaInserir.length > 0) {
-        await db.insert(consentimentos).values(novosConsentimentosParaInserir).onConflictDoNothing();
+        await inserirEmSubLotesSeguros(db, consentimentos, novosConsentimentosParaInserir);
       }
       if (novosAtendimentosParaInserir.length > 0) {
-        await db.insert(atendimentos).values(novosAtendimentosParaInserir).onConflictDoNothing();
+        await inserirEmSubLotesSeguros(db, atendimentos, novosAtendimentosParaInserir);
       }
     } catch (erroBanco: any) {
       const detalheErro =
@@ -798,8 +835,8 @@ rotasImportacao.post('/rollback', zValidator('json', rollbackSchema), async (c) 
 
     // 1B. Exclusão por IDs acumulados de atendimentos restantes
     if (todosAtendimentoIds.length > 0) {
-      for (let i = 0; i < todosAtendimentoIds.length; i += 200) {
-        const slice = todosAtendimentoIds.slice(i, i + 200);
+      for (let i = 0; i < todosAtendimentoIds.length; i += 50) {
+        const slice = todosAtendimentoIds.slice(i, i + 50);
         const del2 = await db
           .delete(atendimentos)
           .where(inArray(atendimentos.id, slice))
@@ -810,8 +847,8 @@ rotasImportacao.post('/rollback', zValidator('json', rollbackSchema), async (c) 
 
     // 1C. Exclusão de atendimentos vinculados aos pacientes criados nesta sessão
     if (todosPacientesIds.length > 0) {
-      for (let i = 0; i < todosPacientesIds.length; i += 200) {
-        const slice = todosPacientesIds.slice(i, i + 200);
+      for (let i = 0; i < todosPacientesIds.length; i += 50) {
+        const slice = todosPacientesIds.slice(i, i + 50);
         const del3 = await db
           .delete(atendimentos)
           .where(inArray(atendimentos.pacienteId, slice))
@@ -831,8 +868,8 @@ rotasImportacao.post('/rollback', zValidator('json', rollbackSchema), async (c) 
       .where(eq(consentimentos.referenciaDocumento, prefixoSessao));
 
     if (todosPacientesIds.length > 0) {
-      for (let i = 0; i < todosPacientesIds.length; i += 200) {
-        const slice = todosPacientesIds.slice(i, i + 200);
+      for (let i = 0; i < todosPacientesIds.length; i += 50) {
+        const slice = todosPacientesIds.slice(i, i + 50);
         await db.delete(consentimentos).where(inArray(consentimentos.pacienteId, slice));
       }
     }
@@ -844,8 +881,8 @@ rotasImportacao.post('/rollback', zValidator('json', rollbackSchema), async (c) 
   // ─── PASSO 3: Remover Pacientes da Sessão (Agora sem FKs em Atendimentos ou Consentimentos) ───
   if (todosPacientesIds.length > 0) {
     try {
-      for (let i = 0; i < todosPacientesIds.length; i += 200) {
-        const slice = todosPacientesIds.slice(i, i + 200);
+      for (let i = 0; i < todosPacientesIds.length; i += 50) {
+        const slice = todosPacientesIds.slice(i, i + 50);
         const delPac = await db
           .delete(pacientes)
           .where(inArray(pacientes.id, slice))
@@ -861,8 +898,8 @@ rotasImportacao.post('/rollback', zValidator('json', rollbackSchema), async (c) 
   // ─── PASSO 4: Remover Profissionais Auto-criados na Sessão ──────────────────
   if (todosUsuariosIds.length > 0) {
     try {
-      for (let i = 0; i < todosUsuariosIds.length; i += 200) {
-        const slice = todosUsuariosIds.slice(i, i + 200);
+      for (let i = 0; i < todosUsuariosIds.length; i += 50) {
+        const slice = todosUsuariosIds.slice(i, i + 50);
         const delUsr = await db
           .delete(usuarios)
           .where(and(inArray(usuarios.id, slice), eq(usuarios.perfil, 'PROFISSIONAL_SAUDE')))
