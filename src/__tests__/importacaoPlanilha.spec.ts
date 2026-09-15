@@ -189,7 +189,68 @@ describe('Importação Inteligente de Planilhas de Consultas', () => {
       expect(atendimentosRestantes).toHaveLength(1);
       expect(atendimentosRestantes[0].id).toBe('c3');
     });
+
+    it('deve gerar consulta direta de pacientes e inserção resiliente a conflitos', async () => {
+      const { drizzle } = await import('drizzle-orm/d1');
+      const { inArray } = await import('drizzle-orm');
+      const schema = await import('../../functions/infraestrutura/banco/schema.ts');
+
+      let capturedSql = '';
+      let capturedParams: any[] = [];
+
+      const mockD1 = {
+        prepare: (sql: string) => ({
+          bind: (...params: any[]) => {
+            capturedSql = sql;
+            capturedParams = params;
+            return {
+              all: async () => ({ results: [] }),
+              raw: async () => [],
+              run: async () => ({ success: true }),
+            };
+          },
+        }),
+        batch: async () => [],
+      };
+
+      const db = drizzle(mockD1 as any, { schema });
+      const hashes = ['hash1', 'hash2'];
+
+      await db
+        .select({ id: schema.pacientes.id, cpfHash: schema.pacientes.cpfHash, ativo: schema.pacientes.ativo })
+        .from(schema.pacientes)
+        .where(inArray(schema.pacientes.cpfHash, hashes));
+
+      expect(capturedSql.toLowerCase()).toContain('select');
+      expect(capturedSql.toLowerCase()).toContain('from "pacientes"');
+      expect(capturedParams).toEqual(['hash1', 'hash2']);
+
+      await db
+        .insert(schema.pacientes)
+        .values([
+          {
+            id: 'p1',
+            nomeEnc: 'enc',
+            cpfEnc: '',
+            cpfHash: 'hash1',
+            dataNascimentoEnc: '',
+            dekCifrada: 'dek',
+            ivPii: 'iv',
+            tagPii: 'tag',
+            turma: 'Geral',
+            escolaLocalId: 'esc-1',
+            ativo: true,
+            criadoEm: '2026-09-15T00:00:00.000Z',
+            atualizadoEm: '2026-09-15T00:00:00.000Z',
+          },
+        ])
+        .onConflictDoNothing();
+
+      expect(capturedSql.toLowerCase()).toContain('insert into "pacientes"');
+      expect(capturedSql.toLowerCase()).toContain('on conflict do nothing');
+    });
   });
 });
+
 
 

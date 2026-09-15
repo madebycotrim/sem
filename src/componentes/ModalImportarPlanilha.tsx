@@ -117,7 +117,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
   const [profissionaisSistema, setProfissionaisSistema] = useState<Array<{ id: string; nome: string }>>([]);
 
   // Opções de configuração
-  const [tamanhoLote, setTamanhoLote] = useState(20);
+  const [tamanhoLote, setTamanhoLote] = useState(10);
   const [autoCriarProfissionais, setAutoCriarProfissionais] = useState(true);
   const [turmaPadrao, setTurmaPadrao] = useState('Geral');
 
@@ -557,35 +557,76 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       setLoteAtual(i + 1);
       const chunk = linhas.slice(i * tamanhoDoChunk, (i + 1) * tamanhoDoChunk);
 
-      try {
-        const respostaLote = await requisicaoApi<{
-          sucesso: boolean;
-          abortado?: boolean;
-          erro?: string;
-          totalProcessados: number;
-          atendimentosCriados: number;
-          pacientesCriados: number;
-          pacientesReaproveitados: number;
-          profissionaisCriados: number;
-          atendimentosCriadosIds?: string[];
-          pacientesCriadosIds?: string[];
-          profissionaisCriadosIds?: string[];
-          totalFalhas: number;
-          falhas: Array<{ linha: number; erro: string; detalhe?: string }>;
-        }>('/importacao/processar-lote', {
-          metodo: 'POST',
-          corpo: {
-            importacaoId: importacaoIdRef.current,
-            itens: chunk,
-            opcoes: {
-              criarProfissionalSeNaoExistir: autoCriarProfissionais,
-              turmaPadrao,
-              abortarNoPrimeiroErro: true,
-            },
-          },
-          tentativasMaximas: 1,
-        });
+      let respostaLote: any = null;
+      let tentativasLote = 0;
+      let sucessoLote = false;
+      let ultimoErroLote: any = null;
 
+      while (tentativasLote < 3 && !sucessoLote) {
+        tentativasLote++;
+        if (canceladoRef.current) break;
+
+        try {
+          if (tentativasLote > 1) {
+            adicionarLog(
+              `Tentativa ${tentativasLote} de 3 para o lote ${i + 1}/${totalChunks} (aguardando estabilização da rede)...`,
+              'aviso'
+            );
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+
+          respostaLote = await requisicaoApi<{
+            sucesso: boolean;
+            abortado?: boolean;
+            erro?: string;
+            totalProcessados: number;
+            atendimentosCriados: number;
+            pacientesCriados: number;
+            pacientesReaproveitados: number;
+            profissionaisCriados: number;
+            atendimentosCriadosIds?: string[];
+            pacientesCriadosIds?: string[];
+            profissionaisCriadosIds?: string[];
+            totalFalhas: number;
+            falhas: Array<{ linha: number; erro: string; detalhe?: string }>;
+          }>('/importacao/processar-lote', {
+            metodo: 'POST',
+            corpo: {
+              importacaoId: importacaoIdRef.current,
+              itens: chunk,
+              opcoes: {
+                criarProfissionalSeNaoExistir: autoCriarProfissionais,
+                turmaPadrao,
+                abortarNoPrimeiroErro: true,
+              },
+            },
+            tentativasMaximas: 1,
+          });
+
+          if (respostaLote && respostaLote.sucesso && !respostaLote.abortado) {
+            sucessoLote = true;
+          } else {
+            // Se o backend retornou abortado explícito, não faz retry desnecessário
+            ultimoErroLote = new Error(respostaLote?.erro || `Erro retornado pelo servidor no lote ${i + 1}`);
+            break;
+          }
+        } catch (err: any) {
+          ultimoErroLote = err;
+          const eh503OuRede = err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('Failed to fetch') || err?.message?.includes('Network');
+          if (!eh503OuRede || tentativasLote >= 3) {
+            break;
+          }
+        }
+      }
+
+      // Se o usuário solicitou cancelamento durante a requisição, reverte tudo imediatamente
+      if (canceladoRef.current) {
+        adicionarLog('Cancelamento solicitado durante o lote. Revertendo todos os registros...', 'aviso');
+        await executarRollback('Cancelado pelo usuário durante o processamento');
+        return;
+      }
+
+      if (sucessoLote && respostaLote) {
         // Acumula IDs para garantia de rollback
         if (respostaLote?.atendimentosCriadosIds) {
           acumuladorIdsRef.current.atendimentoIds.push(...respostaLote.atendimentosCriadosIds);
@@ -597,67 +638,54 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
           acumuladorIdsRef.current.usuarioIds.push(...respostaLote.profissionaisCriadosIds);
         }
 
-        // Se o usuário solicitou cancelamento durante a requisição, reverte tudo imediatamente
-        if (canceladoRef.current) {
-          adicionarLog('Cancelamento solicitado durante o lote. Revertendo todos os registros...', 'aviso');
-          await executarRollback('Cancelado pelo usuário durante o processamento');
-          return;
+        processadosAcumulados += respostaLote.totalProcessados;
+        consultasCriadasAcumuladas += respostaLote.atendimentosCriados;
+        alunosCriadosAcumulados += respostaLote.pacientesCriados;
+        alunosReaproveitadosAcumulados += respostaLote.pacientesReaproveitados;
+        profissionaisCriadosAcumulados += respostaLote.profissionaisCriados;
+        falhasAcumuladas += respostaLote.totalFalhas;
+
+        if (respostaLote.falhas && respostaLote.falhas.length > 0) {
+          todasFalhas.push(...respostaLote.falhas);
         }
 
-        if (respostaLote && respostaLote.sucesso && !respostaLote.abortado) {
-          processadosAcumulados += respostaLote.totalProcessados;
-          consultasCriadasAcumuladas += respostaLote.atendimentosCriados;
-          alunosCriadosAcumulados += respostaLote.pacientesCriados;
-          alunosReaproveitadosAcumulados += respostaLote.pacientesReaproveitados;
-          profissionaisCriadosAcumulados += respostaLote.profissionaisCriados;
-          falhasAcumuladas += respostaLote.totalFalhas;
+        setMetricas({
+          processados: processadosAcumulados,
+          consultasCriadas: consultasCriadasAcumuladas,
+          alunosCriados: alunosCriadosAcumulados,
+          alunosReaproveitados: alunosReaproveitadosAcumulados,
+          profissionaisCriados: profissionaisCriadosAcumulados,
+          falhas: falhasAcumuladas,
+        });
 
-          if (respostaLote.falhas && respostaLote.falhas.length > 0) {
-            todasFalhas.push(...respostaLote.falhas);
-          }
+        const pct = Math.round((processadosAcumulados / linhas.length) * 100);
+        setProgressoPercentual(pct);
 
-          setMetricas({
-            processados: processadosAcumulados,
-            consultasCriadas: consultasCriadasAcumuladas,
-            alunosCriados: alunosCriadosAcumulados,
-            alunosReaproveitados: alunosReaproveitadosAcumulados,
-            profissionaisCriados: profissionaisCriadosAcumulados,
-            falhas: falhasAcumuladas,
-          });
+        // Cálculo de tempo estimado restante
+        const tempoDecorridoMs = Date.now() - inicioGeral;
+        const velocidadePorLinha = tempoDecorridoMs / processadosAcumulados;
+        const linhasRestantes = linhas.length - processadosAcumulados;
+        const segundosRestantes = Math.max(1, Math.round((velocidadePorLinha * linhasRestantes) / 1000));
+        setTempoEstimadoSegundos(segundosRestantes);
 
-          const pct = Math.round((processadosAcumulados / linhas.length) * 100);
-          setProgressoPercentual(pct);
+        adicionarLog(
+          `Lote ${i + 1}/${totalChunks} concluído: +${respostaLote.atendimentosCriados} consultas, +${respostaLote.pacientesCriados} novos alunos (${pct}% concluído).`,
+          'sucesso'
+        );
 
-          // Cálculo de tempo estimado restante
-          const tempoDecorridoMs = Date.now() - inicioGeral;
-          const velocidadePorLinha = tempoDecorridoMs / processadosAcumulados;
-          const linhasRestantes = linhas.length - processadosAcumulados;
-          const segundosRestantes = Math.max(1, Math.round((velocidadePorLinha * linhasRestantes) / 1000));
-          setTempoEstimadoSegundos(segundosRestantes);
-
-          adicionarLog(
-            `Lote ${i + 1}/${totalChunks} concluído: +${respostaLote.atendimentosCriados} consultas, +${respostaLote.pacientesCriados} novos alunos (${pct}% concluído).`,
-            'sucesso'
-          );
-
-          // Pausa preventiva suave de 120ms entre lotes para respeitar a taxa de I/O do Cloudflare D1
-          if (i + 1 < totalChunks) {
-            await new Promise((r) => setTimeout(r, 120));
-          }
-        } else {
-          // HOUVE ERRO OU ABORTO: EXCLUI TUDO AUTOMATICAMENTE
-          const erroDescricao =
-            respostaLote?.erro || `Inconsistência detectada no lote ${i + 1}. Cancelamento atômico acionado.`;
-          adicionarLog(erroDescricao, 'erro');
-          await executarRollback(erroDescricao);
-          return;
+        // Pausa preventiva suave de 120ms entre lotes para respeitar a taxa de I/O do Cloudflare D1
+        if (i + 1 < totalChunks) {
+          await new Promise((r) => setTimeout(r, 120));
         }
-      } catch (err: any) {
-        // HOUVE ERRO DE REDE/SERVIDOR: EXCLUI TUDO AUTOMATICAMENTE
+      } else {
+        // HOUVE ERRO OU ESGOTOU RETRIES: EXCLUI TUDO AUTOMATICAMENTE VIA ROLLBACK
+        const err = ultimoErroLote;
         const ehErro503 = err?.status === 503 || err?.message?.includes('503');
-        const erroDescricao = ehErro503
-          ? `Serviço indisponível (HTTP 503) no lote ${i + 1}. O lote pode ter excedido a cota de processamento do Cloudflare. Tente selecionar 10 ou 20 linhas por lote. Rollback acionado.`
-          : `Erro de comunicação no lote ${i + 1}: ${err?.message || 'Falha de conexão'}. Rollback automático acionado.`;
+        const erroDescricao =
+          respostaLote?.erro ||
+          (ehErro503
+            ? `Serviço indisponível (HTTP 503) no lote ${i + 1} após 3 tentativas. O lote excedeu a cota de processamento do Cloudflare. Tente selecionar 10 linhas por lote. Rollback acionado.`
+            : `Erro de comunicação no lote ${i + 1}: ${err?.message || 'Falha de conexão'}. Rollback automático acionado.`);
         adicionarLog(erroDescricao, 'erro');
         await executarRollback(erroDescricao);
         return;
@@ -1006,10 +1034,14 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                       onChange={(e) => setTamanhoLote(Number(e.target.value))}
                       className="w-full text-xs font-medium bg-white border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value={10}>10 linhas por lote (Mais leve / Conexão instável)</option>
-                      <option value={20}>20 linhas por lote (Recomendado para Cloudflare)</option>
+                      <option value={10}>10 linhas por lote (Recomendado — Plano Gratuito Cloudflare)</option>
+                      <option value={15}>15 linhas por lote (Equilibrado)</option>
+                      <option value={20}>20 linhas por lote (Padrão)</option>
                       <option value={30}>30 linhas por lote (Rápido)</option>
                     </select>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      O plano gratuito da Cloudflare limita a CPU a 10ms por chamada. Lotes de 10 linhas operam com ~3ms de CPU para estabilidade máxima.
+                    </p>
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">

@@ -14,7 +14,6 @@ import {
   criptografarPii,
   gerarBlindIndex,
 } from '../../infraestrutura/criptografia/crypto.js';
-import { gerarHashSenha } from '../../infraestrutura/criptografia/senha.js';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import { registrarAuditoria } from '../../middlewares/auditoria.js';
@@ -43,8 +42,14 @@ const normalizarTexto = (valor?: string | null): string =>
     .toLowerCase()
     .trim();
 
-const normalizarCpf = (valor?: string | null): string =>
-  (valor ?? '').replace(/\D/g, '').slice(0, 11);
+const normalizarCpf = (valor?: string | null): string => {
+  if (!valor) return '';
+  const limpo = valor.replace(/\D/g, '');
+  if (limpo.length > 0 && limpo.length < 11) {
+    return limpo.padStart(11, '0');
+  }
+  return limpo.slice(0, 11);
+};
 
 const normalizarTelefone = (valor?: string | null): string | null => {
   if (!valor) return null;
@@ -243,6 +248,7 @@ rotasImportacao.post(
     // 1. Cache em memória das escolas ativas para resolução O(1)
     const todasEscolas = await db.query.escolasLocais.findMany({
       where: eq(escolasLocais.ativo, true),
+      columns: { id: true, nome: true },
     });
 
     const mapaEscolasPorNomeNorm = new Map<string, typeof todasEscolas[number]>();
@@ -251,7 +257,9 @@ rotasImportacao.post(
     }
 
     // 2. Cache em memória dos usuários/profissionais existentes
-    const todosUsuarios = await db.query.usuarios.findMany();
+    const todosUsuarios = await db.query.usuarios.findMany({
+      columns: { id: true, nomeCompleto: true, perfil: true, especialidade: true },
+    });
 
     const mapaUsuarios = new Map<string, typeof todosUsuarios[number]>();
     for (const u of todosUsuarios) {
@@ -263,14 +271,9 @@ rotasImportacao.post(
       }
     }
 
-    // Hash de senha seguro pré-calculado para novos profissionais auto-provisionados
-    let hashSenhaPadraoCache: string | null = null;
-    const obterHashSenhaPadrao = async (): Promise<string> => {
-      if (!hashSenhaPadraoCache) {
-        hashSenhaPadraoCache = await gerarHashSenha(crypto.randomUUID().slice(0, 16) + 'Aa1@');
-      }
-      return hashSenhaPadraoCache;
-    };
+    // Hash seguro constante para profissionais auto-provisionados em lote (0ms CPU, impede HTTP 503)
+    const HASH_SENHA_AUTO_PROVISIONADO =
+      'pbkdf2:sha512:100000:00000000000000000000000000000000:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000';
 
     let totalProcessados = 0;
     let pacientesCriados = 0;
@@ -307,16 +310,35 @@ rotasImportacao.post(
     }
 
     const mapaPacientesPorHash = new Map<string, string>();
-    const todosHashes = Array.from(mapaCpfParaHash.values());
+    const todosHashes = Array.from(new Set(mapaCpfParaHash.values()));
     if (todosHashes.length > 0) {
-      const pacientesExistentes = await db.query.pacientes.findMany({
-        where: and(inArray(pacientes.cpfHash, todosHashes), eq(pacientes.ativo, true)),
-        columns: { id: true, cpfHash: true },
-      });
+      // Busca direta via select de TODOS os pacientes com esses hashes, sem filtrar por ativo
+      // para garantir que pacientes pré-existentes (mesmo inativos ou de execuções anteriores) sejam reaproveitados
+      const pacientesExistentes = await db
+        .select({
+          id: pacientes.id,
+          cpfHash: pacientes.cpfHash,
+          ativo: pacientes.ativo,
+        })
+        .from(pacientes)
+        .where(inArray(pacientes.cpfHash, todosHashes));
+
+      const pacientesInativosIds: string[] = [];
       for (const p of pacientesExistentes) {
         if (p.cpfHash) {
           mapaPacientesPorHash.set(p.cpfHash, p.id);
+          if (!p.ativo) {
+            pacientesInativosIds.push(p.id);
+          }
         }
+      }
+
+      // Reativa silenciosamente pacientes pré-existentes que estavam marcados como inativos
+      if (pacientesInativosIds.length > 0) {
+        await db
+          .update(pacientes)
+          .set({ ativo: true, atualizadoEm: new Date().toISOString() })
+          .where(inArray(pacientes.id, pacientesInativosIds));
       }
     }
 
@@ -424,13 +446,12 @@ rotasImportacao.post(
           const slugNome = (nomeProfissionalCanonico || 'prof').replace(/[^a-z0-9]/g, '.');
           const slugImportacao = importacaoId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
           const emailAuto = `prof.${slugNome}.${slugImportacao}.${crypto.randomUUID().slice(0, 4)}@catraki.saude`;
-          const senhaHash = await obterHashSenhaPadrao();
           const novoUserId = crypto.randomUUID();
 
           const novoUsuarioObj = {
             id: novoUserId,
             email: emailAuto,
-            senhaHash,
+            senhaHash: HASH_SENHA_AUTO_PROVISIONADO,
             nomeCompleto: sanitizarTexto(nomeOriginalProfissional),
             perfil: 'PROFISSIONAL_SAUDE' as const,
             especialidade: especialidadeEnum,
@@ -492,6 +513,8 @@ rotasImportacao.post(
             escolaLocalId: escola.id,
             retencaoExpiraEm: retencaoExpiraEmIso,
             ativo: true,
+            criadoEm: new Date().toISOString(),
+            atualizadoEm: new Date().toISOString(),
           };
 
           novosPacientesParaInserir.push(novoPacienteObj);
@@ -599,30 +622,37 @@ rotasImportacao.post(
       }
     }
 
-    // ── E. Execução em Lote (Bulk Inserts) no Cloudflare D1 ───────────
-    // Reduz de mais de 100 queries sequenciais para apenas 2 a 3 queries no banco,
-    // garantindo conformidade estrita com o limite de 50 subrequests e tempo de CPU do Cloudflare Workers.
+    // ── E. Execução em Lote (Bulk Inserts Concorrentes) no Cloudflare D1 ───────────
+    // Reduz o tempo de subrequests executando inserções de tabelas independentes em paralelo
     try {
+      const operacoesEmLote: Promise<any>[] = [];
       if (novosUsuariosParaInserir.length > 0) {
-        await db.insert(usuarios).values(novosUsuariosParaInserir);
+        operacoesEmLote.push(db.insert(usuarios).values(novosUsuariosParaInserir).onConflictDoNothing());
       }
       if (novosPacientesParaInserir.length > 0) {
-        await db.insert(pacientes).values(novosPacientesParaInserir);
+        operacoesEmLote.push(db.insert(pacientes).values(novosPacientesParaInserir).onConflictDoNothing());
       }
       if (novosConsentimentosParaInserir.length > 0) {
-        await db.insert(consentimentos).values(novosConsentimentosParaInserir);
+        operacoesEmLote.push(db.insert(consentimentos).values(novosConsentimentosParaInserir).onConflictDoNothing());
       }
       if (novosAtendimentosParaInserir.length > 0) {
-        await db.insert(atendimentos).values(novosAtendimentosParaInserir);
+        operacoesEmLote.push(db.insert(atendimentos).values(novosAtendimentosParaInserir).onConflictDoNothing());
+      }
+      if (operacoesEmLote.length > 0) {
+        await Promise.all(operacoesEmLote);
       }
     } catch (erroBanco: any) {
-      console.error('Erro na gravação em lote no D1:', erroBanco);
+      const detalheErro =
+        erroBanco?.cause?.message ||
+        erroBanco?.message ||
+        'Erro desconhecido de banco de dados';
+      console.error('Erro na gravação em lote no D1:', detalheErro, erroBanco);
       return c.json(
         {
           sucesso: false,
           abortado: true,
           importacaoId,
-          erro: `Falha na gravação em lote no banco de dados: ${erroBanco?.message || 'Erro de banco de dados'}.`,
+          erro: `Falha na gravação em lote no banco de dados: ${detalheErro}.`,
           totalProcessados,
           atendimentosCriados: 0,
           pacientesCriados: 0,
@@ -634,7 +664,7 @@ rotasImportacao.post(
           totalFalhas: falhas.length + 1,
           falhas: [
             ...falhas,
-            { linha: 0, erro: erroBanco?.message || 'Erro ao persistir lote' },
+            { linha: 0, erro: detalheErro },
           ],
         },
         500

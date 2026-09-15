@@ -37,14 +37,23 @@ function parseKek(kekHex: string): Uint8Array {
   return hexParaBuffer(kekHex);
 }
 
+const cacheChavesAes = new Map<string, CryptoKey>();
+const cacheChavesHmac = new Map<string, CryptoKey>();
+
 async function importarChaveAesGcm(chaveRaw: Uint8Array): Promise<CryptoKey> {
-  return await crypto.subtle.importKey(
-    'raw',
-    chaveRaw.buffer as ArrayBuffer,
-    { name: 'AES-GCM' },
-    false,
-    ['encrypt', 'decrypt']
-  );
+  const chaveHex = bufferParaHex(chaveRaw);
+  let chave = cacheChavesAes.get(chaveHex);
+  if (!chave) {
+    chave = await crypto.subtle.importKey(
+      'raw',
+      chaveRaw.buffer as ArrayBuffer,
+      { name: 'AES-GCM' },
+      false,
+      ['encrypt', 'decrypt']
+    );
+    cacheChavesAes.set(chaveHex, chave);
+  }
+  return chave;
 }
 
 async function cifrarDek(dek: Uint8Array, kek: Uint8Array): Promise<string> {
@@ -165,13 +174,17 @@ export async function gerarBlindIndex(
   secretHex: string
 ): Promise<string> {
   const secretBytes = parseKek(secretHex);
-  const chaveHmac = await crypto.subtle.importKey(
-    'raw',
-    secretBytes.buffer as ArrayBuffer,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
+  let chaveHmac = cacheChavesHmac.get(secretHex);
+  if (!chaveHmac) {
+    chaveHmac = await crypto.subtle.importKey(
+      'raw',
+      secretBytes.buffer as ArrayBuffer,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    cacheChavesHmac.set(secretHex, chaveHmac);
+  }
   const encoder = new TextEncoder();
   const cpfDigitos = cpf.trim().replace(/\D/g, '');
   const dadoBytes = encoder.encode(cpfDigitos);
