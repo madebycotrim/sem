@@ -7,10 +7,12 @@ import readline from 'node:readline';
  * sem nenhum dado hardcoded.
  */
 
-function gerarHashSenha(senhaTextoPlano) {
+const ITERACOES_EDGERUNTIME = 5_000;
+
+function gerarHashSenha(senhaTextoPlano, iteracoes = ITERACOES_EDGERUNTIME) {
   const salt = crypto.randomBytes(16);
-  const hash = crypto.pbkdf2Sync(senhaTextoPlano, salt, 100_000, 64, 'sha512');
-  return `pbkdf2:sha512:100000:${salt.toString('hex')}:${hash.toString('hex')}`;
+  const hash = crypto.pbkdf2Sync(senhaTextoPlano, salt, iteracoes, 64, 'sha512');
+  return `pbkdf2:sha512:${iteracoes}:${salt.toString('hex')}:${hash.toString('hex')}`;
 }
 
 function parseArgumentos() {
@@ -42,7 +44,7 @@ async function main() {
     });
 
     console.log('\n============================================================');
-    console.log('👤 CATRAKI — GERADOR DE USUÁRIO BOOTSTRAP (SQL SEGURO)');
+    console.log('👤 CATRAKI — GERADOR DE USUÁRIO BOOTSTRAP (SQL SEGURO - 5.000 ITERAÇÕES)');
     console.log('============================================================\n');
 
     if (!nome) nome = await perguntar(rl, 'Nome Completo: ');
@@ -62,7 +64,7 @@ async function main() {
   const emailSanitizado = email.toLowerCase().replace(/'/g, "''");
   const nomeSanitizado = nome.replace(/'/g, "''");
 
-  const sql = `INSERT INTO usuarios (
+  const sqlInsert = `INSERT INTO usuarios (
   id,
   email,
   senha_hash,
@@ -86,19 +88,24 @@ async function main() {
   datetime('now')
 );`;
 
+  const sqlUpdate = `UPDATE usuarios SET senha_hash = '${senhaHash}', atualizado_em = datetime('now') WHERE email = '${emailSanitizado}';`;
+
   console.log('\n============================================================');
-  console.log('✅ COMANDO SQL GERADO (PRONTO PARA O CLOUDFLARE D1)');
+  console.log('🔑 HASH GERADO (5.000 iterações — compatível com Edge 10ms CPU):');
+  console.log(senhaHash);
   console.log('============================================================\n');
-  console.log(sql);
-  console.log('\n------------------------------------------------------------');
-  console.log('🚀 PARA APLICAR DIRETAMENTE EM PRODUÇÃO (CLOUDFLARE D1):');
-  console.log('------------------------------------------------------------\n');
-  const sqlLinhaUnica = sql.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ');
-  console.log(`npx wrangler d1 execute sem_catraki_db --remote --command="${sqlLinhaUnica}"\n`);
+
   console.log('------------------------------------------------------------');
-  console.log('💻 PARA APLICAR NO BANCO LOCAL:');
+  console.log('🔄 CASO 1: SE O USUÁRIO JÁ EXISTE NO BANCO (ATUALIZAR SENHA)');
   console.log('------------------------------------------------------------\n');
-  console.log(`npx wrangler d1 execute sem_catraki_db --local --command="${sqlLinhaUnica}"\n`);
+  const sqlUpdateLinha = sqlUpdate.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ');
+  console.log(`npx wrangler d1 execute sem_catraki_db --remote --command="${sqlUpdateLinha}"\n`);
+
+  console.log('------------------------------------------------------------');
+  console.log('➕ CASO 2: SE FOR UM NOVO USUÁRIO (CRIAR NO BANCO)');
+  console.log('------------------------------------------------------------\n');
+  const sqlInsertLinha = sqlInsert.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ');
+  console.log(`npx wrangler d1 execute sem_catraki_db --remote --command="${sqlInsertLinha}"\n`);
 }
 
 main();

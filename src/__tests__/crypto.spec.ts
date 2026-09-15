@@ -39,12 +39,17 @@ describe('Módulo de Criptografia (Pages Functions WebCrypto)', () => {
     const senha = 'MinhaSenhaForte@2026!';
     const hash = await gerarHashSenha(senha);
 
-    expect(hash).toMatch(/^pbkdf2:sha512:100000:[a-f0-9]{32}:[a-f0-9]{128}$/);
+    expect(hash).toMatch(/^pbkdf2:sha512:5000:[a-f0-9]{32}:[a-f0-9]{128}$/);
 
     const valida = await verificarSenha(senha, hash);
     expect(valida).toBe(true);
 
     const invalida = await verificarSenha('SenhaErrada@123', hash);
     expect(invalida).toBe(false);
+
+    // Garante que hashes com iterações excessivas (>20k) são rejeitados para proteger a CPU do Edge
+    const hashLegadoExcessivo = 'pbkdf2:sha512:100000:12345678901234567890123456789012:abcdef';
+    const legacyRejeitado = await verificarSenha(senha, hashLegadoExcessivo);
+    expect(legacyRejeitado).toBe(false);
   });
 });

@@ -66,94 +66,118 @@ function obterOpcoesCookie(c: { req: { url: string; header: (nome: string) => st
  * Realiza autenticação via E-mail e Senha com proteção contra brute force.
  */
 rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
-  const body = c.req.valid('json');
-  const ip = ipDaRequisicao(c);
+  try {
+    const body = c.req.valid('json');
+    const ip = ipDaRequisicao(c);
 
-  // 1. Verificar bloqueio por brute force
-  const bloqueio = await verificarBloqueioLogin(c.env.DB, body.email, ip);
-  if (bloqueio.bloqueado) {
-    c.header('Retry-After', String(bloqueio.retryAfterSegundos));
-    return c.json(
-      {
-        erro: 'Conta temporariamente bloqueada por excesso de tentativas. Tente novamente em alguns minutos.',
-        codigo: 'CONTA_BLOQUEADA',
-      },
-      429
-    );
-  }
+    // 1. Verificar bloqueio por brute force
+    const bloqueio = await verificarBloqueioLogin(c.env.DB, body.email, ip);
+    if (bloqueio.bloqueado) {
+      c.header('Retry-After', String(bloqueio.retryAfterSegundos));
+      return c.json(
+        {
+          erro: 'Conta temporariamente bloqueada por excesso de tentativas. Tente novamente em alguns minutos.',
+          codigo: 'CONTA_BLOQUEADA',
+        },
+        429
+      );
+    }
 
-  const db = getDb(c.env.DB);
+    const db = getDb(c.env.DB);
 
-  const usuario = await db.query.usuarios.findFirst({
-    where: eq(usuarios.email, body.email),
-  });
+    const usuario = await db.query.usuarios.findFirst({
+      where: eq(usuarios.email, body.email),
+    });
 
-  if (!usuario || !usuario.ativo) {
-    // Registrar tentativa falha
-    await registrarTentativaLogin(c.env.DB, body.email, ip, false);
-    return c.json({ erro: 'Credenciais inválidas.' }, 401);
-  }
+    if (!usuario || !usuario.ativo) {
+      // Registrar tentativa falha
+      await registrarTentativaLogin(c.env.DB, body.email, ip, false);
+      return c.json({ erro: 'Credenciais inválidas.' }, 401);
+    }
 
-  const senhaValida = await verificarSenha(body.senha, usuario.senhaHash);
-  if (!senhaValida) {
-    // Registrar tentativa falha
-    await registrarTentativaLogin(c.env.DB, body.email, ip, false);
-    return c.json({ erro: 'Credenciais inválidas.' }, 401);
-  }
+    // Detectar hash legado com 100.000 iterações antes de disparar o WebCrypto
+    // para evitar que o Cloudflare aborte o Worker por estourar o teto de 10ms de CPU (Erro 1102 / 500)
+    const partesHash = (usuario.senhaHash || '').split(':');
+    const iteracoesArmazenadas = parseInt(partesHash[2] || '0', 10);
+    if (iteracoesArmazenadas > 20_000) {
+      console.warn(
+        `[AUTH] Usuário ${usuario.email} possui hash legado com ${iteracoesArmazenadas} iterações. Excede o limite de CPU do Cloudflare Free.`
+      );
+      return c.json(
+        {
+          erro: 'Sua senha foi gerada com 100.000 iterações (legado), excedendo o teto de CPU de 10ms da Cloudflare. Execute o comando de atualização de bootstrap com 5.000 iterações.',
+          codigo: 'SENHA_LEGACY_CPU_EXCEDIDO',
+        },
+        400
+      );
+    }
 
-  if (usuario.senhaTemporaria && (!usuario.senhaTemporariaExpiraEm || new Date(usuario.senhaTemporariaExpiraEm) < new Date())) {
-    return c.json({ erro: 'A senha temporária expirou. Solicite uma nova senha.', codigo: 'SENHA_TEMPORARIA_EXPIRADA' }, 403);
-  }
+    const senhaValida = await verificarSenha(body.senha, usuario.senhaHash);
+    if (!senhaValida) {
+      // Registrar tentativa falha
+      await registrarTentativaLogin(c.env.DB, body.email, ip, false);
+      return c.json({ erro: 'Credenciais inválidas.' }, 401);
+    }
 
-  // Registrar tentativa de sucesso
-  await registrarTentativaLogin(c.env.DB, body.email, ip, true);
+    if (usuario.senhaTemporaria && (!usuario.senhaTemporariaExpiraEm || new Date(usuario.senhaTemporariaExpiraEm) < new Date())) {
+      return c.json({ erro: 'A senha temporária expirou. Solicite uma nova senha.', codigo: 'SENHA_TEMPORARIA_EXPIRADA' }, 403);
+    }
 
-  await db.update(usuarios)
-    .set({ ultimoAcesso: new Date().toISOString() })
-    .where(eq(usuarios.id, usuario.id));
+    // Registrar tentativa de sucesso
+    await registrarTentativaLogin(c.env.DB, body.email, ip, true);
 
-  const jti = crypto.randomUUID();
-  const payload = {
-    userId: usuario.id,
-    email: usuario.email,
-    perfil: usuario.perfil,
-    jti,
-    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 8, // 8h
-  };
+    await db.update(usuarios)
+      .set({ ultimoAcesso: new Date().toISOString() })
+      .where(eq(usuarios.id, usuario.id));
 
-  const token = await sign(payload, c.env.JWT_SECRET);
-
-  setCookie(c, 'token', token, obterOpcoesCookie(c));
-
-  await registrarAuditoria(db, {
-    userId: usuario.id,
-    acao: 'LOGIN',
-    entidade: 'Sessao',
-    entidadeId: jti,
-    ip,
-  });
-
-  // Limpeza oportunista: dispara manutenção do banco em background (1/20 logins)
-  // usando waitUntil para não bloquear a resposta ao usuário.
-  const ctx = (c.env as unknown as { executionCtx?: ExecutionContext })?.executionCtx;
-  if (ctx?.waitUntil) {
-    ctx.waitUntil(limpezaOportunista(c.env.DB));
-  } else {
-    // Fallback: dispara sem aguardar em ambientes sem ExecutionContext (dev local)
-    limpezaOportunista(c.env.DB).catch((err) =>
-      console.error(JSON.stringify({ tipo: 'LIMPEZA_ERRO_FALLBACK', erro: String(err) }))
-    );
-  }
-
-  return c.json({
-    usuario: {
-      id: usuario.id,
+    const jti = crypto.randomUUID();
+    const payload = {
+      userId: usuario.id,
       email: usuario.email,
-      nomeCompleto: usuario.nomeCompleto,
       perfil: usuario.perfil,
-    },
-    trocaSenhaObrigatoria: usuario.senhaTemporaria,
-  });
+      jti,
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 8, // 8h
+    };
+
+    const token = await sign(payload, c.env.JWT_SECRET);
+
+    setCookie(c, 'token', token, obterOpcoesCookie(c));
+
+    await registrarAuditoria(db, {
+      userId: usuario.id,
+      acao: 'LOGIN',
+      entidade: 'Sessao',
+      entidadeId: jti,
+      ip,
+    });
+
+    // Limpeza oportunista: dispara manutenção do banco em background (1/20 logins)
+    // usando c.executionCtx.waitUntil de forma segura (sem lançar se não houver ExecutionContext)
+    try {
+      const executionCtx = (c as any).executionCtx;
+      if (executionCtx?.waitUntil) {
+        executionCtx.waitUntil(limpezaOportunista(c.env.DB));
+      }
+    } catch {
+      // Em ambientes sem ExecutionContext (testes unitários / dev local), dispara em background
+      limpezaOportunista(c.env.DB).catch((err) =>
+        console.error(JSON.stringify({ tipo: 'LIMPEZA_ERRO_FALLBACK', erro: String(err) }))
+      );
+    }
+
+    return c.json({
+      usuario: {
+        id: usuario.id,
+        email: usuario.email,
+        nomeCompleto: usuario.nomeCompleto,
+        perfil: usuario.perfil,
+      },
+      trocaSenhaObrigatoria: usuario.senhaTemporaria,
+    });
+  } catch (erro) {
+    console.error('Erro no processamento do login:', erro);
+    return c.json({ erro: 'Falha interna durante a autenticação. Tente novamente.' }, 500);
+  }
 });
 
 rotasAuth.post(

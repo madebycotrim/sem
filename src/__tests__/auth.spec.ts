@@ -224,4 +224,44 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
     expect(body.autenticado).toBe(false);
     expect(body.usuario).toBeNull();
   });
+
+  it('deve interceptar hash legado com 100.000 iterações com 400 amigável em vez de estourar CPU 500', async () => {
+    const mockDb = {
+      query: {
+        usuarios: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: 'user-legacy',
+            email: 'admin@catraki.saude',
+            senhaHash: 'pbkdf2:sha512:100000:0123456789abcdef0123456789abcdef:fedcba9876543210',
+            nomeCompleto: 'Admin Legado',
+            perfil: 'ADMIN',
+            ativo: true,
+          }),
+        },
+      },
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ total: 0 }]),
+        }),
+      }),
+    };
+
+    const res = await app.request('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'admin@catraki.saude',
+        senha: 'QualquerSenhaForte123!',
+      }),
+    }, {
+      JWT_SECRET: mockJwtSecret,
+      KEK_HEX: mockKekHex,
+      CORS_ORIGINS: 'http://localhost:5173',
+      DB: mockDb,
+    });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as any;
+    expect(body.codigo).toBe('SENHA_LEGACY_CPU_EXCEDIDO');
+  });
 });

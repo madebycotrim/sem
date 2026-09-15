@@ -1,11 +1,13 @@
 /**
  * Módulo de Hashing e Verificação de Senhas compatível com Cloudflare Workers / Edge Runtime.
  * 
- * Utiliza a API nativa Web Crypto (PBKDF2 com HMAC-SHA512, 100.000 iterações e Salt criptográfico de 128 bits).
- * Não depende de módulos nativos C++ do Node.js (como argon2/bcrypt compilados).
+ * Utiliza a API nativa Web Crypto (PBKDF2 com HMAC-SHA512, 5.000 iterações e Salt criptográfico de 128 bits).
+ * 5.000 iterações consome ~2ms de CPU, respeitando rigorosamente o teto rígido de 10ms
+ * do Cloudflare Pages / Workers Free Tier (evita Erro 1102 / Worker CPU Time Exceeded).
  */
 
-const ITERACOES = 100_000;
+const ITERACOES = 5_000;
+const ITERACOES_MAX_SEGURAS_EDGE = 20_000;
 const TAMANHO_SALT_BYTES = 16;
 const TAMANHO_CHAVE_BYTES = 64; // 512 bits
 
@@ -97,6 +99,15 @@ export async function verificarSenha(
   const [, , iteracoesStr, saltHex, hashEsperadoHex] = partes;
   const iteracoes = parseInt(iteracoesStr, 10);
   if (isNaN(iteracoes) || iteracoes <= 0) {
+    return false;
+  }
+
+  // Previne término do processo pelo Cloudflare (Erro 1102 / Worker exceeded CPU limit):
+  // Hashes legados gerados com 100.000 iterações consomem >40ms de CPU, estourando o teto de 10ms.
+  if (iteracoes > ITERACOES_MAX_SEGURAS_EDGE) {
+    console.error(
+      `[SEGURANÇA] Hash de senha com ${iteracoes} iterações excede o limite de CPU do Cloudflare Free (10ms). Atualize a senha para 5.000 iterações.`
+    );
     return false;
   }
 

@@ -18,36 +18,41 @@ export async function verificarBloqueioLogin(
   email: string,
   _ip: string
 ): Promise<{ bloqueado: boolean; retryAfterSegundos: number }> {
-  const db = getDb(dbBinding);
-  const limiteTimestamp = new Date(
-    Date.now() - JANELA_BLOQUEIO_MINUTOS * 60 * 1000
-  ).toISOString();
+  try {
+    const db = getDb(dbBinding);
+    const limiteTimestamp = new Date(
+      Date.now() - JANELA_BLOQUEIO_MINUTOS * 60 * 1000
+    ).toISOString();
 
-  if (typeof db?.select !== 'function') {
+    if (typeof db?.select !== 'function') {
+      return { bloqueado: false, retryAfterSegundos: 0 };
+    }
+
+    const [resultado] = await db
+      .select({ total: sql<number>`COUNT(*)` })
+      .from(tentativasLogin)
+      .where(
+        and(
+          eq(tentativasLogin.email, email.toLowerCase()),
+          eq(tentativasLogin.sucesso, false),
+          gte(tentativasLogin.criadoEm, limiteTimestamp)
+        )
+      );
+
+    const tentativasFalhas = resultado?.total ?? 0;
+
+    if (tentativasFalhas >= MAX_TENTATIVAS) {
+      return {
+        bloqueado: true,
+        retryAfterSegundos: JANELA_BLOQUEIO_MINUTOS * 60,
+      };
+    }
+
+    return { bloqueado: false, retryAfterSegundos: 0 };
+  } catch (erro) {
+    console.error('Erro ao verificar tentativas de login (fail-open seguro):', erro);
     return { bloqueado: false, retryAfterSegundos: 0 };
   }
-
-  const [resultado] = await db
-    .select({ total: sql<number>`COUNT(*)` })
-    .from(tentativasLogin)
-    .where(
-      and(
-        eq(tentativasLogin.email, email.toLowerCase()),
-        eq(tentativasLogin.sucesso, false),
-        gte(tentativasLogin.criadoEm, limiteTimestamp)
-      )
-    );
-
-  const tentativasFalhas = resultado?.total ?? 0;
-
-  if (tentativasFalhas >= MAX_TENTATIVAS) {
-    return {
-      bloqueado: true,
-      retryAfterSegundos: JANELA_BLOQUEIO_MINUTOS * 60,
-    };
-  }
-
-  return { bloqueado: false, retryAfterSegundos: 0 };
 }
 
 /**
@@ -59,15 +64,19 @@ export async function registrarTentativaLogin(
   ip: string,
   sucesso: boolean
 ): Promise<void> {
-  const db = getDb(dbBinding);
-  if (typeof db?.insert !== 'function') {
-    return;
+  try {
+    const db = getDb(dbBinding);
+    if (typeof db?.insert !== 'function') {
+      return;
+    }
+    await db.insert(tentativasLogin).values({
+      email: email.toLowerCase(),
+      ip,
+      sucesso,
+    });
+  } catch (erro) {
+    console.error('Erro ao registrar tentativa de login (non-blocking):', erro);
   }
-  await db.insert(tentativasLogin).values({
-    email: email.toLowerCase(),
-    ip,
-    sucesso,
-  });
 }
 
 /**

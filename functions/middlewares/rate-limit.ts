@@ -40,11 +40,13 @@ export const middlewareRateLimit: MiddlewareHandler<{ Bindings: Bindings }> = as
   try {
     const db = getDb(c.env.DB);
 
-    // 4. Limpeza oportunista de janelas expiradas ou registros corrompidos (NaN / 0 / antigas)
-    // Garante desbloqueio imediato de IPs que ficaram presos em janelas antigas/inválidas
-    await db
-      .delete(rateLimitTable)
-      .where(sql`${rateLimitTable.janelaInicio} < ${agora - janelaMs} OR ${rateLimitTable.janelaInicio} IS NULL OR ${rateLimitTable.janelaInicio} = 0`);
+    // 4. Limpeza probabilística de janelas expiradas (1 a cada 50 requisições)
+    // Evita executar DELETE em todo request, economizando tempo de CPU e subrequests D1
+    if (Math.random() < 0.02) {
+      await db
+        .delete(rateLimitTable)
+        .where(sql`${rateLimitTable.janelaInicio} < ${agora - janelaMs * 2} OR ${rateLimitTable.janelaInicio} IS NULL OR ${rateLimitTable.janelaInicio} = 0`);
+    }
 
     // Tentar incrementar contador existente
     const [existente] = await db
