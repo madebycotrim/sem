@@ -5,6 +5,7 @@ import {
   type DetalhesValidacaoCatraki,
   sanitizarCpf,
 } from '../servicos/servicoCatraki.ts';
+import { requisicaoApi } from '../servicos/api.ts';
 import { Modal, BotaoModal } from './Modal.tsx';
 import { Check, CircleAlert, ExternalLink, LoaderCircle, ShieldCheck } from 'lucide-react';
 
@@ -39,6 +40,29 @@ export function ModalValidacaoCatraki({
         if (res.success && res.valid && res.validation) {
           setDetalhes(res.validation);
           setValidadoComSucesso(true);
+
+          // Salva exclusivamente na tabela consentimentos do banco de dados
+          try {
+            await requisicaoApi('/consentimentos/sincronizar-catraki', {
+              metodo: 'POST',
+              corpo: {
+                autorizacoes: [
+                  {
+                    cpf: sanitizarCpf(paciente.cpf),
+                    pacienteId: paciente.id,
+                    authorized: true,
+                    validationCode: res.validation.validation_code,
+                    signedAt: res.validation.signed_at_utc,
+                    signerName: res.validation.signer_name || 'Responsável Legal (Catraki)',
+                    documentId: res.validation.document_id,
+                    isRevoked: false,
+                  },
+                ],
+              },
+            });
+          } catch (erroSync) {
+            console.error('Falha ao persistir consentimento validado no Catraki:', erroSync);
+          }
         } else {
           setDetalhes(null);
           setValidadoComSucesso(false);

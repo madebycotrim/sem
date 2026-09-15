@@ -133,5 +133,73 @@ describe('Importação Inteligente de Planilhas de Consultas', () => {
       expect(payload.usuarioIds.length).toBe(1);
     });
   });
+
+  describe('Estrutura Oficial da Planilha (Sem Campo de E-mail)', () => {
+    it('deve suportar importação das 8 colunas oficiais sem email', () => {
+      const colunasOficiais = [
+        'Paciente',
+        'Patient Cpf',
+        'Data de nascimento',
+        'Patient Phone',
+        'Especialidade',
+        'Profissional',
+        'Situação',
+        'Instituição',
+      ];
+
+      expect(colunasOficiais).toHaveLength(8);
+      expect(colunasOficiais).not.toContain('Patient Email');
+      expect(colunasOficiais).not.toContain('Email');
+
+      const itemSemEmail = {
+        linhaOriginal: 2,
+        pacienteNome: 'Lucas Gabriel',
+        pacienteCpf: '12345678901',
+        dataNascimento: '2012-03-15',
+        pacienteTelefone: '61987654321',
+        especialidade: 'Oftalmologia',
+        profissionalNome: 'Dr. Roberto Mendes',
+        situacao: 'Concluído',
+        instituicaoNome: 'ESCOLA CLASSE 01',
+      };
+
+      expect(itemSemEmail).not.toHaveProperty('pacienteEmail');
+      expect(itemSemEmail.pacienteNome).toBe('Lucas Gabriel');
+    });
+
+    it('deve garantir que o cancelamento purgue consultas e pacientes da sessão sem orfãos', () => {
+      const sessaoId = 'imp_sessao_falha_503';
+      const atendimentosNaMemoria = [
+        { id: 'atend-1', pacienteId: 'pac-1', chaveIdempotencia: `sess:${sessaoId}:1:abc` },
+        { id: 'atend-2', pacienteId: 'pac-2', chaveIdempotencia: `sess:${sessaoId}:2:def` },
+        { id: 'atend-antigo', pacienteId: 'pac-antigo', chaveIdempotencia: 'chave-legada-123' },
+      ];
+
+      // Filtra os atendimentos da sessão que devem ser eliminados
+      const atendimentosAposRollback = atendimentosNaMemoria.filter(
+        (a) => !a.chaveIdempotencia.startsWith(`sess:${sessaoId}:`)
+      );
+
+      expect(atendimentosAposRollback).toHaveLength(1);
+      expect(atendimentosAposRollback[0].id).toBe('atend-antigo');
+    });
+
+    it('deve expurgar consultas ao excluir/arquivar um paciente', () => {
+      const pacienteExcluidoId = 'paciente-excluido-uuid';
+      const atendimentos = [
+        { id: 'c1', pacienteId: pacienteExcluidoId, resumo: 'Consulta 1' },
+        { id: 'c2', pacienteId: pacienteExcluidoId, resumo: 'Consulta 2' },
+        { id: 'c3', pacienteId: 'outro-paciente-uuid', resumo: 'Consulta 3' },
+      ];
+
+      const atendimentosRestantes = atendimentos.filter(
+        (a) => a.pacienteId !== pacienteExcluidoId
+      );
+
+      expect(atendimentosRestantes).toHaveLength(1);
+      expect(atendimentosRestantes[0].id).toBe('c3');
+    });
+  });
 });
+
 

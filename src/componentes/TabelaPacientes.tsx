@@ -14,6 +14,7 @@ import { CardHoverPaciente } from './CardHoverPaciente.tsx';
 import { usePermissoes } from '../contextos/ContextoPermissoes.tsx';
 import { Archive, ChevronDown, Clock3, FilePlus2, LoaderCircle, Pencil, Plus, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
 import { Botao } from './Botao.tsx';
+import { formatarDataBrasilia } from '../../compartilhado/index.ts';
 
 export interface ItemPaciente {
   id: string;
@@ -82,13 +83,8 @@ export function formatarSubtituloPaciente(paciente: ItemPaciente): string {
 
 export function formatarDataBR(dataStr: string | null | undefined): string {
   if (!dataStr) return 'Não informado';
-  if (/^\d{4}-\d{2}-\d{2}/.test(dataStr)) {
-    const [ano, mes, dia] = dataStr.substring(0, 10).split('-');
-    return `${dia}/${mes}/${ano}`;
-  }
-  const d = new Date(dataStr);
-  if (isNaN(d.getTime())) return dataStr;
-  return d.toLocaleDateString('pt-BR');
+  const formatado = formatarDataBrasilia(dataStr);
+  return formatado !== '--/--/----' ? formatado : dataStr;
 }
 
 export function censurarCpf(cpf: string | null | undefined): string {

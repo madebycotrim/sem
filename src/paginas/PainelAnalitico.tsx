@@ -24,7 +24,7 @@ import {
   UsersRound,
   XCircle,
 } from 'lucide-react';
-import { ESPECIALIDADE_LABELS, STATUS_ATENDIMENTO_LABELS, StatusAtendimento, type Especialidade } from '../../compartilhado/index.ts';
+import { ESPECIALIDADE_LABELS, STATUS_ATENDIMENTO_LABELS, StatusAtendimento, type Especialidade, formatarDataBrasilia, obterDataHojeBrasilia } from '../../compartilhado/index.ts';
 import { CabecalhoPagina } from '../componentes/CabecalhoPagina.tsx';
 import { EspecialidadeBadge } from '../componentes/EspecialidadeVisual.tsx';
 import { SeletorFiltroUniversal } from '../componentes/Modal.tsx';
@@ -91,7 +91,7 @@ interface PainelAnaliticoProps {
 
 export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacientes, escolas }) => {
   const [dataInicio, setDataInicio] = useState(() => `${new Date().getFullYear()}-01-01`);
-  const [dataFim, setDataFim] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dataFim, setDataFim] = useState(() => obterDataHojeBrasilia());
   const [statusFiltro, setStatusFiltro] = useState('');
   const [especialidade, setEspecialidade] = useState('');
   const [profissional, setProfissional] = useState('');
@@ -574,7 +574,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="shrink-0 text-slate-400 font-bold text-[11px]">De</span>
                 <span className="pointer-events-none whitespace-nowrap font-medium text-slate-700 text-xs">
-                  {dataInicio ? new Date(`${dataInicio}T12:00:00`).toLocaleDateString('pt-BR') : 'dd/mm/aaaa'}
+                  {dataInicio ? formatarDataBrasilia(dataInicio) : 'dd/mm/aaaa'}
                 </span>
               </div>
               <CalendarDays className="pointer-events-none h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -602,7 +602,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="shrink-0 text-slate-400 font-bold text-[11px]">Até</span>
                 <span className="pointer-events-none whitespace-nowrap font-medium text-slate-700 text-xs">
-                  {dataFim ? new Date(`${dataFim}T12:00:00`).toLocaleDateString('pt-BR') : 'dd/mm/aaaa'}
+                  {dataFim ? formatarDataBrasilia(dataFim) : 'dd/mm/aaaa'}
                 </span>
               </div>
               <CalendarDays className="pointer-events-none h-3.5 w-3.5 shrink-0 text-slate-400" />

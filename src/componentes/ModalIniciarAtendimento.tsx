@@ -11,7 +11,7 @@ import {
   BotaoModal,
   ModalCampo,
 } from './Modal.tsx';
-import { type Especialidade } from '../../compartilhado/index.ts';
+import { type Especialidade, formatarHoraBrasilia } from '../../compartilhado/index.ts';
 import { EspecialidadeBadge, obterEstiloEspecialidade } from './EspecialidadeVisual.tsx';
 import { censurarCpf } from './TabelaPacientes.tsx';
 
@@ -237,7 +237,7 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
           <div className="px-4 py-2.5 bg-white border-t border-slate-100 flex items-center gap-4 text-[11px] font-semibold text-slate-500">
             <span>Chegada: <span className="font-mono font-extrabold text-slate-800">{dados.horarioChegada}</span></span>
             <span className="w-px h-3 bg-slate-200" />
-            <span>Início: <span className="font-mono font-extrabold text-slate-800">{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></span>
+            <span>Início: <span className="font-mono font-extrabold text-slate-800">{formatarHoraBrasilia(new Date())}</span></span>
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { CircleAlert, CircleCheck, Info, LoaderCircle, LockKeyhole } from 'lucide-react';
+import { CircleAlert, CircleCheck, Info, LoaderCircle, LockKeyhole, FileSpreadsheet } from 'lucide-react';
 import { ProvedorPermissoes } from './contextos/ContextoPermissoes.tsx';
 import { Sidebar, type SecaoMenu } from './componentes/Sidebar.tsx';
 import { CabecalhoPagina } from './componentes/CabecalhoPagina.tsx';
@@ -18,10 +18,11 @@ import { ModalAlterarSenha } from './componentes/ModalAlterarSenha.tsx';
 import { PainelAnalitico } from './paginas/PainelAnalitico.tsx';
 import { Relatorios } from './componentes/Relatorios.tsx';
 import { ConsoleBootstrap } from './componentes/ConsoleBootstrap.tsx';
+import { ModalImportarPlanilha } from './componentes/ModalImportarPlanilha.tsx';
 import { requisicaoApi } from './servicos/api.ts';
 import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCatraki.ts';
 import { formatarCpf, formatarTelefone } from './utilitarios/mascaras.ts';
-import { type PermissoesPerfil, type PerfilAcesso, StatusAtendimento, type StatusAtendimento as TipoStatusAtendimento, Turno } from '../compartilhado/index.ts';
+import { type PermissoesPerfil, type PerfilAcesso, StatusAtendimento, type StatusAtendimento as TipoStatusAtendimento, Turno, formatarHoraBrasilia, formatarDataBrasilia } from '../compartilhado/index.ts';
 
 interface RespostaListaPacientes {
   dados: Array<{
@@ -175,6 +176,7 @@ export function App() {
 
   // Modais
   const [modalNovoPacienteAberto, setModalNovoPacienteAberto] = useState(false);
+  const [modalImportarPlanilhaAberto, setModalImportarPlanilhaAberto] = useState(false);
   const [modalAlterarSenhaAberto, setModalAlterarSenhaAberto] = useState(false);
   const [consoleBootstrapAberto, setConsoleBootstrapAberto] = useState(false);
   const [pacienteParaEditar, setPacienteParaEditar] = useState<ItemPaciente | null>(null);
@@ -400,7 +402,6 @@ export function App() {
     };
 
     const filaPersistida: ItemFila[] = atendimentos.map((atendimento) => {
-      const entradaFilaEm = new Date(atendimento.entradaFilaEm || atendimento.criadoEm);
       const paciente = pacientes.find((item) => item.id === atendimento.pacienteId);
       const escola = escolasGlobais.find((item) => item.id === atendimento.escolaId);
       const profissional = profissionais.find((item) => item.id === atendimento.profissionalId);
@@ -417,8 +418,8 @@ export function App() {
         turno: atendimento.turno,
         especialidade: atendimento.especialidade,
         status: statusFila[atendimento.status || StatusAtendimento.CONCLUIDO],
-        horarioChegada: entradaFilaEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        dataChegada: entradaFilaEm.toLocaleDateString('pt-BR'),
+        horarioChegada: formatarHoraBrasilia(atendimento.entradaFilaEm || atendimento.criadoEm),
+        dataChegada: formatarDataBrasilia(atendimento.entradaFilaEm || atendimento.criadoEm),
         profissional: atendimento.profissionalNome || profissional?.nome,
         profissionalRegistro: profissional?.registro || (atendimento as any).profissionalRegistro,
         profissionalConselho: profissional?.conselho || (atendimento as any).profissionalConselho,
@@ -589,6 +590,32 @@ export function App() {
             })
           );
 
+          // Persistência no D1: a tabela consentimentos armazena EXCLUSIVAMENTE o que vem do Catraki
+          const autorizacoesPayload = Object.entries(resultado.results).map(([cpf, itemCatraki]) => {
+            const pac = pacientes.find((p) => sanitizarCpf(p.cpf) === cpf);
+            return {
+              cpf,
+              pacienteId: pac?.id,
+              authorized: Boolean(itemCatraki.authorized),
+              validationCode: itemCatraki.validation_code,
+              signedAt: itemCatraki.signed_at,
+              signerName: itemCatraki.minor_name
+                ? `Responsável de ${itemCatraki.minor_name} (Catraki)`
+                : 'Responsável Legal (Catraki)',
+              documentId: itemCatraki.document_id,
+              isRevoked: Boolean(itemCatraki.is_revoked || itemCatraki.status === 'revoked'),
+            };
+          });
+
+          try {
+            await requisicaoApi('/consentimentos/sincronizar-catraki', {
+              metodo: 'POST',
+              corpo: { autorizacoes: autorizacoesPayload },
+            });
+          } catch (erroPersistencia) {
+            console.error('Erro ao persistir consentimentos do Catraki no banco:', erroPersistencia);
+          }
+
           setStatusSincronizacaoCatraki({
             status: 'sincronizado',
             ultimaSincronizacao: new Date(),
@@ -625,6 +652,9 @@ export function App() {
     try {
       await requisicaoApi(`/pacientes/${paciente.id}/arquivar`, { metodo: 'POST' });
       setPacientes((prev) => prev.filter((p) => p.id !== paciente.id));
+      setAtendimentos((prev) => prev.filter((a) => a.pacienteId !== paciente.id));
+      setFila((prev) => prev.filter((f) => f.pacienteId !== paciente.id));
+      recarregarDados();
       mostrarToast(`Paciente ${paciente.nome} foi arquivado com sucesso.`, 'sucesso');
     } catch (erro) {
       mostrarToast(erro instanceof Error ? `Não foi possível arquivar: ${erro.message}` : 'Não foi possível arquivar o paciente.', 'erro');
@@ -911,6 +941,18 @@ export function App() {
                 rotulo: 'Novo Paciente',
                 aoClicar: () => setModalNovoPacienteAberto(true),
               } : undefined}
+              acoesExtras={
+                temPermissao('criarPaciente') ? (
+                  <button
+                    type="button"
+                    onClick={() => setModalImportarPlanilhaAberto(true)}
+                    className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-blue-600 bg-blue-600 px-3.5 text-xs font-bold text-white shadow-2xs transition-all hover:bg-blue-700 hover:shadow-xs cursor-pointer"
+                    title="Importar pacientes e consultas via planilha Excel ou CSV"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" /> Importar Planilha
+                  </button>
+                ) : undefined
+              }
               statusSincronizacaoCatraki={statusSincronizacaoCatraki}
               fixo={true}
             />
@@ -1144,6 +1186,17 @@ export function App() {
           setConsoleBootstrapAberto(false);
           recarregarDados();
           setToastNotificacao({ texto: 'Exclusão definitiva concluída.', tipo: 'sucesso' });
+        }}
+      />
+
+      <ModalImportarPlanilha
+        aberto={modalImportarPlanilhaAberto}
+        aoFechar={() => {
+          setModalImportarPlanilhaAberto(false);
+          recarregarDados();
+        }}
+        aoConcluirImportacao={() => {
+          recarregarDados();
         }}
       />
 

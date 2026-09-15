@@ -23,6 +23,7 @@ const NumeroAnimado: FC<{ valor: number; duracao?: number }> = ({ valor, duracao
 };
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import { Activity, Apple, BarChart3, ClipboardCheck, Clock3, Ear, Eye, FileText, Lightbulb, Brain, Play, Smile, UserPlus, XCircle } from 'lucide-react';
+import { formatarHoraBrasilia, formatarDataBrasilia, obterDataHojeBrasilia, obterDataIsoBrasilia } from '../../compartilhado/index.ts';
 import type { ItemFila } from './FilaDoDia.tsx';
 
 export interface DashboardProps {
@@ -64,12 +65,12 @@ export const Dashboard: FC<DashboardProps> = ({
   aoAbrirRelatorios,
   aoAbrirBi,
 }) => {
-  const hojeIso = new Date().toISOString().slice(0, 10);
-  const hojeBr = new Date().toLocaleDateString('pt-BR');
+  const hojeIso = obterDataHojeBrasilia();
+  const hojeBr = formatarDataBrasilia(new Date());
 
-  // Atendimentos do banco de hoje
+  // Atendimentos do banco de hoje (comparados no fuso horário de Brasília)
   const atendimentosHojeBanco = atendimentos.filter(
-    (atendimento) => (atendimento.criadoEm || '').slice(0, 10) === hojeIso
+    (atendimento) => obterDataIsoBrasilia(atendimento.criadoEm) === hojeIso
   );
 
   // Itens da fila do dia de hoje
@@ -332,7 +333,7 @@ export const Dashboard: FC<DashboardProps> = ({
                     </p>
                   </div>
                   <span className="shrink-0 text-[10px] font-semibold text-slate-500">
-                    {new Date(atendimento.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    {formatarHoraBrasilia(atendimento.criadoEm)}
                   </span>
                 </div>
               )) : (

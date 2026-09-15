@@ -1,6 +1,16 @@
 import { type FC, useState, useMemo, useRef, useEffect } from 'react';
 import { Calendar, FileText, RotateCcw, ClipboardCheck, Play, Ban, FileSpreadsheet } from 'lucide-react';
-import { ESPECIALIDADE_LABELS, Especialidade, Turno } from '../../compartilhado/index.ts';
+import {
+  ESPECIALIDADE_LABELS,
+  Especialidade,
+  Turno,
+  STATUS_ATENDIMENTO_LABELS,
+  StatusAtendimento,
+  formatarHoraBrasilia,
+  formatarDataBrasilia,
+  formatarDataEHoraBrasilia,
+  obterDataIsoBrasilia,
+} from '../../compartilhado/index.ts';
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import { ModalImportarPlanilha } from './ModalImportarPlanilha.tsx';
 import {
@@ -13,7 +23,6 @@ import { Paginacao } from './Paginacao.tsx';
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 import { SelectModal } from './Modal.tsx';
 import { Botao } from './Botao.tsx';
-import { STATUS_ATENDIMENTO_LABELS, StatusAtendimento } from '../../compartilhado/index.ts';
 import { StatusAtendimentoBadge } from './StatusAtendimentoBadge.tsx';
 import { ModalIniciarAtendimento, type DadosAtendimento } from './ModalIniciarAtendimento.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
@@ -149,6 +158,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   const handleCancelarAtendimento = async (id: string) => {
     setConfirmandoCancelamentoId(null);
     await handleAlterarStatus(id, StatusAtendimento.CANCELADO);
+    aoSincronizar?.();
   };
 
   const abrirModalProntuario = async (
@@ -170,7 +180,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
       (pr) => pr.id === item.profissionalId || pr.nome === item.profissionalNome
     );
 
-    const hora = new Date(item.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const hora = formatarHoraBrasilia(item.criadoEm);
 
     setDadosAtendimentoAtivo({
       itemId: item.id,
@@ -250,23 +260,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   };
 
   const extrairDataIsoParaFiltro = (dataStr?: string): string => {
-    if (!dataStr) return '';
-    const limpo = dataStr.trim();
-    if (/^\d{4}-\d{2}-\d{2}/.test(limpo)) {
-      return limpo.slice(0, 10);
-    }
-    const matchBr = limpo.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-    if (matchBr) {
-      return `${matchBr[3]}-${matchBr[2]}-${matchBr[1]}`;
-    }
-    const d = new Date(limpo);
-    if (!isNaN(d.getTime())) {
-      const ano = d.getFullYear();
-      const mes = String(d.getMonth() + 1).padStart(2, '0');
-      const dia = String(d.getDate()).padStart(2, '0');
-      return `${ano}-${mes}-${dia}`;
-    }
-    return '';
+    return obterDataIsoBrasilia(dataStr);
   };
 
   const colunasConfig = useMemo<ConfiguracaoColuna<ItemAtendimentoLista>[]>(
@@ -301,8 +295,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         rotulo: 'DATA / HORA',
         tipo: 'data',
         obterValor: (i) => i.criadoEm,
-        formatarRotulo: (val) =>
-          `${new Date(val).toLocaleDateString('pt-BR')} ${new Date(val).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
+        formatarRotulo: (val) => formatarDataEHoraBrasilia(val),
       },
       {
         id: 'status',
@@ -447,7 +440,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
               <label className="relative flex h-10 cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300" onClick={(evento) => { evento.preventDefault(); dataInicioRef.current?.showPicker?.(); }}>
                 <span className="shrink-0">De</span>
                 <span className="pointer-events-none flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-700">
-                  <span>{dataInicio ? new Date(`${dataInicio}T12:00:00`).toLocaleDateString('pt-BR') : 'dd/mm/aaaa'}</span>
+                  <span>{dataInicio ? formatarDataBrasilia(dataInicio) : 'dd/mm/aaaa'}</span>
                   {dataInicio && <span className="rounded-lg border border-blue-100 bg-blue-50 px-2 py-1 text-[9px] font-bold uppercase tracking-tight text-blue-700">{obterDiaDaSemana(dataInicio)}</span>}
                 </span>
                 <Calendar className="pointer-events-none ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -456,7 +449,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
               <label className="relative flex h-10 cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300" onClick={(evento) => { evento.preventDefault(); dataFimRef.current?.showPicker?.(); }}>
                 <span className="shrink-0">Até</span>
                 <span className="pointer-events-none flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-700">
-                  <span>{dataFim ? new Date(`${dataFim}T12:00:00`).toLocaleDateString('pt-BR') : 'dd/mm/aaaa'}</span>
+                  <span>{dataFim ? formatarDataBrasilia(dataFim) : 'dd/mm/aaaa'}</span>
                   {dataFim && <span className="rounded-lg border border-blue-100 bg-blue-50 px-2 py-1 text-[9px] font-bold uppercase tracking-tight text-blue-700">{obterDiaDaSemana(dataFim)}</span>}
                 </span>
                 <Calendar className="pointer-events-none ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -754,22 +747,14 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                     </td>
                     <td className="py-3 px-3.5 text-slate-600 font-medium">{item.escolaNome}</td>
                     <td className="py-3 px-3.5">
-                      {(() => {
-                        const d = new Date(item.criadoEm);
-                        const valido = !isNaN(d.getTime());
-                        const hora = valido ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
-                        const data = valido ? d.toLocaleDateString('pt-BR') : '--/--/----';
-                        return (
-                          <div className="flex flex-col text-left">
-                            <span className="font-mono font-extrabold text-xs text-slate-900 tracking-tight">
-                              {hora}
-                            </span>
-                            <span className="text-[10.5px] font-medium text-slate-400 font-mono mt-0.5">
-                              {data}
-                            </span>
-                          </div>
-                        );
-                      })()}
+                      <div className="flex flex-col text-left">
+                        <span className="font-mono font-extrabold text-xs text-slate-900 tracking-tight">
+                          {formatarHoraBrasilia(item.criadoEm)}
+                        </span>
+                        <span className="text-[10.5px] font-medium text-slate-400 font-mono mt-0.5">
+                          {formatarDataBrasilia(item.criadoEm)}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3 px-3.5">
                       <StatusAtendimentoBadge status={item.status || StatusAtendimento.CONCLUIDO} />
@@ -1135,7 +1120,10 @@ export const Atendimentos: FC<AtendimentosProps> = ({
 
       <ModalImportarPlanilha
         aberto={modalImportarAberto}
-        aoFechar={() => setModalImportarAberto(false)}
+        aoFechar={() => {
+          setModalImportarAberto(false);
+          aoSincronizar?.();
+        }}
         aoConcluirImportacao={() => {
           aoSincronizar?.();
         }}

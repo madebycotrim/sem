@@ -11,11 +11,13 @@ import {
   X,
   Sparkles,
   Stethoscope,
+  ShieldCheck,
 } from 'lucide-react';
 import { utils, read, writeFile } from 'xlsx';
 import { requisicaoApi } from '../servicos/api.ts';
 import { Botao } from './Botao.tsx';
 import { formatarCpf } from '../utilitarios/mascaras.ts';
+import { formatarHoraBrasilia, obterDataIsoBrasilia } from '../../compartilhado/index.ts';
 
 export interface ModalImportarPlanilhaProps {
   aberto: boolean;
@@ -32,12 +34,12 @@ interface LinhaNormalizada {
   pacienteNome: string;
   pacienteCpf: string | null;
   dataNascimento: string | null;
-  pacienteEmail: string | null;
   pacienteTelefone: string | null;
   especialidade: string;
   profissionalNome: string;
   situacao: string;
   instituicaoNome: string;
+  dataAtendimento?: string | null;
   escolaEncontrada?: boolean;
 }
 
@@ -50,6 +52,7 @@ interface ResumoDiagnostico {
   especialidadesContagem: Record<string, number>;
   linhasValidas: LinhaNormalizada[];
   linhasInvalidas: Array<{ linha: number; motivo: string }>;
+  duplicidadesEspecialidadeDetectadas: number;
 }
 
 type EtapaImportacao = 'upload' | 'preview' | 'importing' | 'completed';
@@ -66,7 +69,7 @@ function formatarDataPlanilha(valor: unknown): string | null {
   if (!valor) return null;
 
   if (valor instanceof Date && !isNaN(valor.getTime())) {
-    return valor.toISOString().slice(0, 10);
+    return obterDataIsoBrasilia(valor);
   }
 
   if (typeof valor === 'number') {
@@ -74,7 +77,7 @@ function formatarDataPlanilha(valor: unknown): string | null {
     const milissegundosPorDia = 86400 * 1000;
     const dataCalculada = new Date((valor - 25569) * milissegundosPorDia);
     if (!isNaN(dataCalculada.getTime())) {
-      return dataCalculada.toISOString().slice(0, 10);
+      return obterDataIsoBrasilia(dataCalculada);
     }
   }
 
@@ -171,7 +174,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
   }, [logs]);
 
   const adicionarLog = (mensagem: string, tipo: 'info' | 'sucesso' | 'erro' | 'aviso' = 'info') => {
-    const timestamp = new Date().toLocaleTimeString('pt-BR');
+    const timestamp = formatarHoraBrasilia(new Date());
     setLogs((prev) => [...prev.slice(-100), { timestamp, mensagem, tipo }]);
   };
 
@@ -183,7 +186,6 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       'Paciente',
       'Patient Cpf',
       'Data de nascimento',
-      'Patient Email',
       'Patient Phone',
       'Especialidade',
       'Profissional',
@@ -195,7 +197,6 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       'Lucas Gabriel da Silva',
       '123.456.789-01',
       '15/03/2012',
-      'responsavel.lucas@email.com',
       '(61) 98765-4321',
       'Oftalmologia',
       'Dr. Roberto Mendes',
@@ -207,7 +208,6 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       'Ana Beatriz Oliveira',
       '987.654.321-02',
       '22/07/2011',
-      'ana.pais@email.com',
       '(61) 99123-4567',
       'Odontologia',
       'Dra. Juliana Ferreira',
@@ -221,7 +221,6 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       { wch: 28 }, // Paciente
       { wch: 16 }, // CPF
       { wch: 18 }, // Nascimento
-      { wch: 28 }, // Email
       { wch: 18 }, // Phone
       { wch: 18 }, // Especialidade
       { wch: 24 }, // Profissional
@@ -266,8 +265,6 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
           mapaChaves['cpf'] = chaveOriginal;
         } else if (norm.includes('nasc')) {
           mapaChaves['dataNascimento'] = chaveOriginal;
-        } else if (norm.includes('email') || norm.includes('e-mail')) {
-          mapaChaves['email'] = chaveOriginal;
         } else if (norm.includes('phone') || norm.includes('telef') || norm.includes('celular')) {
           mapaChaves['telefone'] = chaveOriginal;
         } else if (norm.includes('especialidade')) {
@@ -278,6 +275,8 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
           mapaChaves['situacao'] = chaveOriginal;
         } else if (norm.includes('institu') || norm.includes('escola') || norm.includes('polo')) {
           mapaChaves['instituicao'] = chaveOriginal;
+        } else if (norm.includes('data') && (norm.includes('atend') || norm.includes('consult') || norm.includes('agend') || norm === 'data')) {
+          mapaChaves['dataAtendimento'] = chaveOriginal;
         }
       }
 
@@ -299,6 +298,8 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       const escolasNaoEncontradasSet = new Set<string>();
       const profissionaisSet = new Set<string>();
       const alunosSet = new Set<string>();
+      const consultasCpfEspecialidadeSet = new Set<string>();
+      let duplicidadesEspecialidadeCount = 0;
       const especialidadesContagem: Record<string, number> = {};
 
       linhasJson.forEach((linha, idx) => {
@@ -310,7 +311,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
         const situacao = String(linha[mapaChaves['situacao']] || 'Concluído').trim();
         const pacienteCpf = String(linha[mapaChaves['cpf']] || '').trim() || null;
         const dataNascimento = formatarDataPlanilha(linha[mapaChaves['dataNascimento']]);
-        const pacienteEmail = String(linha[mapaChaves['email']] || '').trim() || null;
+        const dataAtendimento = formatarDataPlanilha(linha[mapaChaves['dataAtendimento']]);
         const pacienteTelefone = String(linha[mapaChaves['telefone']] || '').trim() || null;
 
         if (!pacienteNome) {
@@ -332,7 +333,17 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
         }
 
         if (profissionalNome) profissionaisSet.add(profissionalNome);
-        alunosSet.add(pacienteCpf ? `cpf:${pacienteCpf.replace(/\D/g, '')}` : `nome:${pacienteNome.toLowerCase()}`);
+        const chaveAluno = pacienteCpf ? `cpf:${pacienteCpf.replace(/\D/g, '')}` : `nome:${pacienteNome.toLowerCase()}`;
+        alunosSet.add(chaveAluno);
+
+        // Detecção de duplicidade de especialidade para o mesmo CPF/aluno
+        const chaveCpfEspecialidade = `${chaveAluno}:${normalizarTexto(especialidade)}`;
+        if (consultasCpfEspecialidadeSet.has(chaveCpfEspecialidade)) {
+          duplicidadesEspecialidadeCount++;
+        } else {
+          consultasCpfEspecialidadeSet.add(chaveCpfEspecialidade);
+        }
+
         especialidadesContagem[especialidade] = (especialidadesContagem[especialidade] || 0) + 1;
 
         linhasValidas.push({
@@ -340,12 +351,12 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
           pacienteNome,
           pacienteCpf,
           dataNascimento,
-          pacienteEmail,
           pacienteTelefone,
           especialidade,
           profissionalNome,
           situacao,
           instituicaoNome,
+          dataAtendimento,
           escolaEncontrada: escolaExiste,
         });
       });
@@ -359,6 +370,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
         especialidadesContagem,
         linhasValidas,
         linhasInvalidas,
+        duplicidadesEspecialidadeDetectadas: duplicidadesEspecialidadeCount,
       });
 
       setEtapa('preview');
@@ -431,6 +443,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       setExecutandoRollback(false);
       setTempoEstimadoSegundos(null);
       setEtapa('completed');
+      aoConcluirImportacao?.();
     }
   };
 
@@ -626,37 +639,51 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
     }
   };
 
+  const fecharModal = () => {
+    if (
+      rollbackExecutado ||
+      etapa === 'completed' ||
+      acumuladorIdsRef.current.atendimentoIds.length > 0 ||
+      acumuladorIdsRef.current.pacienteIds.length > 0
+    ) {
+      aoConcluirImportacao?.();
+    }
+    aoFechar();
+  };
+
   if (!aberto) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in font-sans">
-      <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
-        {/* ── Topo com Gradiente e Identidade Catraki ─────────────────────── */}
-        <div className="px-6 py-4 bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 text-white flex items-center justify-between shadow-xs">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
-              <FileSpreadsheet className="w-6 h-6 text-white" />
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/40 animate-fade-in font-sans">
+      <div className="relative w-full max-w-4xl bg-white rounded-[24px] sm:rounded-[28px] shadow-[0_24px_70px_rgba(15,23,42,0.18)] border border-slate-200/80 overflow-hidden flex flex-col max-h-[90vh]">
+        {/* ── Topo no Padrão Oficial do Sistema ───────────────────────────── */}
+        <div className="flex items-start justify-between px-6 py-5 border-b border-slate-200/80 bg-gradient-to-r from-slate-50 via-slate-50 to-white shrink-0">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200/80 text-blue-600 flex items-center justify-center shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+              <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-black tracking-tight text-white">Importação Inteligente de Consultas</h3>
-                <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-emerald-400 text-emerald-950 rounded-full">
+                <h2 className="text-[1.05rem] font-extrabold text-slate-800 tracking-[-0.02em] leading-tight">
+                  Importação Inteligente de Consultas
+                </h2>
+                <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200/80 rounded-full">
                   Alta Capacidade (+6.000)
                 </span>
               </div>
-              <p className="text-xs text-blue-100/90 font-medium">
-                Vínculo automático de Alunos (LGPD), Escolas, Profissionais e Especialidades
+              <p className="mt-0.5 text-[11.5px] font-medium text-slate-500">
+                Vínculo automático de Alunos (LGPD), Instituições, Profissionais e Especialidades
               </p>
             </div>
           </div>
           <button
             type="button"
-            onClick={aoFechar}
+            onClick={fecharModal}
             disabled={etapa === 'importing'}
-            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+            className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0 ml-2"
             title="Fechar"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -666,18 +693,18 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
           {etapa === 'upload' && (
             <div className="space-y-6">
               {/* Card explicativo e download do modelo */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-blue-50/70 border border-blue-200/80">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50/80 border border-slate-200/90">
                 <div className="flex items-start gap-3">
-                  <div className="p-2 bg-blue-600 text-white rounded-lg shrink-0 mt-0.5">
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-xl border border-blue-200/70 shrink-0 mt-0.5">
                     <Sparkles className="w-4 h-4" />
                   </div>
-                  <div className="text-xs space-y-1">
-                    <p className="font-bold text-blue-950">
+                  <div className="text-xs space-y-1.5">
+                    <p className="font-bold text-slate-800">
                       Estrutura oficial recomendada da planilha:
                     </p>
-                    <p className="text-blue-900 leading-relaxed">
-                      <span className="font-mono font-semibold bg-white/80 px-1 py-0.5 rounded border border-blue-200">
-                        Paciente | Patient Cpf | Data de nascimento | Patient Email | Patient Phone | Especialidade | Profissional | Situação | Instituição
+                    <p className="text-slate-600 leading-relaxed">
+                      <span className="font-mono text-[11px] font-semibold text-slate-700 bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                        Paciente | Patient Cpf | Data de nascimento | Patient Phone | Especialidade | Profissional | Situação | Instituição
                       </span>
                     </p>
                   </div>
@@ -685,9 +712,9 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                 <button
                   type="button"
                   onClick={baixarPlanilhaModelo}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors shadow-2xs shrink-0 cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200/90 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all shadow-2xs shrink-0 cursor-pointer"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-4 h-4 text-slate-500" />
                   Baixar Planilha Modelo (.xlsx)
                 </button>
               </div>
@@ -703,8 +730,8 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                 onClick={() => inputArquivoRef.current?.click()}
                 className={`flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
                   arrastando
-                    ? 'border-blue-500 bg-blue-50/60 scale-[1.01]'
-                    : 'border-slate-300 hover:border-blue-400 bg-slate-50/60 hover:bg-white'
+                    ? 'border-blue-500 bg-blue-50/40 scale-[1.005]'
+                    : 'border-slate-300/90 hover:border-blue-500 bg-slate-50/40 hover:bg-blue-50/20'
                 }`}
               >
                 <input
@@ -721,15 +748,15 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                   </div>
                 ) : (
                   <div className="flex flex-col items-center text-center gap-3">
-                    <div className="p-4 bg-blue-100/70 text-blue-700 rounded-full">
-                      <Upload className="w-8 h-8" />
+                    <div className="w-14 h-14 bg-blue-50 border border-blue-200/70 text-blue-600 rounded-2xl flex items-center justify-center shadow-2xs">
+                      <Upload className="w-6 h-6" />
                     </div>
                     <div>
                       <p className="text-sm font-bold text-slate-800">
-                        Arraste e solte o arquivo aqui ou <span className="text-blue-600 underline">clique para selecionar</span>
+                        Arraste e solte o arquivo aqui ou <span className="text-blue-600 hover:underline">clique para selecionar</span>
                       </p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Formatos suportados: .xlsx, .xls ou .csv (arquivos grandes com mais de 6.000 consultas suportados)
+                      <p className="text-xs text-slate-400 font-medium mt-1">
+                        Formatos suportados: .xlsx, .xls ou .csv (alta capacidade: +6.000 consultas)
                       </p>
                     </div>
                   </div>
@@ -818,6 +845,21 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                     </p>
                     <p className="text-[10px] text-amber-700">
                       As consultas dessas escolas serão sinalizadas como erro para evitar inconsistência cadastral.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Alerta de Unicidade por Especialidade (se houver duplicidades na planilha) */}
+              {diagnostico.duplicidadesEspecialidadeDetectadas > 0 && (
+                <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl flex items-start gap-3">
+                  <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                  <div className="text-xs text-blue-950 space-y-1">
+                    <p className="font-bold">
+                      Garantia de Unicidade: {diagnostico.duplicidadesEspecialidadeDetectadas} linha(s) repetida(s) da mesma especialidade para o mesmo aluno detectada(s).
+                    </p>
+                    <p className="text-[11px] text-blue-800 leading-relaxed">
+                      Cada CPF/aluno só terá 1 consulta cadastrada por especialidade. O sistema evitará automaticamente conflitos ou consultas duplicadas no banco de dados.
                     </p>
                   </div>
                 </div>
@@ -1028,10 +1070,10 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                           log.tipo === 'sucesso'
                             ? 'text-emerald-400'
                             : log.tipo === 'erro'
-                            ? 'text-rose-400 font-bold'
-                            : log.tipo === 'aviso'
-                            ? 'text-amber-400'
-                            : 'text-slate-300'
+                              ? 'text-rose-400 font-bold'
+                              : log.tipo === 'aviso'
+                                ? 'text-amber-400'
+                                : 'text-slate-300'
                         }
                       >
                         {log.mensagem}
@@ -1151,9 +1193,9 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
           )}
         </div>
 
-        {/* ── Rodapé com Ações ────────────────────────────────────────────── */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-          <div className="text-xs text-slate-500">
+        {/* ── Rodapé com Ações no Padrão do Sistema ────────────────────────── */}
+        <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-200/80 flex items-center justify-between rounded-b-[24px] sm:rounded-b-[28px]">
+          <div className="text-xs text-slate-500 font-medium">
             {etapa === 'upload' && 'Selecione a planilha para iniciar'}
             {etapa === 'preview' && `${diagnostico?.linhasValidas.length || 0} consultas identificadas`}
             {etapa === 'importing' && (executandoRollback ? 'Cancelando e excluindo dados...' : `Lote ${loteAtual} de ${totalLotes} em execução`)}
@@ -1175,9 +1217,9 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                 <button
                   type="button"
                   onClick={iniciarImportacaoEmLote}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg transition-all cursor-pointer"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs text-white bg-blue-600 hover:bg-blue-700 shadow-xs hover:shadow-sm transition-all cursor-pointer"
                 >
-                  <Play className="w-4 h-4 fill-white" />
+                  <Play className="w-3.5 h-3.5 fill-white" />
                   Iniciar Importação em Lote ({diagnostico?.linhasValidas.length || 0} Consultas)
                 </button>
               </>
@@ -1189,6 +1231,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                   <Botao
                     variante="secundario"
                     onClick={() => {
+                      aoConcluirImportacao?.();
                       setEtapa('upload');
                       setDiagnostico(null);
                       setRollbackExecutado(false);
@@ -1199,8 +1242,8 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                   </Botao>
                   <button
                     type="button"
-                    onClick={aoFechar}
-                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-slate-900 hover:bg-slate-800 shadow-md transition-all cursor-pointer"
+                    onClick={fecharModal}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-slate-900 hover:bg-slate-800 shadow-xs transition-all cursor-pointer"
                   >
                     Fechar
                   </button>
@@ -1208,8 +1251,8 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
               ) : (
                 <button
                   type="button"
-                  onClick={aoFechar}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-slate-900 hover:bg-slate-800 shadow-md transition-all cursor-pointer"
+                  onClick={fecharModal}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-blue-600 hover:bg-blue-700 shadow-xs transition-all cursor-pointer"
                 >
                   Concluir e Ver Resultados
                 </button>
@@ -1217,7 +1260,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
             )}
 
             {etapa === 'upload' && (
-              <Botao variante="secundario" onClick={aoFechar}>
+              <Botao variante="secundario" onClick={fecharModal}>
                 Fechar
               </Botao>
             )}

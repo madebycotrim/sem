@@ -1,5 +1,5 @@
 import { useState, useEffect, type FC, useMemo } from 'react';
-import { ESPECIALIDADE_LABELS, Especialidade, Turno, StatusAtendimento } from '../../compartilhado/index.ts';
+import { ESPECIALIDADE_LABELS, Especialidade, Turno, StatusAtendimento, formatarHoraBrasilia, formatarDataBrasilia, obterDataHojeExtensoBrasilia } from '../../compartilhado/index.ts';
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import {
   useFiltroExcel,
@@ -19,8 +19,8 @@ import { ModalIniciarAtendimento, type DadosAtendimento } from './ModalIniciarAt
 import type { ItemAtendimentoLista } from './Atendimentos.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
 
-// Data de hoje no formato pt-BR para comparação (ex: "08/09/2026")
-const HOJE = new Date().toLocaleDateString('pt-BR');
+// Data de hoje no formato pt-BR no fuso de Brasília (ex: "08/09/2026")
+const HOJE = formatarDataBrasilia(new Date());
 
 export type StatusPresenca = 'AGUARDANDO' | 'CONFIRMADO' | 'EM_ATENDIMENTO' | 'CONCLUIDO' | 'CANCELADO';
 
@@ -198,10 +198,10 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
     }
 
     const agora = new Date();
-    const horarioChegada = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    const dataChegada = agora.toLocaleDateString('pt-BR');
-    const hora = agora.getHours();
-    const turno: Turno = hora < 13 ? Turno.MANHA : Turno.TARDE;
+    const horarioChegada = formatarHoraBrasilia(agora);
+    const dataChegada = formatarDataBrasilia(agora);
+    const horaNum = parseInt(horarioChegada.split(':')[0], 10);
+    const turno: Turno = horaNum < 13 ? Turno.MANHA : Turno.TARDE;
 
     // Verifica se já existe consulta registrada no banco
     const atendimentoExistente = atendimentos.find(
@@ -512,7 +512,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         id: 'horarioChegada',
         rotulo: 'DATA/HORA',
         tipo: 'texto',
-        obterValor: (f) => `${f.dataChegada || new Date().toLocaleDateString('pt-BR')} ${f.horarioChegada}`,
+        obterValor: (f) => `${f.dataChegada || formatarDataBrasilia(new Date())} ${f.horarioChegada}`,
       },
       {
         id: 'pacienteNome',
@@ -586,13 +586,8 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   const dadosPaginados = dadosFiltrados.slice(indiceInicio, indiceInicio + itensPorPagina);
 
 
-  // Data formatada por extenso para exibição no cabeçalho
-  const dataHojeExtenso = new Date().toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  });
+  // Data formatada por extenso no fuso de Brasília para exibição no cabeçalho
+  const dataHojeExtenso = obterDataHojeExtensoBrasilia();
 
   return (
     <div className="flex flex-col flex-1 animate-fade-in font-sans">
@@ -715,7 +710,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                           {item.horarioChegada}
                         </span>
                         <span className="text-[10.5px] font-medium text-slate-400 font-mono mt-0.5">
-                          {item.dataChegada || new Date().toLocaleDateString('pt-BR')}
+                          {item.dataChegada || formatarDataBrasilia(new Date())}
                         </span>
                       </div>
                     </td>

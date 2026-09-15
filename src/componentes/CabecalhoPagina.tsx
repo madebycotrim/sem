@@ -2,6 +2,7 @@ import { type FC, type ReactNode } from 'react';
 import { AlertTriangle, ChevronDown, Download, LoaderCircle, Plus, Search, X, Wifi, WifiOff } from 'lucide-react';
 import { SelectModal } from './Modal';
 import { Botao } from './Botao.tsx';
+import { FUSO_BRASILIA } from '../../compartilhado/index.ts';
 
 export interface OpcaoSeletor {
   id: string;
@@ -214,7 +215,7 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
                     : statusSincronizacaoCatraki.status === 'erro'
                     ? 'Catraki Offline'
                     : statusSincronizacaoCatraki.ultimaSincronizacao
-                    ? `Sincronizado automaticamente com o Catraki às ${statusSincronizacaoCatraki.ultimaSincronizacao.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+                    ? `Sincronizado automaticamente com o Catraki às ${statusSincronizacaoCatraki.ultimaSincronizacao.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: FUSO_BRASILIA })}`
                     : 'Sincronizado com o Catraki'
                 }
               >

@@ -10,7 +10,7 @@ import {
 } from '../../../compartilhado/index.js';
 import { getDb } from '../../infraestrutura/banco/drizzle.js';
 import { atendimentos, pacientes, escolasLocais, usuarios } from '../../infraestrutura/banco/schema.js';
-import { eq, and, desc, asc, count, gte, lte, inArray } from 'drizzle-orm';
+import { eq, and, desc, asc, count, gte, lte } from 'drizzle-orm';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import { middlewareIdempotencia } from '../../middlewares/idempotencia.js';
@@ -104,22 +104,32 @@ rotasAtendimento.post(
 
     const profissionalId = profissional.id;
 
-    // Busca apenas consulta ATIVA em andamento/agendada para esta especialidade.
-    // Consultas anteriores concluídas ou canceladas permitem a criação de um novo atendimento.
+    // Regra estrita: um paciente/CPF não pode ter mais de uma consulta na mesma especialidade
     const consultaExistente = await db.query.atendimentos.findFirst({
       where: and(
         eq(atendimentos.pacienteId, dados.pacienteId),
-        eq(atendimentos.especialidade, dados.especialidade),
-        inArray(atendimentos.status, ['AGENDADO', 'CONFIRMADO', 'EM_ATENDIMENTO'])
+        eq(atendimentos.especialidade, dados.especialidade)
       ),
-      columns: { id: true, resumo: true },
+      columns: { id: true, status: true, resumo: true, especialidade: true },
     });
 
     const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1';
     const entradaFilaEm = new Date().toISOString();
 
-    // Se a consulta já existir para esta especialidade e paciente, atualiza os dados (ex: edição/continuação)
+    // Se a consulta já existir para esta especialidade e paciente
     if (consultaExistente) {
+      // Se a consulta já estiver CONCLUÍDA, bloqueia nova inserção duplicada
+      if (consultaExistente.status === 'CONCLUIDO') {
+        return c.json(
+          {
+            erro: `O paciente já possui uma consulta concluída na especialidade ${dados.especialidade}. Não é permitido cadastrar mais de uma consulta na mesma especialidade para o mesmo CPF/aluno.`,
+            consultaExistenteId: consultaExistente.id,
+          },
+          409
+        );
+      }
+
+      // Se estiver em andamento/agendada, atualiza a consulta existente preservando seu ID único
       const [atendimentoAtualizado] = await db
         .update(atendimentos)
         .set({
@@ -165,9 +175,12 @@ rotasAtendimento.post(
       );
     }
 
+    const novoAtendimentoId = crypto.randomUUID();
     let atendimento;
     try {
+      const agoraIso = new Date().toISOString();
       const [novoAtendimento] = await db.insert(atendimentos).values({
+        id: novoAtendimentoId,
         pacienteId: dados.pacienteId,
         escolaLocalId: dados.escolaLocalId,
         usuarioId: profissionalId,
@@ -178,34 +191,20 @@ rotasAtendimento.post(
         procedimentos: sanitizarTextoOpcional(dados.procedimentos),
         insumosUtilizados: sanitizarTextoOpcional(dados.insumosUtilizados),
         encaminhamentoExterno: sanitizarTextoOpcional(dados.encaminhamentoExterno),
-        chaveIdempotencia: dados.idempotencyKey,
+        chaveIdempotencia: dados.idempotencyKey || `atend:${novoAtendimentoId}`,
         entradaFilaEm,
+        criadoEm: agoraIso,
+        atualizadoEm: agoraIso,
       }).returning();
       atendimento = novoAtendimento;
     } catch (erro) {
       if (String(erro).toLowerCase().includes('unique')) {
-        const [atendimentoRecuperado] = await db
-          .update(atendimentos)
-          .set({
-            usuarioId: profissionalId,
-            resumo: dados.resumo,
-            procedimentos: dados.procedimentos ?? null,
-            insumosUtilizados: dados.insumosUtilizados ?? null,
-            encaminhamentoExterno: dados.encaminhamentoExterno ?? null,
-            status: StatusAtendimento.CONCLUIDO,
-            atualizadoEm: new Date().toISOString(),
-          })
-          .where(
-            and(
-              eq(atendimentos.pacienteId, dados.pacienteId),
-              eq(atendimentos.especialidade, dados.especialidade)
-            )
-          )
-          .returning();
-
-        if (atendimentoRecuperado) {
-          return c.json(atendimentoRecuperado, 200);
-        }
+        return c.json(
+          {
+            erro: `Já existe uma consulta registrada para este paciente na especialidade ${dados.especialidade}. Não é permitido mais de uma consulta na mesma especialidade para o mesmo CPF/aluno.`,
+          },
+          409
+        );
       }
       throw erro;
     }

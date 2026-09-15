@@ -103,6 +103,58 @@ rotasBootstrap.delete(
   }
 );
 
+/** Exclui definitivamente TODOS os pacientes, consentimentos e históricos de atendimento. */
+rotasBootstrap.delete(
+  '/pacientes-todos',
+  zValidator(
+    'query',
+    z.object({
+      confirmacao: z.union([
+        z.literal('EXCLUIR DEFINITIVAMENTE'),
+        z.literal('EXCLUIR TODOS OS PACIENTES'),
+      ]),
+    })
+  ),
+  async (c) => {
+    const db = getDb(c.env.DB);
+    const usuarioAtual = c.get('usuario');
+
+    // 1. Contagens prévias
+    const contagemPacientes = await db.select({ total: sql<number>`count(*)` }).from(pacientes);
+    const totalPacientes = contagemPacientes[0]?.total ?? 0;
+
+    const contagemAtendimentos = await db.select({ total: sql<number>`count(*)` }).from(atendimentos);
+    const totalAtendimentos = contagemAtendimentos[0]?.total ?? 0;
+
+    const contagemConsentimentos = await db.select({ total: sql<number>`count(*)` }).from(consentimentos);
+    const totalConsentimentos = contagemConsentimentos[0]?.total ?? 0;
+
+    // 2. Ordem FK estrita: primeiro dependentes (atendimentos e consentimentos), depois os pacientes
+    await db.delete(atendimentos);
+    await db.delete(consentimentos);
+    await db.delete(pacientes);
+
+    // 3. Auditoria
+    await registrarAuditoria(db, {
+      userId: usuarioAtual.userId,
+      acao: 'DELETE_TODOS_PACIENTES',
+      entidade: 'Paciente',
+      entidadeId: 'TODOS',
+      diffAnterior: { totalPacientes, totalAtendimentos, totalConsentimentos },
+      ip: ipDaRequisicao(c),
+    });
+
+    return c.json({
+      mensagem: `Todos os ${totalPacientes} pacientes, ${totalConsentimentos} consentimentos e ${totalAtendimentos} atendimentos foram excluídos definitivamente.`,
+      totalExcluidos: {
+        pacientes: totalPacientes,
+        atendimentos: totalAtendimentos,
+        consentimentos: totalConsentimentos,
+      },
+    });
+  }
+);
+
 /** Exclui definitivamente uma instituição e todos os dados vinculados. */
 rotasBootstrap.delete(
   '/instituicoes/:id',

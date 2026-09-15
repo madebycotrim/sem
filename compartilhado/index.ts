@@ -44,3 +44,17 @@ export type {
   RespostaPaginada,
   RespostaErro,
 } from './tipos/index.js';
+
+// ─── Data e Hora no Padrão Brasileiro (Fuso Horário de Brasília) ─────────────
+export {
+  FUSO_BRASILIA,
+  parseDataBrasilia,
+  formatarHoraBrasilia,
+  formatarDataBrasilia,
+  formatarDataEHoraBrasilia,
+  obterDataHojeBrasilia,
+  obterDataHojeExtensoBrasilia,
+  obterAgoraBrasiliaIso,
+  obterDataIsoBrasilia,
+} from './datas.js';
+

@@ -20,6 +20,7 @@ export interface ItemHistoricoAtendimento {
 
 import type { ItemAtendimentoLista } from './Atendimentos.tsx';
 import type { ItemFila } from './FilaDoDia.tsx';
+import { parseDataBrasilia, formatarDataBrasilia, formatarHoraBrasilia } from '../../compartilhado/index.ts';
 
 export interface DrawerHistoricoPacienteProps {
   aberto: boolean;
@@ -39,51 +40,14 @@ function normalizarStatus(status?: string): ItemHistoricoAtendimento['status'] {
   return 'AGENDADO';
 }
 
-// Função de parse seguro das datas
+// Função de formatação segura das datas no fuso horário oficial de Brasília
 function formatarDataHora(dataString?: string) {
-  if (!dataString) {
-    const agora = new Date();
-    return {
-      data: agora.toLocaleDateString('pt-BR'),
-      hora: agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      timestamp: agora.getTime(),
-    };
-  }
-
-  // Se já estiver no formato brasileiro DD/MM/AAAA
-  if (/^\d{2}\/\d{2}\/\d{4}/.test(dataString)) {
-    const partes = dataString.slice(0, 10).split('/');
-    const d = parseInt(partes[0], 10);
-    const m = parseInt(partes[1], 10) - 1;
-    const a = parseInt(partes[2], 10);
-    const horaTexto = dataString.length > 10 ? dataString.slice(11).trim() : '--:--';
-    const ts = new Date(a, m, d).getTime();
-    return {
-      data: dataString.slice(0, 10),
-      hora: horaTexto,
-      timestamp: isNaN(ts) ? Date.now() : ts,
-    };
-  }
-
-  try {
-    const limpa = dataString.includes(' ') && !dataString.includes('T')
-      ? dataString.replace(' ', 'T')
-      : dataString;
-    const data = new Date(limpa);
-    if (isNaN(data.getTime())) throw new Error('Data inválida');
-    return {
-      data: data.toLocaleDateString('pt-BR'),
-      hora: data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      timestamp: data.getTime(),
-    };
-  } catch {
-    const agora = new Date();
-    return {
-      data: agora.toLocaleDateString('pt-BR'),
-      hora: agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      timestamp: agora.getTime(),
-    };
-  }
+  const data = parseDataBrasilia(dataString) ?? new Date();
+  return {
+    data: formatarDataBrasilia(data),
+    hora: formatarHoraBrasilia(data),
+    timestamp: data.getTime(),
+  };
 }
 
 export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({

@@ -31,6 +31,9 @@ import {
   STATUS_ATENDIMENTO_LABELS,
   StatusAtendimento,
   type Especialidade,
+  formatarDataBrasilia,
+  formatarDataEHoraBrasilia,
+  obterDataHojeBrasilia,
 } from '../../compartilhado/index.ts';
 import {
   useFiltroExcel,
@@ -97,7 +100,7 @@ interface RegistroTabela {
 
 const formatarDataBrasileira = (data: string) => {
   if (!data) return '';
-  return new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR');
+  return formatarDataBrasilia(data);
 };
 
 const getDiaDaSemana = (dataIso: string) => {
@@ -115,11 +118,12 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   const [profissionalFiltro, setProfissionalFiltro] = useState('');
 
   const [dataInicio, setDataInicio] = useState(() => {
-    const d = new Date();
+    const hojeStr = obterDataHojeBrasilia();
+    const d = new Date(`${hojeStr}T12:00:00-03:00`);
     d.setDate(d.getDate() - 29);
     return d.toISOString().slice(0, 10);
   });
-  const [dataFim, setDataFim] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dataFim, setDataFim] = useState(() => obterDataHojeBrasilia());
   const [periodoSelecionado, setPeriodoSelecionado] = useState<number | 'mes' | 'tudo' | null>(30);
 
   const [indicePontoAtivo, setIndicePontoAtivo] = useState<number | null>(null);
@@ -218,19 +222,24 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   }, []);
 
   const aplicarPeriodo = (dias: number | 'mes' | 'tudo') => {
-    const hoje = new Date();
-    const dataFinal = hoje.toISOString().slice(0, 10);
+    const hojeStr = obterDataHojeBrasilia();
+    const dataFinal = hojeStr;
     let dataInicial = '';
 
     if (dias === 'tudo') {
       dataInicial = '';
     } else if (dias === 'mes') {
-      const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-      dataInicial = primeiroDia.toISOString().slice(0, 10);
+      const partes = hojeStr.split('-');
+      dataInicial = `${partes[0]}-${partes[1]}-01`;
     } else {
-      const inicio = new Date();
-      inicio.setDate(hoje.getDate() - (dias - 1));
-      dataInicial = inicio.toISOString().slice(0, 10);
+      const fim = new Date(`${hojeStr}T12:00:00-03:00`);
+      const inicio = new Date(`${hojeStr}T12:00:00-03:00`);
+      inicio.setDate(inicio.getDate() - (dias - 1));
+      setDataInicio(inicio.toISOString().slice(0, 10));
+      setDataFim(fim.toISOString().slice(0, 10));
+      setPeriodoSelecionado(dias);
+      ocultarRelatorioPorAlteracaoFiltro();
+      return;
     }
 
     setDataInicio(dataInicial);
@@ -1953,7 +1962,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                 <div className="text-xl font-black uppercase tracking-tight text-slate-900 mt-1">Programa Saúde Itinerante na Escola (SEM)</div>
                 <div className="text-xs font-bold uppercase tracking-wider text-blue-800 mt-0.5">Relatório Oficial de Gestão e Atendimento Clínico</div>
                 <div className="text-[10px] text-slate-500 mt-2">
-                  Emissão: {new Date().toLocaleString('pt-BR')} • Período: {dataInicio ? formatarDataBrasileira(dataInicio) : 'Início'} a {dataFim ? formatarDataBrasileira(dataFim) : 'Atual'}
+                  Emissão: {formatarDataEHoraBrasilia(new Date())} • Período: {dataInicio ? formatarDataBrasileira(dataInicio) : 'Início'} a {dataFim ? formatarDataBrasileira(dataFim) : 'Atual'}
                 </div>
               </div>
 
