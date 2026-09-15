@@ -129,4 +129,27 @@ describe('Inteligência Analítica e Métricas dos Gráficos do Dashboard', () =
 
     expect(filtrados).toHaveLength(atendimentosSimulados.length);
   });
+
+  it('deve calcular índices de rótulos com amostragem inteligente impedindo sobreposição no Eixo X', async () => {
+    const { calcularIndicesRotulosExibidos } = await import(
+      '../componentes/graficos/GraficoLinhaDoTempo.tsx'
+    );
+
+    // 1. Com poucos pontos (<= 8), todos os rótulos devem ser exibidos
+    const indicesPequeno = calcularIndicesRotulosExibidos(5, 8);
+    expect(Array.from(indicesPequeno)).toEqual([0, 1, 2, 3, 4]);
+
+    // 2. Com 76 períodos (cenário real com 5.002 consultas), nunca deve exceder maxRotulos
+    const indices76 = calcularIndicesRotulosExibidos(76, 8);
+    expect(indices76.size).toBeLessThanOrEqual(8);
+    expect(indices76.has(0)).toBe(true); // primeiro dia
+    expect(indices76.has(75)).toBe(true); // último dia
+
+    // Garante que a distância entre quaisquer dois rótulos consecutivos seja suficiente para legibilidade
+    const listaIndices = Array.from(indices76).sort((a, b) => a - b);
+    for (let i = 0; i < listaIndices.length - 1; i++) {
+      const diff = listaIndices[i + 1] - listaIndices[i];
+      expect(diff).toBeGreaterThanOrEqual(6); // no mínimo 6 períodos de espaçamento
+    }
+  });
 });

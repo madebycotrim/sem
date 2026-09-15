@@ -1,4 +1,4 @@
-import { type FC, useState, useId } from 'react';
+import { type FC, useState, useId, useMemo } from 'react';
 import { TrendingUp, Calendar, ArrowUpRight } from 'lucide-react';
 
 export interface PontoLinhaDoTempo {
@@ -13,6 +13,34 @@ interface GraficoLinhaDoTempoProps {
   subtitulo?: string;
   pontos: PontoLinhaDoTempo[];
   altura?: number;
+}
+
+/**
+ * Determina os índices de pontos que devem ter seus rótulos exibidos no Eixo X.
+ * Em séries temporais com muitos períodos (ex: 76 dias), evita sobreposição ilegível
+ * distribuindo os rótulos de forma equilibrada (primeiro, último e intermediários regulares).
+ */
+export function calcularIndicesRotulosExibidos(totalPontos: number, maxRotulos = 8): Set<number> {
+  const indices = new Set<number>();
+  if (totalPontos <= 0) return indices;
+  if (totalPontos <= maxRotulos) {
+    for (let i = 0; i < totalPontos; i++) indices.add(i);
+    return indices;
+  }
+
+  // Sempre inclui o primeiro e o último ponto da série temporal
+  indices.add(0);
+  indices.add(totalPontos - 1);
+
+  const passo = Math.ceil((totalPontos - 1) / (maxRotulos - 1));
+  for (let i = passo; i < totalPontos - 1; i += passo) {
+    // Evita rótulo intermediário muito próximo do último ponto
+    if (totalPontos - 1 - i >= Math.floor(passo * 0.75)) {
+      indices.add(i);
+    }
+  }
+
+  return indices;
 }
 
 export const GraficoLinhaDoTempo: FC<GraficoLinhaDoTempoProps> = ({
@@ -45,7 +73,7 @@ export const GraficoLinhaDoTempo: FC<GraficoLinhaDoTempoProps> = ({
   const larguraSvg = 650;
   const paddingX = 45;
   const paddingTop = 30;
-  const paddingBottom = 40;
+  const paddingBottom = 42;
   const alturaGrafico = altura - paddingTop - paddingBottom;
   const larguraGrafico = larguraSvg - paddingX * 2;
 
@@ -56,8 +84,16 @@ export const GraficoLinhaDoTempo: FC<GraficoLinhaDoTempoProps> = ({
         ? larguraSvg / 2
         : paddingX + (idx / (dadosEfetivos.length - 1)) * larguraGrafico;
     const y = paddingTop + alturaGrafico - (p.total / maxValor) * alturaGrafico;
-    return { x, y, ponto: p };
+    return { x, y, ponto: p, idx };
   });
+
+  const indicesRotulosExibidos = useMemo(
+    () => calcularIndicesRotulosExibidos(coordenadas.length, 8),
+    [coordenadas.length]
+  );
+
+  const pontoHoverCoord = coordenadas.find((c) => c.ponto.dataIso === pontoHover?.dataIso);
+  const muitosPontos = coordenadas.length > 35;
 
   // Geração do path SVG com curva suave Bézier
   const gerarCaminhoSuave = () => {
@@ -250,10 +286,101 @@ export const GraficoLinhaDoTempo: FC<GraficoLinhaDoTempoProps> = ({
                 />
               )}
 
-              {/* Pontos Interativos */}
+              {/* Linha Base do Eixo X */}
+              <line
+                x1={paddingX}
+                y1={paddingTop + alturaGrafico}
+                x2={larguraSvg - paddingX}
+                y2={paddingTop + alturaGrafico}
+                stroke="#cbd5e1"
+                strokeWidth="1"
+              />
+
+              {/* Rótulos e Marcadores do Eixo X (Amostragem Inteligente sem sobreposição) */}
+              {coordenadas.map(({ x, ponto, idx }) => {
+                const deveExibir = indicesRotulosExibidos.has(idx);
+                if (!deveExibir) return null;
+
+                // Se um ponto em hover intermediário estiver muito próximo deste rótulo fixo, oculta temporariamente para evitar colisão visual
+                const muitoPertoDoHover =
+                  pontoHoverCoord &&
+                  !indicesRotulosExibidos.has(pontoHoverCoord.idx) &&
+                  Math.abs(x - pontoHoverCoord.x) < 30;
+
+                if (muitoPertoDoHover) return null;
+
+                const isHovered = pontoHover?.dataIso === ponto.dataIso;
+
+                return (
+                  <g key={`rotulo-${ponto.dataIso || idx}`}>
+                    {/* Marcador de escala (Tick) */}
+                    <line
+                      x1={x}
+                      y1={paddingTop + alturaGrafico}
+                      x2={x}
+                      y2={paddingTop + alturaGrafico + 4}
+                      stroke="#94a3b8"
+                      strokeWidth="1"
+                    />
+                    {/* Texto da data legível e bem espaçado */}
+                    <text
+                      x={x}
+                      y={altura - 14}
+                      textAnchor="middle"
+                      className={`text-[9.5px] select-none transition-colors ${
+                        isHovered ? 'fill-blue-700 font-black' : 'fill-slate-500 font-semibold'
+                      }`}
+                    >
+                      {ponto.rotulo}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Indicador de Data em Hover no Eixo X (se o ponto em hover não for um dos rótulos fixos) */}
+              {pontoHoverCoord && !indicesRotulosExibidos.has(pontoHoverCoord.idx) && (
+                <g pointerEvents="none">
+                  <rect
+                    x={pontoHoverCoord.x - 20}
+                    y={altura - 25}
+                    width="40"
+                    height="16"
+                    rx="4"
+                    fill="#1e40af"
+                  />
+                  <text
+                    x={pontoHoverCoord.x}
+                    y={altura - 13}
+                    textAnchor="middle"
+                    className="text-[9px] font-bold fill-white select-none"
+                  >
+                    {pontoHoverCoord.ponto.rotulo}
+                  </text>
+                </g>
+              )}
+
+              {/* Linha vertical tracejada de mira ao passar o mouse */}
+              {pontoHoverCoord && (
+                <line
+                  pointerEvents="none"
+                  x1={pontoHoverCoord.x}
+                  y1={paddingTop}
+                  x2={pontoHoverCoord.x}
+                  y2={paddingTop + alturaGrafico}
+                  stroke="#3b82f6"
+                  strokeDasharray="3 3"
+                  strokeWidth="1.5"
+                  opacity="0.6"
+                />
+              )}
+
+              {/* Pontos Interativos na Curva */}
               {coordenadas.map(({ x, y, ponto }) => {
                 const isHovered = pontoHover?.dataIso === ponto.dataIso;
                 const isPico = pontoPico && pontoPico.ponto.dataIso === ponto.dataIso && ponto.total > 0;
+
+                const raioBase = isHovered ? 5.5 : isPico ? 4.5 : muitosPontos ? 2.5 : 3.5;
+                const larguraBorda = isHovered ? 3 : isPico ? 2.5 : muitosPontos ? 1.5 : 2.5;
 
                 return (
                   <g
@@ -263,7 +390,7 @@ export const GraficoLinhaDoTempo: FC<GraficoLinhaDoTempoProps> = ({
                     onMouseLeave={() => setPontoHover(null)}
                   >
                     {/* Área de clique invisível ampliada */}
-                    <circle cx={x} cy={y} r="18" fill="transparent" />
+                    <circle cx={x} cy={y} r={muitosPontos ? 12 : 18} fill="transparent" />
 
                     {/* Halo de foco ao passar o mouse ou no ponto de pico */}
                     {(isHovered || isPico) && (
@@ -281,24 +408,12 @@ export const GraficoLinhaDoTempo: FC<GraficoLinhaDoTempoProps> = ({
                     <circle
                       cx={x}
                       cy={y}
-                      r={isHovered ? '5.5' : isPico ? '4.5' : '3.5'}
+                      r={raioBase}
                       fill="#ffffff"
                       stroke={isPico ? '#f59e0b' : '#2563eb'}
-                      strokeWidth={isHovered ? '3' : '2.5'}
-                      className="transition-all duration-200"
+                      strokeWidth={larguraBorda}
+                      className="transition-all duration-150"
                     />
-
-                    {/* Rótulo do Eixo X em baixo */}
-                    <text
-                      x={x}
-                      y={altura - 12}
-                      textAnchor="middle"
-                      className={`text-[9.5px] font-bold transition-colors ${
-                        isHovered ? 'fill-blue-700 font-black' : 'fill-slate-500'
-                      }`}
-                    >
-                      {ponto.rotulo}
-                    </text>
                   </g>
                 );
               })}
