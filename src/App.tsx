@@ -314,6 +314,7 @@ export function App() {
     if (!autenticado) return;
     let ativo = true;
     const carregarPacientes = async () => {
+      if ((window as any)?.__importacaoEmAndamento || modalImportarPlanilhaAberto) return;
       try {
         const primeiraPagina = await requisicaoApi<RespostaListaPacientes>('/pacientes?pagina=1&porPagina=100');
         const paginasRestantes = Array.from({ length: Math.max(0, primeiraPagina.totalPaginas - 1) }, (_, indice) => indice + 2);
@@ -349,6 +350,7 @@ export function App() {
     if (!autenticado) return;
     let ativo = true;
     const carregarAtendimentos = async () => {
+      if ((window as any)?.__importacaoEmAndamento || modalImportarPlanilhaAberto) return;
       try {
         const primeiraPagina = await requisicaoApi<RespostaListaAtendimentos>('/atendimentos?pagina=1&porPagina=100');
         const paginasRestantes = Array.from(
@@ -569,6 +571,7 @@ export function App() {
     let montado = true;
 
     const sincronizarEmSegundoPlano = async () => {
+      if ((window as any)?.__importacaoEmAndamento || modalImportarPlanilhaAberto) return;
       const cpfs = pacientes
         .map((p) => sanitizarCpf(p.cpf))
         .filter((cpf) => cpf.length === 11);

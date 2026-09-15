@@ -333,6 +333,11 @@ rotasImportacao.post(
       }
     }
 
+    const novosUsuariosParaInserir: Array<typeof usuarios.$inferInsert> = [];
+    const novosPacientesParaInserir: Array<typeof pacientes.$inferInsert> = [];
+    const novosConsentimentosParaInserir: Array<typeof consentimentos.$inferInsert> = [];
+    const novosAtendimentosParaInserir: Array<typeof atendimentos.$inferInsert> = [];
+
     for (const item of itens) {
       totalProcessados++;
       try {
@@ -413,30 +418,27 @@ rotasImportacao.post(
           }
         }
 
-        // 3. Se ainda não existir no sistema, provisiona como PROFISSIONAL_SAUDE ativo
-        // garantindo que a consulta fique 100% vinculada a ele
+        // 3. Se ainda não existir no sistema, provisiona como PROFISSIONAL_SAUDE ativo em lote
+        // garantindo que a consulta fique 100% vinculada a ele sem round-trip individual
         if (!profissional) {
-          const slugNome = (nomeProfissionalCanonico || 'prof')
-            .replace(/[^a-z0-9]/g, '.')
+          const slugNome = (nomeProfissionalCanonico || 'prof').replace(/[^a-z0-9]/g, '.');
           const slugImportacao = importacaoId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
           const emailAuto = `prof.${slugNome}.${slugImportacao}.${crypto.randomUUID().slice(0, 4)}@catraki.saude`;
           const senhaHash = await obterHashSenhaPadrao();
           const novoUserId = crypto.randomUUID();
 
-          const [novoUsuario] = await db
-            .insert(usuarios)
-            .values({
-              id: novoUserId,
-              email: emailAuto,
-              senhaHash,
-              nomeCompleto: sanitizarTexto(nomeOriginalProfissional),
-              perfil: 'PROFISSIONAL_SAUDE',
-              especialidade: especialidadeEnum,
-              ativo: true,
-            })
-            .returning();
+          const novoUsuarioObj = {
+            id: novoUserId,
+            email: emailAuto,
+            senhaHash,
+            nomeCompleto: sanitizarTexto(nomeOriginalProfissional),
+            perfil: 'PROFISSIONAL_SAUDE' as const,
+            especialidade: especialidadeEnum,
+            ativo: true,
+          };
 
-          profissional = novoUsuario;
+          novosUsuariosParaInserir.push(novoUsuarioObj);
+          profissional = novoUsuarioObj as unknown as typeof todosUsuarios[number];
           mapaUsuarios.set(nomeProfissionalNorm, profissional);
           if (nomeProfissionalCanonico) {
             mapaUsuarios.set(nomeProfissionalCanonico, profissional);
@@ -476,31 +478,38 @@ rotasImportacao.post(
               : null;
 
           const novoPacienteId = crypto.randomUUID();
-          const [novoPaciente] = await db
-            .insert(pacientes)
-            .values({
-              id: novoPacienteId,
-              nomeEnc: piiCifrada.dadosCifrados,
-              cpfEnc: '',
-              cpfHash,
-              dataNascimentoEnc: '',
-              telefoneEnc: null,
-              dekCifrada: piiCifrada.dekCifrada,
-              ivPii: piiCifrada.iv,
-              tagPii: piiCifrada.tag,
-              turma: opcoes.turmaPadrao || 'Geral',
-              escolaLocalId: escola.id,
-              retencaoExpiraEm: retencaoExpiraEmIso,
-              ativo: true,
-            })
-            .returning();
+          const novoPacienteObj = {
+            id: novoPacienteId,
+            nomeEnc: piiCifrada.dadosCifrados,
+            cpfEnc: '',
+            cpfHash,
+            dataNascimentoEnc: '',
+            telefoneEnc: null,
+            dekCifrada: piiCifrada.dekCifrada,
+            ivPii: piiCifrada.iv,
+            tagPii: piiCifrada.tag,
+            turma: opcoes.turmaPadrao || 'Geral',
+            escolaLocalId: escola.id,
+            retencaoExpiraEm: retencaoExpiraEmIso,
+            ativo: true,
+          };
 
-          pacienteId = novoPaciente.id;
+          novosPacientesParaInserir.push(novoPacienteObj);
+          novosConsentimentosParaInserir.push({
+            id: crypto.randomUUID(),
+            pacienteId: novoPacienteId,
+            consentidoPor: 'Importação de Planilha',
+            dataConsentimento: new Date().toISOString(),
+            referenciaDocumento: `sess:${importacaoId}`,
+            consentimentoDispensado: true,
+            justificativaDispensa: `Importado na sessão ${importacaoId}`,
+          });
+          pacienteId = novoPacienteId;
           if (cpfHash) {
-            mapaPacientesPorHash.set(cpfHash, novoPaciente.id);
+            mapaPacientesPorHash.set(cpfHash, novoPacienteId);
           }
           pacientesCriados++;
-          pacientesCriadosIds.push(novoPaciente.id);
+          pacientesCriadosIds.push(novoPacienteId);
         }
 
         // ── D. Criação da Consulta (Atendimento com Unicidade por Especialidade) ─
@@ -543,36 +552,21 @@ rotasImportacao.post(
           ? `${dataAtendimentoIso}T09:00:00-03:00`
           : new Date().toISOString();
 
-        try {
-          await db.insert(atendimentos).values({
-            id: atendimentoId,
-            pacienteId,
-            escolaLocalId: escola.id,
-            usuarioId: profissional.id,
-            especialidade: especialidadeEnum,
-            status: statusEnum,
-            resumo: `Atendimento importado via planilha. Situação original: ${item.situacao || 'Concluído'}. Profissional: ${item.profissionalNome}.`,
-            chaveIdempotencia,
-            criadoEm: dataCriacao,
-            atualizadoEm: dataCriacao,
-          });
+        novosAtendimentosParaInserir.push({
+          id: atendimentoId,
+          pacienteId,
+          escolaLocalId: escola.id,
+          usuarioId: profissional.id,
+          especialidade: especialidadeEnum,
+          status: statusEnum,
+          resumo: `Atendimento importado via planilha. Situação original: ${item.situacao || 'Concluído'}. Profissional: ${item.profissionalNome}.`,
+          chaveIdempotencia,
+          criadoEm: dataCriacao,
+          atualizadoEm: dataCriacao,
+        });
 
-          atendimentosCriados++;
-          atendimentosCriadosIds.push(atendimentoId);
-        } catch (erroAtendimento: any) {
-          if (
-            erroAtendimento?.message?.includes('UNIQUE') ||
-            erroAtendimento?.message?.includes('atendimentos_paciente_especialidade_key')
-          ) {
-            falhas.push({
-              linha: item.linhaOriginal,
-              erro: `Duplicidade evitada: o paciente já possui uma consulta cadastrada na especialidade "${especialidadeEnum}".`,
-              detalhe: item.pacienteNome ? `Paciente: ${item.pacienteNome}` : undefined,
-            });
-          } else {
-            throw erroAtendimento;
-          }
-        }
+        atendimentosCriados++;
+        atendimentosCriadosIds.push(atendimentoId);
       } catch (erroItem: any) {
         const msg = erroItem?.message || 'Erro inesperado ao processar linha';
         falhas.push({
@@ -589,13 +583,13 @@ rotasImportacao.post(
               importacaoId,
               erro: `Erro na linha ${item.linhaOriginal}: ${msg}. Cancelamento automático ativado.`,
               totalProcessados,
-              atendimentosCriados,
-              pacientesCriados,
+              atendimentosCriados: 0,
+              pacientesCriados: 0,
               pacientesReaproveitados,
-              profissionaisCriados,
-              atendimentosCriadosIds,
-              pacientesCriadosIds,
-              profissionaisCriadosIds,
+              profissionaisCriados: 0,
+              atendimentosCriadosIds: [],
+              pacientesCriadosIds: [],
+              profissionaisCriadosIds: [],
               totalFalhas: falhas.length,
               falhas,
             },
@@ -603,6 +597,48 @@ rotasImportacao.post(
           );
         }
       }
+    }
+
+    // ── E. Execução em Lote (Bulk Inserts) no Cloudflare D1 ───────────
+    // Reduz de mais de 100 queries sequenciais para apenas 2 a 3 queries no banco,
+    // garantindo conformidade estrita com o limite de 50 subrequests e tempo de CPU do Cloudflare Workers.
+    try {
+      if (novosUsuariosParaInserir.length > 0) {
+        await db.insert(usuarios).values(novosUsuariosParaInserir);
+      }
+      if (novosPacientesParaInserir.length > 0) {
+        await db.insert(pacientes).values(novosPacientesParaInserir);
+      }
+      if (novosConsentimentosParaInserir.length > 0) {
+        await db.insert(consentimentos).values(novosConsentimentosParaInserir);
+      }
+      if (novosAtendimentosParaInserir.length > 0) {
+        await db.insert(atendimentos).values(novosAtendimentosParaInserir);
+      }
+    } catch (erroBanco: any) {
+      console.error('Erro na gravação em lote no D1:', erroBanco);
+      return c.json(
+        {
+          sucesso: false,
+          abortado: true,
+          importacaoId,
+          erro: `Falha na gravação em lote no banco de dados: ${erroBanco?.message || 'Erro de banco de dados'}.`,
+          totalProcessados,
+          atendimentosCriados: 0,
+          pacientesCriados: 0,
+          pacientesReaproveitados,
+          profissionaisCriados: 0,
+          atendimentosCriadosIds: [],
+          pacientesCriadosIds: [],
+          profissionaisCriadosIds: [],
+          totalFalhas: falhas.length + 1,
+          falhas: [
+            ...falhas,
+            { linha: 0, erro: erroBanco?.message || 'Erro ao persistir lote' },
+          ],
+        },
+        500
+      );
     }
 
     // Auditoria resumida por lote para evitar sobrecarga de logs
@@ -662,43 +698,44 @@ rotasImportacao.post('/rollback', zValidator('json', rollbackSchema), async (c) 
   const { importacaoId, atendimentoIds, pacienteIds, usuarioIds } = c.req.valid('json');
   const usuarioLogado = c.get('usuario');
   const db = getDb(c.env.DB);
+  const prefixoSessao = `sess:${importacaoId}`;
+  const slugImportacao = importacaoId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+
+  const errosOcorridos: string[] = [];
+  let atendimentosRemovidos = 0;
+  let pacientesRemovidos = 0;
+  let usuariosRemovidos = 0;
 
   // ─── 1. Identificar TODOS os pacientes criados nesta sessão ─────────────────
-  // Inclui IDs acumulados pelo frontend e pacientes marcados no consentimento da sessão
   const setPacientesIds = new Set<string>(pacienteIds.filter(Boolean));
   try {
     const consentimentosSessao = await db.query.consentimentos.findMany({
-      where: eq(consentimentos.referenciaDocumento, `sess:${importacaoId}`),
+      where: eq(consentimentos.referenciaDocumento, prefixoSessao),
       columns: { pacienteId: true },
     });
     for (const cs of consentimentosSessao) {
       if (cs.pacienteId) setPacientesIds.add(cs.pacienteId);
     }
-  } catch (err) {
-    console.error('Erro ao buscar consentimentos da sessão no rollback:', err);
+  } catch (err: any) {
+    errosOcorridos.push(`Erro ao identificar consentimentos da sessão: ${err?.message}`);
   }
-
-  const todosPacientesIds = Array.from(setPacientesIds);
 
   // ─── 2. Identificar TODOS os atendimentos criados nesta sessão ───────────────
   const setAtendimentosIds = new Set<string>(atendimentoIds.filter(Boolean));
   try {
     const atendimentosSessao = await db.query.atendimentos.findMany({
-      where: like(atendimentos.chaveIdempotencia, `sess:${importacaoId}:%`),
-      columns: { id: true },
+      where: like(atendimentos.chaveIdempotencia, `${prefixoSessao}:%`),
+      columns: { id: true, pacienteId: true },
     });
     for (const at of atendimentosSessao) {
       if (at.id) setAtendimentosIds.add(at.id);
     }
-  } catch (err) {
-    console.error('Erro ao buscar atendimentos da sessão no rollback:', err);
+  } catch (err: any) {
+    errosOcorridos.push(`Erro ao identificar atendimentos da sessão: ${err?.message}`);
   }
-
-  const todosAtendimentoIds = Array.from(setAtendimentosIds);
 
   // ─── 3. Identificar TODOS os profissionais criados nesta sessão ─────────────
   const setUsuariosIds = new Set<string>(usuarioIds.filter(Boolean));
-  const slugImportacao = importacaoId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
   try {
     const usuariosSessao = await db.query.usuarios.findMany({
       where: and(
@@ -710,28 +747,32 @@ rotasImportacao.post('/rollback', zValidator('json', rollbackSchema), async (c) 
     for (const u of usuariosSessao) {
       if (u.id) setUsuariosIds.add(u.id);
     }
-  } catch (err) {
-    console.error('Erro ao buscar usuários da sessão no rollback:', err);
+  } catch (err: any) {
+    errosOcorridos.push(`Erro ao identificar profissionais da sessão: ${err?.message}`);
   }
 
+  const todosPacientesIds = Array.from(setPacientesIds);
+  const todosAtendimentoIds = Array.from(setAtendimentosIds);
   const todosUsuariosIds = Array.from(setUsuariosIds);
-
-  let atendimentosRemovidos = 0;
-  let pacientesRemovidos = 0;
-  let usuariosRemovidos = 0;
 
   // ─── PASSO 1: Remover Atendimentos (Elimina FKs dependentes de Pacientes e Usuários) ───
   try {
     // 1A. Exclusão por chave de idempotência da sessão
-    await db
+    const del1 = await db
       .delete(atendimentos)
-      .where(like(atendimentos.chaveIdempotencia, `sess:${importacaoId}:%`));
+      .where(like(atendimentos.chaveIdempotencia, `${prefixoSessao}:%`))
+      .returning({ id: atendimentos.id });
+    atendimentosRemovidos += del1.length;
 
-    // 1B. Exclusão por IDs acumulados de atendimentos
+    // 1B. Exclusão por IDs acumulados de atendimentos restantes
     if (todosAtendimentoIds.length > 0) {
       for (let i = 0; i < todosAtendimentoIds.length; i += 200) {
         const slice = todosAtendimentoIds.slice(i, i + 200);
-        await db.delete(atendimentos).where(inArray(atendimentos.id, slice));
+        const del2 = await db
+          .delete(atendimentos)
+          .where(inArray(atendimentos.id, slice))
+          .returning({ id: atendimentos.id });
+        atendimentosRemovidos += del2.length;
       }
     }
 
@@ -739,20 +780,23 @@ rotasImportacao.post('/rollback', zValidator('json', rollbackSchema), async (c) 
     if (todosPacientesIds.length > 0) {
       for (let i = 0; i < todosPacientesIds.length; i += 200) {
         const slice = todosPacientesIds.slice(i, i + 200);
-        await db.delete(atendimentos).where(inArray(atendimentos.pacienteId, slice));
+        const del3 = await db
+          .delete(atendimentos)
+          .where(inArray(atendimentos.pacienteId, slice))
+          .returning({ id: atendimentos.id });
+        atendimentosRemovidos += del3.length;
       }
     }
-
-    atendimentosRemovidos = todosAtendimentoIds.length;
-  } catch (err) {
+  } catch (err: any) {
     console.error('Erro ao remover atendimentos no rollback:', err);
+    errosOcorridos.push(`Erro ao remover atendimentos: ${err?.message}`);
   }
 
   // ─── PASSO 2: Remover Consentimentos dos Pacientes da Sessão ────────────────
   try {
     await db
       .delete(consentimentos)
-      .where(eq(consentimentos.referenciaDocumento, `sess:${importacaoId}`));
+      .where(eq(consentimentos.referenciaDocumento, prefixoSessao));
 
     if (todosPacientesIds.length > 0) {
       for (let i = 0; i < todosPacientesIds.length; i += 200) {
@@ -760,8 +804,9 @@ rotasImportacao.post('/rollback', zValidator('json', rollbackSchema), async (c) 
         await db.delete(consentimentos).where(inArray(consentimentos.pacienteId, slice));
       }
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error('Erro ao remover consentimentos no rollback:', err);
+    errosOcorridos.push(`Erro ao remover consentimentos: ${err?.message}`);
   }
 
   // ─── PASSO 3: Remover Pacientes da Sessão (Agora sem FKs em Atendimentos ou Consentimentos) ───
@@ -769,11 +814,15 @@ rotasImportacao.post('/rollback', zValidator('json', rollbackSchema), async (c) 
     try {
       for (let i = 0; i < todosPacientesIds.length; i += 200) {
         const slice = todosPacientesIds.slice(i, i + 200);
-        await db.delete(pacientes).where(inArray(pacientes.id, slice));
+        const delPac = await db
+          .delete(pacientes)
+          .where(inArray(pacientes.id, slice))
+          .returning({ id: pacientes.id });
+        pacientesRemovidos += delPac.length;
       }
-      pacientesRemovidos = todosPacientesIds.length;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao remover pacientes no rollback:', err);
+      errosOcorridos.push(`Erro ao remover pacientes: ${err?.message}`);
     }
   }
 
@@ -782,13 +831,15 @@ rotasImportacao.post('/rollback', zValidator('json', rollbackSchema), async (c) 
     try {
       for (let i = 0; i < todosUsuariosIds.length; i += 200) {
         const slice = todosUsuariosIds.slice(i, i + 200);
-        await db
+        const delUsr = await db
           .delete(usuarios)
-          .where(and(inArray(usuarios.id, slice), eq(usuarios.perfil, 'PROFISSIONAL_SAUDE')));
+          .where(and(inArray(usuarios.id, slice), eq(usuarios.perfil, 'PROFISSIONAL_SAUDE')))
+          .returning({ id: usuarios.id });
+        usuariosRemovidos += delUsr.length;
       }
-      usuariosRemovidos = todosUsuariosIds.length;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao remover usuários no rollback:', err);
+      errosOcorridos.push(`Erro ao remover profissionais: ${err?.message}`);
     }
   }
 
@@ -804,9 +855,25 @@ rotasImportacao.post('/rollback', zValidator('json', rollbackSchema), async (c) 
       atendimentosRemovidos,
       pacientesRemovidos,
       usuariosRemovidos,
+      erros: errosOcorridos,
     },
     ip,
   });
+
+  if (errosOcorridos.length > 0) {
+    return c.json(
+      {
+        sucesso: false,
+        erro: `Falha na exclusão de registros durante o rollback: ${errosOcorridos.join('; ')}`,
+        revertidos: {
+          atendimentos: atendimentosRemovidos,
+          pacientes: pacientesRemovidos,
+          usuarios: usuariosRemovidos,
+        },
+      },
+      500
+    );
+  }
 
   return c.json({
     sucesso: true,

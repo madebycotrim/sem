@@ -5,6 +5,8 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   AlertTriangle,
+  AlertOctagon,
+  RotateCcw,
   Loader2,
   Download,
   Play,
@@ -115,7 +117,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
   const [profissionaisSistema, setProfissionaisSistema] = useState<Array<{ id: string; nome: string }>>([]);
 
   // Opções de configuração
-  const [tamanhoLote, setTamanhoLote] = useState(50);
+  const [tamanhoLote, setTamanhoLote] = useState(20);
   const [autoCriarProfissionais, setAutoCriarProfissionais] = useState(true);
   const [turmaPadrao, setTurmaPadrao] = useState('Geral');
 
@@ -405,46 +407,82 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
   const [rollbackExecutado, setRollbackExecutado] = useState(false);
   const [motivoRollback, setMotivoRollback] = useState('');
   const [executandoRollback, setExecutandoRollback] = useState(false);
+  const [revertidosInfo, setRevertidosInfo] = useState<{
+    atendimentos: number;
+    pacientes: number;
+    usuarios: number;
+  } | null>(null);
+  const [erroRollback, setErroRollback] = useState<string | null>(null);
 
   /**
    * Executa reversão atômica de todos os dados gerados pela sessão atual
    */
   const executarRollback = async (motivo: string) => {
     setExecutandoRollback(true);
-    adicionarLog(`Acionando Rollback Automático: ${motivo}...`, 'erro');
+    setErroRollback(null);
+    adicionarLog(`Acionando Rollback: ${motivo}...`, 'erro');
     adicionarLog('Excluindo todos os registros gerados nesta sessão para restaurar o banco ao estado original...', 'aviso');
 
-    try {
-      const res = await requisicaoApi<{
-        sucesso: boolean;
-        mensagem: string;
-        revertidos: { atendimentos: number; pacientes: number; usuarios: number };
-      }>('/importacao/rollback', {
-        metodo: 'POST',
-        corpo: {
-          importacaoId: importacaoIdRef.current,
-          atendimentoIds: acumuladorIdsRef.current.atendimentoIds,
-          pacienteIds: acumuladorIdsRef.current.pacienteIds,
-          usuarioIds: acumuladorIdsRef.current.usuarioIds,
-        },
-      });
+    let tentativas = 0;
+    let sucesso = false;
+    let ultimoErro = '';
 
-      adicionarLog(
-        `Rollback concluído: ${res?.revertidos?.atendimentos ?? 0} consultas, ${res?.revertidos?.pacientes ?? 0} novos alunos e ${res?.revertidos?.usuarios ?? 0} profissionais excluídos. Banco 100% íntegro.`,
-        'aviso'
-      );
-      setRollbackExecutado(true);
-      setMotivoRollback(motivo);
-    } catch (err: any) {
-      adicionarLog(`Falha ao contactar endpoint de rollback: ${err?.message || 'Erro desconhecido'}`, 'erro');
-      setRollbackExecutado(true);
-      setMotivoRollback(motivo);
-    } finally {
-      setExecutandoRollback(false);
-      setTempoEstimadoSegundos(null);
-      setEtapa('completed');
-      aoConcluirImportacao?.();
+    while (tentativas < 3 && !sucesso) {
+      tentativas++;
+      try {
+        if (tentativas > 1) {
+          adicionarLog(`Tentativa ${tentativas} de 3 para executar rollback no servidor...`, 'aviso');
+          await new Promise((r) => setTimeout(r, 1200));
+        }
+
+        const res = await requisicaoApi<{
+          sucesso: boolean;
+          mensagem: string;
+          erro?: string;
+          revertidos: { atendimentos: number; pacientes: number; usuarios: number };
+        }>('/importacao/rollback', {
+          metodo: 'POST',
+          corpo: {
+            importacaoId: importacaoIdRef.current,
+            atendimentoIds: acumuladorIdsRef.current.atendimentoIds,
+            pacienteIds: acumuladorIdsRef.current.pacienteIds,
+            usuarioIds: acumuladorIdsRef.current.usuarioIds,
+          },
+          tentativasMaximas: 1,
+        });
+
+        if (res && res.sucesso) {
+          sucesso = true;
+          setRevertidosInfo(res.revertidos);
+          setRollbackExecutado(true);
+          setErroRollback(null);
+          setMotivoRollback(motivo);
+          adicionarLog(
+            `Rollback concluído com sucesso: ${res.revertidos.atendimentos} consultas, ${res.revertidos.pacientes} novos alunos e ${res.revertidos.usuarios} profissionais foram excluídos. Banco 100% íntegro.`,
+            'sucesso'
+          );
+        } else {
+          ultimoErro = res?.erro || res?.mensagem || 'Erro retornado pelo servidor no rollback';
+        }
+      } catch (err: any) {
+        ultimoErro = err?.message || 'Falha de conexão ao executar rollback';
+      }
     }
+
+    if (!sucesso) {
+      setRollbackExecutado(false);
+      setErroRollback(ultimoErro);
+      setMotivoRollback(motivo);
+      adicionarLog(`Não foi possível confirmar a exclusão dos dados no servidor: ${ultimoErro}`, 'erro');
+    }
+
+    if (typeof window !== 'undefined') {
+      (window as any).__importacaoEmAndamento = false;
+    }
+    setExecutandoRollback(false);
+    setTempoEstimadoSegundos(null);
+    setEtapa('completed');
+    aoConcluirImportacao?.();
   };
 
   /**
@@ -453,6 +491,9 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
   const iniciarImportacaoEmLote = async () => {
     if (!diagnostico || diagnostico.linhasValidas.length === 0) return;
 
+    if (typeof window !== 'undefined') {
+      (window as any).__importacaoEmAndamento = true;
+    }
     setEtapa('importing');
     canceladoRef.current = false;
     pausadoRef.current = false;
@@ -542,6 +583,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
               abortarNoPrimeiroErro: true,
             },
           },
+          tentativasMaximas: 1,
         });
 
         // Acumula IDs para garantia de rollback
@@ -597,6 +639,11 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
             `Lote ${i + 1}/${totalChunks} concluído: +${respostaLote.atendimentosCriados} consultas, +${respostaLote.pacientesCriados} novos alunos (${pct}% concluído).`,
             'sucesso'
           );
+
+          // Pausa preventiva suave de 120ms entre lotes para respeitar a taxa de I/O do Cloudflare D1
+          if (i + 1 < totalChunks) {
+            await new Promise((r) => setTimeout(r, 120));
+          }
         } else {
           // HOUVE ERRO OU ABORTO: EXCLUI TUDO AUTOMATICAMENTE
           const erroDescricao =
@@ -609,7 +656,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
         // HOUVE ERRO DE REDE/SERVIDOR: EXCLUI TUDO AUTOMATICAMENTE
         const ehErro503 = err?.status === 503 || err?.message?.includes('503');
         const erroDescricao = ehErro503
-          ? `Servidor backend indisponível (HTTP 503) no lote ${i + 1}. Verifique se o backend na porta 8787 está rodando. Rollback acionado.`
+          ? `Serviço indisponível (HTTP 503) no lote ${i + 1}. O lote pode ter excedido a cota de processamento do Cloudflare. Tente selecionar 10 ou 20 linhas por lote. Rollback acionado.`
           : `Erro de comunicação no lote ${i + 1}: ${err?.message || 'Falha de conexão'}. Rollback automático acionado.`;
         adicionarLog(erroDescricao, 'erro');
         await executarRollback(erroDescricao);
@@ -617,6 +664,9 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       }
     }
 
+    if (typeof window !== 'undefined') {
+      (window as any).__importacaoEmAndamento = false;
+    }
     setDetalhesFalhas(todasFalhas);
     setTempoEstimadoSegundos(null);
     setProgressoPercentual(100);
@@ -642,6 +692,9 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
   };
 
   const fecharModal = () => {
+    if (typeof window !== 'undefined') {
+      (window as any).__importacaoEmAndamento = false;
+    }
     if (
       rollbackExecutado ||
       etapa === 'completed' ||
@@ -953,9 +1006,9 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                       onChange={(e) => setTamanhoLote(Number(e.target.value))}
                       className="w-full text-xs font-medium bg-white border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value={30}>30 linhas por lote (Mais leve)</option>
-                      <option value={50}>50 linhas por lote (Recomendado)</option>
-                      <option value={100}>100 linhas por lote (Rápido)</option>
+                      <option value={10}>10 linhas por lote (Mais leve / Conexão instável)</option>
+                      <option value={20}>20 linhas por lote (Recomendado para Cloudflare)</option>
+                      <option value={30}>30 linhas por lote (Rápido)</option>
                     </select>
                   </div>
                   <div>
@@ -1102,23 +1155,67 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
           {/* ──── ETAPA 4: Conclusão ou Rollback ──────────────────────────── */}
           {etapa === 'completed' && (
             <div className="space-y-6 text-center py-4">
-              {rollbackExecutado ? (
-                <>
-                  <div className="inline-flex p-4 bg-rose-100 text-rose-700 rounded-full mb-2 shadow-2xs">
-                    <AlertTriangle className="w-12 h-12" />
+              {erroRollback ? (
+                <div className="space-y-4">
+                  <div className="inline-flex p-4 bg-rose-100 text-rose-700 rounded-full mb-1 shadow-2xs">
+                    <AlertOctagon className="w-12 h-12 text-rose-600" />
                   </div>
                   <div>
                     <h3 className="text-xl font-black text-rose-600 tracking-tight">
-                      Importação Cancelada e Revertida (Rollback Atômico)
+                      Atenção: Falha na Reversão Automática dos Dados
                     </h3>
                     <p className="text-xs text-slate-600 mt-1.5 max-w-md mx-auto leading-relaxed">
-                      Como ocorreu uma falha ou cancelamento, <strong>todas as consultas, novos alunos e profissionais criados nesta sessão foram imediatamente excluídos</strong> do banco de dados. Nenhum dado parcial foi gravado.
+                      Ocorreu uma falha durante o processamento da planilha e a exclusão automática dos registros parciais encontrou um erro no servidor. Os dados parciais ainda podem estar salvos no banco de dados.
+                    </p>
+                    <div className="mt-3 p-3 bg-rose-50 border border-rose-300 rounded-xl max-w-lg mx-auto text-xs text-rose-900 font-medium text-left space-y-1">
+                      <p><strong>Erro inicial:</strong> {motivoRollback || 'Falha no processamento do lote'}</p>
+                      <p><strong>Erro no rollback:</strong> {erroRollback}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : rollbackExecutado ? (
+                <div className="space-y-4">
+                  <div className="inline-flex p-4 bg-amber-100 text-amber-700 rounded-full mb-1 shadow-2xs">
+                    <ShieldCheck className="w-12 h-12 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900 tracking-tight">
+                      Importação Cancelada: Dados Revertidos e Excluídos
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-1.5 max-w-md mx-auto leading-relaxed">
+                      Como ocorreu uma falha ou cancelamento, <strong>todos os dados gravados nesta sessão foram 100% excluídos do banco de dados</strong> para manter seu sistema limpo e íntegro.
                     </p>
                     {motivoRollback && (
-                      <div className="mt-3 p-3 bg-rose-50/80 border border-rose-200 rounded-xl max-w-lg mx-auto text-xs text-rose-900 font-medium text-left">
-                        <span className="font-bold">Motivo do cancelamento:</span> {motivoRollback}
+                      <div className="mt-3 p-3 bg-slate-100 border border-slate-200 rounded-xl max-w-lg mx-auto text-xs text-slate-700 font-medium text-left">
+                        <span className="font-bold">Motivo da reversão:</span> {motivoRollback}
                       </div>
                     )}
+
+                    {/* Grid com Contadores dos Dados Efetivamente Excluídos */}
+                    <div className="grid grid-cols-3 gap-3 max-w-md mx-auto text-center mt-4">
+                      <div className="p-3 bg-rose-50 rounded-xl border border-rose-200">
+                        <div className="text-[10px] font-black uppercase text-rose-700">Consultas Excluídas</div>
+                        <div className="text-2xl font-black text-rose-950 mt-1">
+                          {revertidosInfo?.atendimentos ?? 0}
+                        </div>
+                        <div className="text-[10px] text-rose-600 mt-0.5">removidas</div>
+                      </div>
+                      <div className="p-3 bg-rose-50 rounded-xl border border-rose-200">
+                        <div className="text-[10px] font-black uppercase text-rose-700">Alunos Excluídos</div>
+                        <div className="text-2xl font-black text-rose-950 mt-1">
+                          {revertidosInfo?.pacientes ?? 0}
+                        </div>
+                        <div className="text-[10px] text-rose-600 mt-0.5">cadastros limpos</div>
+                      </div>
+                      <div className="p-3 bg-rose-50 rounded-xl border border-rose-200">
+                        <div className="text-[10px] font-black uppercase text-rose-700">Profissionais Excluídos</div>
+                        <div className="text-2xl font-black text-rose-950 mt-1">
+                          {revertidosInfo?.usuarios ?? 0}
+                        </div>
+                        <div className="text-[10px] text-rose-600 mt-0.5">auto-criados limpos</div>
+                      </div>
+                    </div>
+
                     {detalhesFalhas.length > 0 && (
                       <div className="mt-3 max-w-lg mx-auto p-3 bg-rose-50/50 border border-rose-200 rounded-xl text-left text-xs text-rose-800 space-y-1 max-h-36 overflow-y-auto">
                         <div className="font-bold mb-1">Linha(s) com erro que dispararam a reversão:</div>
@@ -1131,7 +1228,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                       </div>
                     )}
                   </div>
-                </>
+                </div>
               ) : (
                 <>
                   <div className="inline-flex p-4 bg-emerald-100 text-emerald-700 rounded-full mb-2 shadow-2xs">
@@ -1192,7 +1289,13 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
             {etapa === 'upload' && 'Selecione a planilha para iniciar'}
             {etapa === 'preview' && `${diagnostico?.linhasValidas.length || 0} consultas identificadas`}
             {etapa === 'importing' && (executandoRollback ? 'Cancelando e excluindo dados...' : `Lote ${loteAtual} de ${totalLotes} em execução`)}
-            {etapa === 'completed' && (rollbackExecutado ? 'Sessão revertida com sucesso' : 'Dados sincronizados com o banco')}
+            {etapa === 'completed' && (
+              erroRollback
+                ? 'Atenção: Reversão automática pendente'
+                : rollbackExecutado
+                  ? `Sessão revertida: ${revertidosInfo?.atendimentos ?? 0} consultas excluídas`
+                  : 'Dados sincronizados com o banco'
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -1219,7 +1322,35 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
             )}
 
             {etapa === 'completed' && (
-              rollbackExecutado ? (
+              erroRollback ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={executandoRollback}
+                    onClick={() => executarRollback(motivoRollback || 'Tentativa manual de limpeza')}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs text-white bg-rose-600 hover:bg-rose-700 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {executandoRollback ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Excluindo dados do banco...
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        Tentar Reverter e Limpar Banco Agora
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={fecharModal}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs text-slate-700 bg-slate-200 hover:bg-slate-300 shadow-xs transition-all cursor-pointer"
+                  >
+                    Fechar Mesmo Assim
+                  </button>
+                </>
+              ) : rollbackExecutado ? (
                 <>
                   <Botao
                     variante="secundario"
@@ -1229,6 +1360,8 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                       setDiagnostico(null);
                       setRollbackExecutado(false);
                       setMotivoRollback('');
+                      setRevertidosInfo(null);
+                      setErroRollback(null);
                     }}
                   >
                     Tentar Novamente
