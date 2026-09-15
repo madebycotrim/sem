@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, type FC } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertTriangle,
   RefreshCw,
@@ -382,9 +383,9 @@ export const ConsoleBootstrap: FC<ConsoleBootstrapProps> = ({ aberto, aoFechar, 
 
   if (!aberto) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100000] flex items-center justify-center bg-slate-950/50 p-3 sm:p-4"
+      className="fixed inset-0 z-[100000] flex items-center justify-center bg-slate-950/50 backdrop-blur-[2px] p-3 sm:p-4 font-sans"
       role="dialog"
       aria-modal="true"
       aria-labelledby="console-bootstrap-titulo"
@@ -932,6 +933,7 @@ export const ConsoleBootstrap: FC<ConsoleBootstrapProps> = ({ aberto, aoFechar, 
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

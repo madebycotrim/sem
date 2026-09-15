@@ -120,7 +120,6 @@ describe('Schema: Ficha de Atendimento', () => {
     pacienteId: '223e4567-e89b-12d3-a456-426614174000',
     escolaLocalId: '323e4567-e89b-12d3-a456-426614174000',
     especialidade: 'OFTALMOLOGIA',
-    turno: 'MANHA',
     resumo: 'Exame de acuidade visual — resultado normal bilateral.',
   };
 
@@ -147,14 +146,6 @@ describe('Schema: Ficha de Atendimento', () => {
     const resultado = fichaAtendimentoSchema.safeParse({
       ...fichaValida,
       especialidade: 'CARDIOLOGIA', // Não está na lista
-    });
-    expect(resultado.success).toBe(false);
-  });
-
-  it('deve rejeitar turno inválido', () => {
-    const resultado = fichaAtendimentoSchema.safeParse({
-      ...fichaValida,
-      turno: 'NOITE',
     });
     expect(resultado.success).toBe(false);
   });

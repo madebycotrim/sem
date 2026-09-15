@@ -6,9 +6,7 @@ import DOMPurify from 'dompurify';
 import {
   fichaAtendimentoSchema,
   ESPECIALIDADE_LABELS,
-  TURNO_LABELS,
   Especialidade,
-  Turno,
   type FichaAtendimento as TipoFichaAtendimento,
 } from '../../compartilhado/index.ts';
 import { requisicaoApi, ErroApi } from '../servicos/api.ts';
@@ -43,7 +41,6 @@ export function FichaAtendimento({
       pacienteId: pacientePreSelecionado?.id || '',
       escolaLocalId: escolas[0]?.id || '',
       especialidade: Especialidade.ODONTOLOGIA,
-      turno: Turno.MANHA,
       resumo: '',
       procedimentos: '',
       insumosUtilizados: '',
@@ -107,7 +104,6 @@ export function FichaAtendimento({
       pacienteId: '',
       escolaLocalId: escolas[0]?.id || '',
       especialidade: Especialidade.ODONTOLOGIA,
-      turno: Turno.MANHA,
       resumo: '',
       procedimentos: '',
       insumosUtilizados: '',
@@ -186,29 +182,21 @@ export function FichaAtendimento({
           </div>
         </div>
 
-        {/* Especialidade e Turno */}
+        {/* Especialidade */}
         <div>
           <h3 className="text-xs font-bold text-[#0b2545] uppercase tracking-wider mb-3 pb-1.5 border-b border-slate-100 flex items-center gap-2">
             <HeartPulse className="w-4 h-4 text-blue-600" />
-            <span>Especialidade & Turno</span>
+            <span>Especialidade</span>
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div className="grid grid-cols-1 gap-3.5">
             <CampoSelect
               id="especialidade"
               rotulo="Especialidade *"
               erro={errors.especialidade?.message}
               {...register('especialidade')}
-                opcoes={Object.entries(ESPECIALIDADE_LABELS).map(([valor, rotulo]) => ({ valor, rotulo }))}
-                />
-
-            <CampoSelect
-              id="turno"
-              rotulo="Turno do Atendimento *"
-              erro={errors.turno?.message}
-              {...register('turno')}
-                opcoes={Object.entries(TURNO_LABELS).map(([valor, rotulo]) => ({ valor, rotulo }))}
-                />
+              opcoes={Object.entries(ESPECIALIDADE_LABELS).map(([valor, rotulo]) => ({ valor, rotulo }))}
+            />
           </div>
         </div>
 

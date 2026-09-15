@@ -40,7 +40,6 @@ export interface DashboardProps {
     status?: string;
     pacienteNome?: string;
     profissionalNome?: string;
-    turno?: string;
   }>;
   fila?: ItemFila[];
   carregando?: boolean;

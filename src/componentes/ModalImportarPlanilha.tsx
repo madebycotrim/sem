@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, type FC, type ChangeEvent, type DragEvent } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Upload,
   FileSpreadsheet,
@@ -114,10 +115,9 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
   const [profissionaisSistema, setProfissionaisSistema] = useState<Array<{ id: string; nome: string }>>([]);
 
   // Opções de configuração
-  const [tamanhoLote, setTamanhoLote] = useState(100);
+  const [tamanhoLote, setTamanhoLote] = useState(50);
   const [autoCriarProfissionais, setAutoCriarProfissionais] = useState(true);
   const [turmaPadrao, setTurmaPadrao] = useState('Geral');
-  const [turnoPadrao, setTurnoPadrao] = useState<'MANHA' | 'TARDE'>('MANHA');
 
   // Estado da execução em lote
   const [loteAtual, setLoteAtual] = useState(0);
@@ -539,7 +539,6 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
             opcoes: {
               criarProfissionalSeNaoExistir: autoCriarProfissionais,
               turmaPadrao,
-              turnoPadrao,
               abortarNoPrimeiroErro: true,
             },
           },
@@ -608,7 +607,10 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
         }
       } catch (err: any) {
         // HOUVE ERRO DE REDE/SERVIDOR: EXCLUI TUDO AUTOMATICAMENTE
-        const erroDescricao = `Erro de comunicação no lote ${i + 1}: ${err?.message || 'Falha de conexão'}. Rollback automático acionado.`;
+        const ehErro503 = err?.status === 503 || err?.message?.includes('503');
+        const erroDescricao = ehErro503
+          ? `Servidor backend indisponível (HTTP 503) no lote ${i + 1}. Verifique se o backend na porta 8787 está rodando. Rollback acionado.`
+          : `Erro de comunicação no lote ${i + 1}: ${err?.message || 'Falha de conexão'}. Rollback automático acionado.`;
         adicionarLog(erroDescricao, 'erro');
         await executarRollback(erroDescricao);
         return;
@@ -653,9 +655,13 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
 
   if (!aberto) return null;
 
-  return (
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/40 animate-fade-in font-sans">
-      <div className="relative w-full max-w-4xl bg-white rounded-[24px] sm:rounded-[28px] shadow-[0_24px_70px_rgba(15,23,42,0.18)] border border-slate-200/80 overflow-hidden flex flex-col max-h-[90vh]">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-[2px] font-sans"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="relative w-full max-w-4xl bg-white rounded-[24px] sm:rounded-[28px] shadow-[0_24px_70px_rgba(15,23,42,0.22)] border border-slate-200/80 overflow-hidden flex flex-col max-h-[90vh] animate-modal">
         {/* ── Topo no Padrão Oficial do Sistema ───────────────────────────── */}
         <div className="flex items-start justify-between px-6 py-5 border-b border-slate-200/80 bg-gradient-to-r from-slate-50 via-slate-50 to-white shrink-0">
           <div className="flex items-center gap-3.5">
@@ -947,9 +953,9 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                       onChange={(e) => setTamanhoLote(Number(e.target.value))}
                       className="w-full text-xs font-medium bg-white border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value={50}>50 linhas por lote (Mais seguro)</option>
-                      <option value={100}>100 linhas por lote (Recomendado)</option>
-                      <option value={150}>150 linhas por lote (Mais rápido)</option>
+                      <option value={30}>30 linhas por lote (Mais leve)</option>
+                      <option value={50}>50 linhas por lote (Recomendado)</option>
+                      <option value={100}>100 linhas por lote (Rápido)</option>
                     </select>
                   </div>
                   <div>
@@ -963,19 +969,6 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                       className="w-full text-xs font-medium bg-white border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500"
                       placeholder="Ex: Geral ou Não Informada"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Turno Padrão da Consulta
-                    </label>
-                    <select
-                      value={turnoPadrao}
-                      onChange={(e) => setTurnoPadrao(e.target.value as 'MANHA' | 'TARDE')}
-                      className="w-full text-xs font-medium bg-white border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="MANHA">Manhã</option>
-                      <option value="TARDE">Tarde</option>
-                    </select>
                   </div>
                 </div>
 
@@ -1267,6 +1260,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

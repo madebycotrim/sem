@@ -6,7 +6,6 @@ import {
   filtroAtendimentoSchema,
   Especialidade,
   StatusAtendimento,
-  Turno,
 } from '../../../compartilhado/index.js';
 import { getDb } from '../../infraestrutura/banco/drizzle.js';
 import { atendimentos, pacientes, escolasLocais, usuarios } from '../../infraestrutura/banco/schema.js';
@@ -33,7 +32,6 @@ const filtroRelatorioSchema = z.object({
   dataFim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   escolaLocalId: z.string().uuid().optional(),
   especialidade: z.nativeEnum(Especialidade).optional(),
-  turno: z.nativeEnum(Turno).optional(),
   status: z.nativeEnum(StatusAtendimento).optional(),
   usuarioId: z.string().uuid().optional(),
 });
@@ -139,7 +137,6 @@ rotasAtendimento.post(
           insumosUtilizados: sanitizarTextoOpcional(dados.insumosUtilizados),
           encaminhamentoExterno: sanitizarTextoOpcional(dados.encaminhamentoExterno),
           status: dados.status,
-          turno: dados.turno,
           entradaFilaEm,
           atualizadoEm: new Date().toISOString(),
         })
@@ -165,7 +162,6 @@ rotasAtendimento.post(
           id: atendimentoAtualizado.id,
           idempotencyKey: atendimentoAtualizado.chaveIdempotencia,
           especialidade: atendimentoAtualizado.especialidade,
-          turno: atendimentoAtualizado.turno,
           status: atendimentoAtualizado.status,
           resumo: atendimentoAtualizado.resumo,
           criadoEm: atendimentoAtualizado.criadoEm,
@@ -185,7 +181,6 @@ rotasAtendimento.post(
         escolaLocalId: dados.escolaLocalId,
         usuarioId: profissionalId,
         especialidade: dados.especialidade,
-        turno: dados.turno,
         status: dados.status,
         resumo: sanitizarTexto(dados.resumo),
         procedimentos: sanitizarTextoOpcional(dados.procedimentos),
@@ -216,7 +211,6 @@ rotasAtendimento.post(
       entidadeId: atendimento.id,
       diffPosterior: {
         especialidade: dados.especialidade,
-        turno: dados.turno,
         pacienteId: dados.pacienteId,
         usuarioId: profissionalId,
       },
@@ -228,7 +222,6 @@ rotasAtendimento.post(
         id: atendimento.id,
         idempotencyKey: atendimento.chaveIdempotencia,
         especialidade: atendimento.especialidade,
-        turno: atendimento.turno,
         status: atendimento.status,
         resumo: atendimento.resumo,
         criadoEm: atendimento.criadoEm,
@@ -244,7 +237,6 @@ const atualizarAtendimentoSchema = z.object({
   insumosUtilizados: z.string().max(2000).trim().optional().nullable(),
   encaminhamentoExterno: z.string().max(2000).trim().optional().nullable(),
   status: z.enum(Object.values(StatusAtendimento) as [string, ...string[]]).optional(),
-  turno: z.nativeEnum(Turno).optional(),
   /** Permite corrigir o profissional responsável (ex.: registros criados pela triagem) */
   usuarioId: z.string().uuid('ID do profissional deve ser um UUID válido').optional(),
 });
@@ -279,7 +271,6 @@ rotasAtendimento.patch('/:id', zValidator('json', atualizarAtendimentoSchema), a
   if (dados.status === StatusAtendimento.AGENDADO || dados.status === StatusAtendimento.CONFIRMADO) {
     camposParaAtualizar.entradaFilaEm = new Date().toISOString();
   }
-  if (dados.turno !== undefined) camposParaAtualizar.turno = dados.turno;
 
   if (dados.usuarioId !== undefined) {
     const profissional = await db.query.usuarios.findFirst({
@@ -399,7 +390,6 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
 
   if (filtros.escolaLocalId) condicoes.push(eq(atendimentos.escolaLocalId, filtros.escolaLocalId));
   if (filtros.especialidade) condicoes.push(eq(atendimentos.especialidade, filtros.especialidade));
-  if (filtros.turno) condicoes.push(eq(atendimentos.turno, filtros.turno));
   if (filtros.status) condicoes.push(eq(atendimentos.status, filtros.status));
   if (filtros.usuarioId) condicoes.push(eq(atendimentos.usuarioId, filtros.usuarioId));
   if (filtros.dataInicio || filtros.dataFim) {
@@ -417,7 +407,6 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
     columns: {
       pacienteId: true,
       especialidade: true,
-      turno: true,
       status: true,
       criadoEm: true,
     },
@@ -804,7 +793,6 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
   const condicoes = [];
 
   if (filtros.especialidade) condicoes.push(eq(atendimentos.especialidade, filtros.especialidade));
-  if (filtros.turno) condicoes.push(eq(atendimentos.turno, filtros.turno));
   if (filtros.status) condicoes.push(eq(atendimentos.status, filtros.status));
   if (filtros.escolaLocalId) condicoes.push(eq(atendimentos.escolaLocalId, filtros.escolaLocalId));
   if (filtros.usuarioId) condicoes.push(eq(atendimentos.usuarioId, filtros.usuarioId));
@@ -865,7 +853,6 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
         pacienteCpf,
         pacienteTurma,
         especialidade: a.especialidade,
-        turno: a.turno,
         status: a.status,
         entradaFilaEm: a.entradaFilaEm ?? a.criadoEm,
         resumo: a.resumo,

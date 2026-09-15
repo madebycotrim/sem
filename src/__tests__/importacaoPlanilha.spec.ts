@@ -3,10 +3,9 @@ import {
   normalizarDataIso,
   mapearEspecialidade,
   mapearStatusAtendimento,
-  mapearTurno,
   extrairNomeCanonicoProfissional,
 } from '../../functions/rotas/v1/importacao.rotas.ts';
-import { Especialidade, StatusAtendimento, Turno } from '../../compartilhado/index.ts';
+import { Especialidade, StatusAtendimento } from '../../compartilhado/index.ts';
 
 describe('Importação Inteligente de Planilhas de Consultas', () => {
   describe('Normalização de Datas', () => {
@@ -77,15 +76,6 @@ describe('Importação Inteligente de Planilhas de Consultas', () => {
       expect(mapearStatusAtendimento('Faltou')).toBe(StatusAtendimento.FALTOU);
       expect(mapearStatusAtendimento('Ausente')).toBe(StatusAtendimento.FALTOU);
       expect(mapearStatusAtendimento('Não compareceu')).toBe(StatusAtendimento.FALTOU);
-    });
-  });
-
-  describe('Mapeamento de Turno', () => {
-    it('deve identificar Manhã e Tarde', () => {
-      expect(mapearTurno('Manhã')).toBe(Turno.MANHA);
-      expect(mapearTurno('Matutino')).toBe(Turno.MANHA);
-      expect(mapearTurno('Tarde')).toBe(Turno.TARDE);
-      expect(mapearTurno('Vespertino')).toBe(Turno.TARDE);
     });
   });
 

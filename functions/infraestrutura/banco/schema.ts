@@ -108,7 +108,6 @@ export const atendimentos = sqliteTable('atendimentos', {
   escolaLocalId: text('escola_local_id').notNull().references(() => escolasLocais.id),
   usuarioId: text('usuario_id').notNull().references(() => usuarios.id),
   especialidade: text('especialidade').notNull(),
-  turno: text('turno').notNull(),
   status: text('status').notNull().default('CONCLUIDO'),
   resumo: text('resumo').notNull(),
   procedimentos: text('procedimentos'),

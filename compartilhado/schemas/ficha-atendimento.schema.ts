@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { Especialidade } from '../enums/especialidade.js';
-import { Turno } from '../enums/turno.js';
 import { StatusAtendimento } from '../enums/status-atendimento.js';
 
 /**
@@ -35,13 +34,6 @@ export const fichaAtendimentoSchema = z.object({
   especialidade: z.nativeEnum(Especialidade, {
     errorMap: () => ({
       message: `Especialidade deve ser uma das seguintes: ${Object.values(Especialidade).join(', ')}`,
-    }),
-  }),
-
-  /** Turno do atendimento (Manhã ou Tarde) */
-  turno: z.nativeEnum(Turno, {
-    errorMap: () => ({
-      message: `Turno deve ser: ${Object.values(Turno).join(' ou ')}`,
     }),
   }),
 
@@ -81,7 +73,6 @@ export const fichaAtendimentoSchema = z.object({
 /** Schema para listagem/busca de atendimentos (filtros) */
 export const filtroAtendimentoSchema = z.object({
   especialidade: z.nativeEnum(Especialidade).optional(),
-  turno: z.nativeEnum(Turno).optional(),
   status: z.nativeEnum(StatusAtendimento).optional(),
   escolaLocalId: z.string().uuid().optional(),
   usuarioId: z.string().uuid().optional(),

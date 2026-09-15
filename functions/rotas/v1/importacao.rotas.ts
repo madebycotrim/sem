@@ -21,7 +21,6 @@ import { registrarAuditoria } from '../../middlewares/auditoria.js';
 import {
   Especialidade,
   StatusAtendimento,
-  Turno,
 } from '../../../compartilhado/index.js';
 import type { Bindings } from '../../config/env.js';
 import { sanitizarTexto } from '../../infraestrutura/sanitizacao.js';
@@ -147,17 +146,6 @@ export function mapearStatusAtendimento(termo?: string | null): StatusAtendiment
 }
 
 /**
- * Mapeia turno com base no termo
- */
-export function mapearTurno(termo?: string | null): Turno {
-  const norm = normalizarTexto(termo);
-  if (norm.includes('tarde') || norm.includes('vespert')) {
-    return Turno.TARDE;
-  }
-  return Turno.MANHA;
-}
-
-/**
  * Extrai o nome canônico do profissional removendo títulos e honoríficos (Dr, Dra, Médico, etc.)
  * para garantir correspondência exata mesmo quando a planilha contém "Dr. Fulano" e o sistema "Fulano"
  */
@@ -183,7 +171,6 @@ const itemImportacaoSchema = z.object({
   situacao: z.string().optional().default('Concluído'),
   instituicaoNome: z.string().min(1, 'Instituição é obrigatória'),
   dataAtendimento: z.string().nullable().optional(),
-  turno: z.string().nullable().optional(),
 });
 
 const processarLoteSchema = z.object({
@@ -193,7 +180,6 @@ const processarLoteSchema = z.object({
     .object({
       criarProfissionalSeNaoExistir: z.boolean().default(true),
       turmaPadrao: z.string().default('Geral'),
-      turnoPadrao: z.enum(['MANHA', 'TARDE']).default('MANHA'),
       statusPadrao: z.string().default('CONCLUIDO'),
       abortarNoPrimeiroErro: z.boolean().default(true),
     })
@@ -303,6 +289,49 @@ rotasImportacao.post(
 
     // Controle em memória para impedir mais de uma consulta na mesma especialidade para o mesmo paciente
     const consultasProcessadasSessao = new Set<string>();
+
+    // 3. Pré-cálculo em lote de hashes CPF e busca única de pacientes pré-existentes
+    const mapaCpfParaHash = new Map<string, string>();
+    const cpfsValidos = itens
+      .map((item) => normalizarCpf(item.pacienteCpf))
+      .filter((cpf) => cpf.length === 11);
+
+    const cpfsUnicos = Array.from(new Set(cpfsValidos));
+    if (cpfsUnicos.length > 0) {
+      const hashesGerados = await Promise.all(
+        cpfsUnicos.map((cpf) => gerarBlindIndex(cpf, kekHex))
+      );
+      cpfsUnicos.forEach((cpf, idx) => {
+        mapaCpfParaHash.set(cpf, hashesGerados[idx]);
+      });
+    }
+
+    const mapaPacientesPorHash = new Map<string, string>();
+    const todosHashes = Array.from(mapaCpfParaHash.values());
+    if (todosHashes.length > 0) {
+      const pacientesExistentes = await db.query.pacientes.findMany({
+        where: and(inArray(pacientes.cpfHash, todosHashes), eq(pacientes.ativo, true)),
+        columns: { id: true, cpfHash: true },
+      });
+      for (const p of pacientesExistentes) {
+        if (p.cpfHash) {
+          mapaPacientesPorHash.set(p.cpfHash, p.id);
+        }
+      }
+    }
+
+    // 4. Pré-busca em lote de atendimentos para os pacientes conhecidos (evita N queries)
+    const idsPacientesConhecidos = Array.from(new Set(mapaPacientesPorHash.values()));
+    const setConsultasExistentesBanco = new Set<string>();
+    if (idsPacientesConhecidos.length > 0) {
+      const atendimentosBanco = await db.query.atendimentos.findMany({
+        where: inArray(atendimentos.pacienteId, idsPacientesConhecidos),
+        columns: { pacienteId: true, especialidade: true },
+      });
+      for (const at of atendimentosBanco) {
+        setConsultasExistentesBanco.add(`${at.pacienteId}:${at.especialidade}`);
+      }
+    }
 
     for (const item of itens) {
       totalProcessados++;
@@ -422,14 +451,10 @@ rotasImportacao.post(
         const cpfLimpo = normalizarCpf(item.pacienteCpf);
 
         if (cpfLimpo.length === 11) {
-          const cpfHash = await gerarBlindIndex(cpfLimpo, kekHex);
-          const pacienteExistente = await db.query.pacientes.findFirst({
-            where: and(eq(pacientes.cpfHash, cpfHash), eq(pacientes.ativo, true)),
-            columns: { id: true },
-          });
-
-          if (pacienteExistente) {
-            pacienteId = pacienteExistente.id;
+          const cpfHash = mapaCpfParaHash.get(cpfLimpo) ?? (await gerarBlindIndex(cpfLimpo, kekHex));
+          const idExistente = mapaPacientesPorHash.get(cpfHash);
+          if (idExistente) {
+            pacienteId = idExistente;
             pacientesReaproveitados++;
           }
         }
@@ -446,7 +471,9 @@ rotasImportacao.post(
 
           const piiCifrada = await criptografarPii(piiTextoPlano, kekHex);
           const cpfHash =
-            cpfLimpo.length === 11 ? await gerarBlindIndex(cpfLimpo, kekHex) : null;
+            cpfLimpo.length === 11
+              ? (mapaCpfParaHash.get(cpfLimpo) ?? (await gerarBlindIndex(cpfLimpo, kekHex)))
+              : null;
 
           const novoPacienteId = crypto.randomUUID();
           const [novoPaciente] = await db
@@ -469,6 +496,9 @@ rotasImportacao.post(
             .returning();
 
           pacienteId = novoPaciente.id;
+          if (cpfHash) {
+            mapaPacientesPorHash.set(cpfHash, novoPaciente.id);
+          }
           pacientesCriados++;
           pacientesCriadosIds.push(novoPaciente.id);
         }
@@ -477,10 +507,6 @@ rotasImportacao.post(
         const statusEnum = item.situacao
           ? mapearStatusAtendimento(item.situacao)
           : (opcoes.statusPadrao as StatusAtendimento) || StatusAtendimento.CONCLUIDO;
-
-        const turnoEnum = item.turno
-          ? mapearTurno(item.turno)
-          : (opcoes.turnoPadrao as Turno) || Turno.MANHA;
 
         // Regra Inegociável: Não permitir mais de uma consulta para o mesmo paciente/CPF na mesma especialidade
         const chavePacienteEspecialidade = `${pacienteId}:${especialidadeEnum}`;
@@ -495,16 +521,8 @@ rotasImportacao.post(
           continue;
         }
 
-        // 2. Checagem no banco de dados para evitar duplicidade de especialidade
-        const consultaExistenteBanco = await db.query.atendimentos.findFirst({
-          where: and(
-            eq(atendimentos.pacienteId, pacienteId),
-            eq(atendimentos.especialidade, especialidadeEnum)
-          ),
-          columns: { id: true, status: true },
-        });
-
-        if (consultaExistenteBanco) {
+        // 2. Checagem no cache em lote de atendimentos pré-existentes no banco
+        if (setConsultasExistentesBanco.has(chavePacienteEspecialidade)) {
           falhas.push({
             linha: item.linhaOriginal,
             erro: `Consulta duplicada ignorada: o paciente já possui uma consulta prévia cadastrada na especialidade "${especialidadeEnum}". Cada CPF/aluno só pode ter 1 consulta por especialidade.`,
@@ -513,8 +531,9 @@ rotasImportacao.post(
           continue;
         }
 
-        // 3. Marca como processada na sessão para garantir unicidade estrita
+        // 3. Marca como processada na sessão e no cache do banco para garantir unicidade estrita
         consultasProcessadasSessao.add(chavePacienteEspecialidade);
+        setConsultasExistentesBanco.add(chavePacienteEspecialidade);
 
         const atendimentoId = crypto.randomUUID();
         // Prefixo de sessão que garante identificação unívoca para cancelamento atômico
@@ -531,7 +550,6 @@ rotasImportacao.post(
             escolaLocalId: escola.id,
             usuarioId: profissional.id,
             especialidade: especialidadeEnum,
-            turno: turnoEnum,
             status: statusEnum,
             resumo: `Atendimento importado via planilha. Situação original: ${item.situacao || 'Concluído'}. Profissional: ${item.profissionalNome}.`,
             chaveIdempotencia,

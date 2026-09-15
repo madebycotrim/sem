@@ -76,10 +76,29 @@ export async function requisicaoApi<T = unknown>(
           const detalhes = erroBody.detalhes
             ? Object.values(erroBody.detalhes).flat().join(' ')
             : undefined;
+
+          // Se a sessão expirou ou não há token (401), notifica a aplicação para redirecionar ao login
+          if (resposta.status === 401 && !rota.includes('/auth/login') && !rota.includes('/auth/me')) {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('auth:nao_autorizado', {
+                  detail: { rota, mensagem: mensagemErro ?? 'Sessão expirada. Faça login novamente.' },
+                })
+              );
+            }
+          }
+
           throw new ErroApi(
             resposta.status,
             [mensagemErro ?? 'Erro na requisição', detalhes].filter(Boolean).join(' '),
             erroBody.detalhes
+          );
+        }
+
+        if (resposta.status === 503) {
+          throw new ErroApi(
+            503,
+            'Serviço temporariamente indisponível (HTTP 503). O servidor backend local pode estar iniciando ou reiniciando.'
           );
         }
 

@@ -3,7 +3,6 @@ import {
   filtroAtendimentoSchema,
   StatusAtendimento,
   STATUS_ATENDIMENTO_LABELS,
-  Turno,
   Especialidade,
   ESPECIALIDADE_LABELS,
 } from '../../compartilhado/index.js';
@@ -11,10 +10,9 @@ import { utils } from 'xlsx';
 
 describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () => {
   describe('Validação do Schema de Filtro (filtroAtendimentoSchema)', () => {
-    it('deve aceitar filtros válidos com status e turno', () => {
+    it('deve aceitar filtros válidos com status e especialidade', () => {
       const filtroValido = {
         especialidade: Especialidade.ODONTOLOGIA,
-        turno: Turno.MANHA,
         status: StatusAtendimento.CONCLUIDO,
         dataInicio: '2026-09-01',
         dataFim: '2026-09-30',

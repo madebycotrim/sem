@@ -3,7 +3,6 @@ import { Calendar, FileText, RotateCcw, ClipboardCheck, Play, Ban, FileSpreadshe
 import {
   ESPECIALIDADE_LABELS,
   Especialidade,
-  Turno,
   STATUS_ATENDIMENTO_LABELS,
   StatusAtendimento,
   formatarHoraBrasilia,
@@ -38,7 +37,6 @@ export interface ItemAtendimentoLista {
   pacienteNome: string;
   pacienteCpf?: string;
   especialidade: Especialidade;
-  turno: Turno;
   escolaNome: string;
   profissionalNome: string;
   profissionalRegistro?: string;
@@ -230,7 +228,6 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         pacienteId: dadosAtendimento.pacienteId || '',
         pacienteNome: dadosAtendimento.pacienteNome,
         especialidade: dadosAtendimento.especialidade,
-        turno: Turno.MANHA,
         escolaNome: dadosAtendimento.escolaNome,
         profissionalNome: dadosAtendimento.profissional || '',
         resumo: textoAnotacoes,

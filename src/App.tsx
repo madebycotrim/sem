@@ -19,10 +19,10 @@ import { PainelAnalitico } from './paginas/PainelAnalitico.tsx';
 import { Relatorios } from './componentes/Relatorios.tsx';
 import { ConsoleBootstrap } from './componentes/ConsoleBootstrap.tsx';
 import { ModalImportarPlanilha } from './componentes/ModalImportarPlanilha.tsx';
-import { requisicaoApi } from './servicos/api.ts';
+import { requisicaoApi, ErroApi } from './servicos/api.ts';
 import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCatraki.ts';
 import { formatarCpf, formatarTelefone } from './utilitarios/mascaras.ts';
-import { type PermissoesPerfil, type PerfilAcesso, StatusAtendimento, type StatusAtendimento as TipoStatusAtendimento, Turno, formatarHoraBrasilia, formatarDataBrasilia } from '../compartilhado/index.ts';
+import { type PermissoesPerfil, type PerfilAcesso, StatusAtendimento, type StatusAtendimento as TipoStatusAtendimento, formatarHoraBrasilia, formatarDataBrasilia } from '../compartilhado/index.ts';
 
 interface RespostaListaPacientes {
   dados: Array<{
@@ -101,6 +101,23 @@ export function App() {
     };
     window.addEventListener('permissoes_atualizadas', handleAtualizacao);
     return () => window.removeEventListener('permissoes_atualizadas', handleAtualizacao);
+  }, []);
+
+  // Interceptador global de expiração de sessão (401) para interromper polling e exibir Login limpo
+  useEffect(() => {
+    const handleNaoAutorizado = (event: Event) => {
+      setAutenticado((estavaAutenticado) => {
+        if (estavaAutenticado) {
+          setUsuarioLogado(null);
+          const detalhe = (event as CustomEvent)?.detail;
+          const msg = detalhe?.mensagem || 'Sessão expirada ou não autenticada. Faça login novamente.';
+          mostrarToast(msg, 'erro');
+        }
+        return false;
+      });
+    };
+    window.addEventListener('auth:nao_autorizado', handleNaoAutorizado);
+    return () => window.removeEventListener('auth:nao_autorizado', handleNaoAutorizado);
   }, []);
 
   const temAcesso = (secao: SecaoMenu) => {
@@ -265,6 +282,7 @@ export function App() {
           setEscolaAtivaId((atual) => atual && resposta.dados.some((escola) => escola.id === atual) ? atual : '');
         }
       } catch (erro) {
+        if (erro instanceof ErroApi && erro.status === 401) return;
         console.error('Erro ao carregar escolas:', erro);
       }
     };
@@ -308,6 +326,7 @@ export function App() {
         }
       } catch (erro) {
         if (ativo) {
+          if (erro instanceof ErroApi && erro.status === 401) return;
           mostrarToast(erro instanceof Error ? `Não foi possível carregar os pacientes: ${erro.message}` : 'Não foi possível carregar os pacientes.', 'erro');
         }
       } finally {
@@ -347,7 +366,6 @@ export function App() {
             pacienteNome: String(d.pacienteNome || 'Paciente'),
             pacienteCpf: d.pacienteCpf ? String(d.pacienteCpf) : undefined,
             especialidade: d.especialidade as ItemAtendimentoLista['especialidade'],
-            turno: d.turno as ItemAtendimentoLista['turno'],
             escolaNome: String(d.escolaNome || d.escolaLocal || 'Não informada'),
             profissionalNome: String(d.profissionalNome || d.profissional || 'Profissional de Saúde'),
             profissionalConselho: d.profissionalConselho ? String(d.profissionalConselho) : undefined,
@@ -363,6 +381,7 @@ export function App() {
         }
       } catch (erro) {
         if (ativo) {
+          if (erro instanceof ErroApi && erro.status === 401) return;
           mostrarToast(erro instanceof Error ? `Não foi possível carregar os atendimentos: ${erro.message}` : 'Não foi possível carregar os atendimentos.', 'erro');
         }
       } finally {
@@ -415,7 +434,6 @@ export function App() {
         cpf: paciente?.cpf,
         idade: calcularIdade(paciente?.dataNascimento),
         escolaNome: atendimento.escolaNome || escola?.nome || 'Não informada',
-        turno: atendimento.turno,
         especialidade: atendimento.especialidade,
         status: statusFila[atendimento.status || StatusAtendimento.CONCLUIDO],
         horarioChegada: formatarHoraBrasilia(atendimento.entradaFilaEm || atendimento.criadoEm),
@@ -679,7 +697,6 @@ export function App() {
             pacienteNome: itemFila.pacienteNome,
             pacienteCpf: itemFila.cpf,
             especialidade: itemFila.especialidade,
-            turno: itemFila.turno || Turno.MANHA,
             escolaNome: itemFila.escolaNome || 'Não informada',
             profissionalNome: itemFila.profissional || 'Profissional de Saúde',
             profissionalConselho: itemFila.profissionalConselho,

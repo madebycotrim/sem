@@ -1,10 +1,10 @@
 import { type FC, useState } from 'react';
-import { BarChart2, Sun, Moon } from 'lucide-react';
+import { BarChart2, CheckCircle2, Clock } from 'lucide-react';
 
 export interface ItemColunaComparativa {
   categoria: string; // Ex: 'Seg', 'Ter', 'Qua'
-  valorA: number; // Ex: Matutino
-  valorB: number; // Ex: Vespertino
+  valorA: number; // Ex: Concluídos
+  valorB: number; // Ex: Agendados
   rotuloA?: string;
   rotuloB?: string;
 }
@@ -21,8 +21,8 @@ export const GraficoBarrasComparativas: FC<GraficoBarrasComparativasProps> = ({
   titulo,
   subtitulo,
   dados,
-  rotuloSerieA = 'Matutino (Manhã)',
-  rotuloSerieB = 'Vespertino (Tarde)',
+  rotuloSerieA = 'Concluídos',
+  rotuloSerieB = 'Agendados / Fila',
 }) => {
   const [itemHover, setItemHover] = useState<ItemColunaComparativa | null>(null);
 
@@ -49,14 +49,14 @@ export const GraficoBarrasComparativas: FC<GraficoBarrasComparativasProps> = ({
           </div>
         </div>
 
-        {/* Legenda dos turnos */}
+        {/* Legenda comparativa */}
         <div className="flex items-center gap-3 text-[11px] font-bold">
           <span className="flex items-center gap-1.5 text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-            <Sun className="h-3 w-3 text-amber-500" />
+            <CheckCircle2 className="h-3 w-3 text-blue-600" />
             {rotuloSerieA}: <strong className="font-black">{totalA}</strong>
           </span>
           <span className="flex items-center gap-1.5 text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
-            <Moon className="h-3 w-3 text-indigo-500" />
+            <Clock className="h-3 w-3 text-indigo-500" />
             {rotuloSerieB}: <strong className="font-black">{totalB}</strong>
           </span>
         </div>
@@ -64,7 +64,7 @@ export const GraficoBarrasComparativas: FC<GraficoBarrasComparativasProps> = ({
 
       {totalGeral === 0 ? (
         <div className="my-auto flex h-48 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-xs font-medium text-slate-400">
-          Nenhuma consulta registrada nos turnos do período
+          Nenhuma consulta registrada no período
         </div>
       ) : (
         <div className="my-auto pt-4">
@@ -89,13 +89,13 @@ export const GraficoBarrasComparativas: FC<GraficoBarrasComparativasProps> = ({
                     {item.valorA + item.valorB > 0 ? item.valorA + item.valorB : ''}
                   </span>
 
-                  {/* Par de Colunas (Matutino / Vespertino) */}
+                  {/* Par de Colunas */}
                   <div className="flex items-end justify-center gap-1 w-full max-w-[42px] h-full">
-                    {/* Coluna Matutino */}
+                    {/* Coluna A */}
                     <div
                       className="flex-1 rounded-t-lg bg-gradient-to-t from-blue-600 to-sky-400 shadow-xs transition-all duration-500 group-hover:brightness-110 relative"
                       style={{ height: `${Math.max(alturaA, item.valorA ? 10 : 3)}%` }}
-                      title={`${item.categoria} - ${rotuloSerieA}: ${item.valorA}`}
+                      title={`${item.categoria} - ${item.rotuloA || rotuloSerieA}: ${item.valorA}`}
                     >
                       {item.valorA > 0 && (
                         <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[9px] font-bold text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -104,11 +104,11 @@ export const GraficoBarrasComparativas: FC<GraficoBarrasComparativasProps> = ({
                       )}
                     </div>
 
-                    {/* Coluna Vespertino */}
+                    {/* Coluna B */}
                     <div
                       className="flex-1 rounded-t-lg bg-gradient-to-t from-indigo-600 to-purple-400 shadow-xs transition-all duration-500 group-hover:brightness-110 relative"
                       style={{ height: `${Math.max(alturaB, item.valorB ? 10 : 3)}%` }}
-                      title={`${item.categoria} - ${rotuloSerieB}: ${item.valorB}`}
+                      title={`${item.categoria} - ${item.rotuloB || rotuloSerieB}: ${item.valorB}`}
                     >
                       {item.valorB > 0 && (
                         <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[9px] font-bold text-indigo-700 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -135,8 +135,8 @@ export const GraficoBarrasComparativas: FC<GraficoBarrasComparativasProps> = ({
           {itemHover && (
             <div className="mt-3 flex items-center justify-center gap-4 text-xs font-bold text-slate-700 bg-white p-2 rounded-xl border border-slate-200 shadow-2xs animate-fade-in">
               <span className="text-blue-900 font-extrabold uppercase">{itemHover.categoria}:</span>
-              <span className="text-blue-700">Manhã: {itemHover.valorA} consultas</span>
-              <span className="text-indigo-700">Tarde: {itemHover.valorB} consultas</span>
+              <span className="text-blue-700">{itemHover.rotuloA || rotuloSerieA}: {itemHover.valorA} consultas</span>
+              <span className="text-indigo-700">{itemHover.rotuloB || rotuloSerieB}: {itemHover.valorB} consultas</span>
               <span className="text-slate-500 font-semibold">
                 Total: {itemHover.valorA + itemHover.valorB}
               </span>

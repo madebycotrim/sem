@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useRef, type FC } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Brain,
   Calendar,
@@ -70,7 +71,6 @@ interface AtendimentoRelatorio {
   pacienteCpf?: string;
   pacienteTurma?: string;
   especialidade: string;
-  turno: string;
   status?: string;
   criadoEm: string;
   escolaLocal: string;
@@ -1822,9 +1822,9 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       )}
 
       {/* ─── Modal de Detalhes Clínicos do Atendimento ───── */}
-      {atendimentoSelecionado && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+      {atendimentoSelecionado && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/50 backdrop-blur-[2px] p-4 font-sans">
+          <div className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] animate-modal">
             {/* Header Modal */}
             <div className="flex items-center justify-between border-b border-slate-100 bg-[#f8fafc] px-6 py-4">
               <div className="flex items-center gap-3">
@@ -1925,12 +1925,13 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
               </Botao>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ─── Modal / Visualização de Impressão Oficial da SEM (A4) ───── */}
-      {mostrarModalImpressao && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in print:p-0 print:bg-white">
+      {mostrarModalImpressao && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/50 backdrop-blur-[2px] p-4 font-sans print:p-0 print:bg-white">
           <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] print:max-h-none print:shadow-none print:border-none">
             {/* Barra superior de controle (oculta na impressão) */}
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-3 print:hidden">
@@ -2042,7 +2043,8 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <ModalImportarPlanilha

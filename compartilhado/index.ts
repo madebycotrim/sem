@@ -4,8 +4,6 @@ export {
   ESPECIALIDADE_LABELS,
   ConselhoProfissional,
   CONSELHO_PROFISSIONAL_LABELS,
-  Turno,
-  TURNO_LABELS,
   StatusAtendimento,
   STATUS_ATENDIMENTO_LABELS,
   PerfilAcesso,

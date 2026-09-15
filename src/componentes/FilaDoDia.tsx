@@ -1,5 +1,5 @@
 import { useState, useEffect, type FC, useMemo } from 'react';
-import { ESPECIALIDADE_LABELS, Especialidade, Turno, StatusAtendimento, formatarHoraBrasilia, formatarDataBrasilia, obterDataHojeExtensoBrasilia } from '../../compartilhado/index.ts';
+import { ESPECIALIDADE_LABELS, Especialidade, StatusAtendimento, formatarHoraBrasilia, formatarDataBrasilia, obterDataHojeExtensoBrasilia } from '../../compartilhado/index.ts';
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import {
   useFiltroExcel,
@@ -34,7 +34,6 @@ export interface ItemFila {
   cpf?: string;
   idade: number;
   escolaNome: string;
-  turno?: Turno;
   especialidade: Especialidade;
   status: StatusPresenca;
   horarioChegada: string;
@@ -91,7 +90,6 @@ export interface FilaDoDiaProps {
     id: string;
     nome: string;
     especialidade: Especialidade;
-    turno?: Turno;
     horario?: string;
   }) => void;
   aoNovoPaciente?: () => void;
@@ -200,8 +198,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
     const agora = new Date();
     const horarioChegada = formatarHoraBrasilia(agora);
     const dataChegada = formatarDataBrasilia(agora);
-    const horaNum = parseInt(horarioChegada.split(':')[0], 10);
-    const turno: Turno = horaNum < 13 ? Turno.MANHA : Turno.TARDE;
 
     // Verifica se já existe consulta registrada no banco
     const atendimentoExistente = atendimentos.find(
@@ -219,7 +215,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         escolaLocalId: dados.escolaId,
         usuarioId: dados.profissionalId,
         especialidade: dados.especialidade,
-        turno,
         status: StatusAtendimento.AGENDADO,
         resumo: 'Check-in realizado. Prontuário aguardando atendimento.',
       },
@@ -239,7 +234,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       status: 'AGUARDANDO',
       horarioChegada,
       dataChegada,
-      turno,
       profissional: dados.profissionalNome,
       profissionalRegistro: dados.profissionalRegistro,
       profissionalConselho: dados.profissionalConselho,
@@ -252,7 +246,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       pacienteNome: dados.pacienteNome,
       escolaId: dados.escolaId,
       especialidade: dados.especialidade,
-      turno,
       escolaNome: dados.escolaNome,
       profissionalId: dados.profissionalId,
       profissionalNome: dados.profissionalNome,
@@ -417,7 +410,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
               escolaLocalId: escolaIdFinal,
               ...(profissionalIdFinal ? { usuarioId: profissionalIdFinal } : {}),
               especialidade: dadosAtendimento.especialidade,
-              turno: item?.turno || Turno.MANHA,
               resumo: textoAnotacoes,
             },
           });
@@ -454,7 +446,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         pacienteId: dadosAtendimento.pacienteId || item?.pacienteId || '',
         pacienteNome: dadosAtendimento.pacienteNome,
         especialidade: dadosAtendimento.especialidade,
-        turno: item?.turno || Turno.MANHA,
         escolaNome: dadosAtendimento.escolaNome,
         escolaId: dadosAtendimento.escolaId || item?.escolaId,
         profissionalId: profissionalIdFinal || dadosAtendimento.profissionalId || item?.profissionalId,
@@ -471,7 +462,6 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         id: item.id,
         nome: item.pacienteNome,
         especialidade: item.especialidade,
-        turno: item.turno,
         horario: item.horarioChegada,
       });
     }

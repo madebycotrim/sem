@@ -46,6 +46,22 @@ function ipDaRequisicao(c: { req: { header: (nome: string) => string | undefined
 }
 
 /**
+ * Configuração de cookie de sessão compatível com HTTPS em produção e HTTP em desenvolvimento local.
+ * Evita que o navegador rejeite ou omita cookies de sessão em localhost ou proxy reverso.
+ */
+function obterOpcoesCookie(c: { req: { url: string; header: (nome: string) => string | undefined }; env: Bindings }) {
+  const isHttps = c.req.url.startsWith('https://') || c.req.header('x-forwarded-proto') === 'https';
+  const secure = c.env.NODE_ENV === 'production' && isHttps;
+  return {
+    path: '/',
+    httpOnly: true,
+    secure,
+    sameSite: 'Lax' as const,
+    maxAge: 28800, // 8h em segundos
+  };
+}
+
+/**
  * POST /auth/login
  * Realiza autenticação via E-mail e Senha com proteção contra brute force.
  */
@@ -107,13 +123,7 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
 
   const token = await sign(payload, c.env.JWT_SECRET);
 
-  setCookie(c, 'token', token, {
-    path: '/',
-    httpOnly: true,
-    secure: c.env.NODE_ENV === 'production',
-    sameSite: 'Strict',
-    maxAge: 28800, // 8h em segundos
-  });
+  setCookie(c, 'token', token, obterOpcoesCookie(c));
 
   await registrarAuditoria(db, {
     userId: usuario.id,
@@ -233,13 +243,7 @@ rotasAuth.post(
 
     const novoToken = await sign(payload, c.env.JWT_SECRET);
 
-    setCookie(c, 'token', novoToken, {
-      path: '/',
-      httpOnly: true,
-      secure: c.env.NODE_ENV === 'production',
-      sameSite: 'Strict',
-      maxAge: 28800,
-    });
+    setCookie(c, 'token', novoToken, obterOpcoesCookie(c));
 
     return c.json({
       mensagem: 'MFA verificado com sucesso.',

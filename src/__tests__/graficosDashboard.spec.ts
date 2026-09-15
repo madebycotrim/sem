@@ -6,35 +6,30 @@ describe('Inteligência Analítica e Métricas dos Gráficos do Dashboard', () =
       id: 'atend-1',
       especialidade: 'ODONTOLOGIA',
       status: 'CONCLUIDO',
-      turno: 'MATUTINO',
       criadoEm: '2026-05-10T09:30:00Z',
     },
     {
       id: 'atend-2',
       especialidade: 'OFTALMOLOGIA',
       status: 'EM_ATENDIMENTO',
-      turno: 'VESPERTINO',
       criadoEm: '2026-05-10T14:15:00Z',
     },
     {
       id: 'atend-3',
       especialidade: 'ODONTOLOGIA',
       status: 'CONCLUIDO',
-      turno: 'MATUTINO',
       criadoEm: '2026-05-11T10:00:00Z',
     },
     {
       id: 'atend-4',
       especialidade: 'PSICOLOGIA',
       status: 'CANCELADO',
-      turno: 'VESPERTINO',
       criadoEm: '2026-05-12T15:30:00Z',
     },
     {
       id: 'atend-5',
       especialidade: 'NUTRICAO',
       status: 'FALTOU',
-      turno: 'MATUTINO',
       criadoEm: '2026-05-12T11:00:00Z',
     },
   ];
@@ -72,18 +67,18 @@ describe('Inteligência Analítica e Métricas dos Gráficos do Dashboard', () =
     expect(ordenadas[2]).toEqual(['2026-05-12', 2]);
   });
 
-  it('deve classificar corretamente os turnos Matutino e Vespertino para as Barras Comparativas', () => {
-    let matutino = 0;
-    let vespertino = 0;
+  it('deve classificar corretamente os atendimentos para as Barras Comparativas', () => {
+    let concluidos = 0;
+    let outros = 0;
 
     atendimentosSimulados.forEach((a) => {
-      if (a.turno === 'MATUTINO') matutino++;
-      else if (a.turno === 'VESPERTINO') vespertino++;
+      if (a.status === 'CONCLUIDO') concluidos++;
+      else outros++;
     });
 
-    expect(matutino).toBe(3);
-    expect(vespertino).toBe(2);
-    expect(matutino + vespertino).toBe(5);
+    expect(concluidos).toBe(2);
+    expect(outros).toBe(3);
+    expect(concluidos + outros).toBe(5);
   });
 
   it('deve calcular as etapas do Funil Assistencial e a taxa de resolutividade', () => {

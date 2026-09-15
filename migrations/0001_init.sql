@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS consentimentos (
 
 CREATE TABLE IF NOT EXISTS atendimentos (
 	id TEXT PRIMARY KEY, paciente_id TEXT NOT NULL, escola_local_id TEXT NOT NULL,
-	usuario_id TEXT NOT NULL, especialidade TEXT NOT NULL, turno TEXT NOT NULL,
+	usuario_id TEXT NOT NULL, especialidade TEXT NOT NULL,
 	resumo TEXT NOT NULL, procedimentos TEXT, insumos_utilizados TEXT,
 	encaminhamento_externo TEXT, chave_idempotencia TEXT UNIQUE NOT NULL,
 	criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,

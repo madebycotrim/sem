@@ -50,4 +50,37 @@ describe('Serviço de API e ErroApi', () => {
     // Deve ter chamado apenas 1 vez (sem retry para 4xx)
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
+
+  it('deve disparar evento auth:nao_autorizado ao receber HTTP 401 em rotas autenticadas', async () => {
+    const dispatchSpy = vi.fn();
+    (globalThis as any).window = {
+      dispatchEvent: dispatchSpy,
+    };
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ erro: 'Token de autenticação não fornecido. Faça login novamente.' }),
+    } as unknown as Response);
+
+    await expect(requisicaoApi('/pacientes')).rejects.toThrow(ErroApi);
+
+    expect(dispatchSpy).toHaveBeenCalled();
+    const evento = dispatchSpy.mock.calls.find((call: any[]) => call[0]?.type === 'auth:nao_autorizado');
+    expect(evento).toBeDefined();
+
+    delete (globalThis as any).window;
+  });
+
+  it('deve lançar ErroApi com mensagem descritiva em caso de HTTP 503', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: async () => 'Service Unavailable',
+    } as unknown as Response);
+
+    await expect(requisicaoApi('/importacao/processar-lote', { tentativasMaximas: 1 })).rejects.toThrow(
+      /Serviço temporariamente indisponível \(HTTP 503\)/
+    );
+  });
 });

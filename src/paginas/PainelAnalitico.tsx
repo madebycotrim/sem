@@ -66,11 +66,10 @@ interface AtendimentoAnalitico {
   id: string;
   pacienteNome: string;
   especialidade: string;
-  turno: string;
   escolaNome: string;
   profissionalNome: string;
   criadoEm: string;
-  status?: StatusAtendimento;
+  status?: StatusAtendimento | string;
 }
 
 interface PacienteAnalitico {
@@ -296,25 +295,25 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
     ];
   }, [atendimentosFiltrados]);
 
-  // ─── 4. Dados para Barras Comparativas (Turno por Dia da Semana) ─────
-  const dadosComparativosTurno = useMemo(() => {
+  // ─── 4. Dados para Barras Comparativas (Consultas por Dia da Semana) ─────
+  const dadosComparativosDiaSemana = useMemo(() => {
     const diasNomes = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     return diasNomes.map((dia, indice) => {
       const atendimentosDoDia = atendimentosFiltrados.filter(
         (a) => new Date(a.criadoEm).getDay() === indice
       );
-      const manha = atendimentosDoDia.filter(
-        (a) => (a.turno || '').toUpperCase() === 'MATUTINO' || new Date(a.criadoEm).getHours() < 12
+      const concluidos = atendimentosDoDia.filter(
+        (a) => a.status === 'CONCLUIDO' || !a.status
       ).length;
-      const tarde = atendimentosDoDia.filter(
-        (a) => (a.turno || '').toUpperCase() === 'VESPERTINO' || new Date(a.criadoEm).getHours() >= 12
+      const agendadosOuOutros = atendimentosDoDia.filter(
+        (a) => a.status && a.status !== 'CONCLUIDO'
       ).length;
       return {
         categoria: dia,
-        valorA: manha,
-        valorB: tarde,
-        rotuloA: 'Manhã',
-        rotuloB: 'Tarde',
+        valorA: concluidos,
+        valorB: agendadosOuOutros,
+        rotuloA: 'Concluídos',
+        rotuloB: 'Agendados / Fila',
       };
     });
   }, [atendimentosFiltrados]);
@@ -828,12 +827,14 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({ atendimentos, pacien
             />
           </div>
 
-          {/* GRÁFICO 3: BARRAS COMPARATIVAS (Turnos) + FUNIL DE CONVERSÃO ASSISTENCIAL */}
+          {/* GRÁFICO 3: BARRAS COMPARATIVAS + FUNIL DE CONVERSÃO ASSISTENCIAL */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <GraficoBarrasComparativas
-              titulo="Comparativo de Turnos por Dia da Semana"
-              subtitulo="Volume matutino (manhã) vs vespertino (tarde) por dia"
-              dados={dadosComparativosTurno}
+              titulo="Consultas por Dia da Semana"
+              subtitulo="Comparativo de atendimentos concluídos vs agendados / em fila"
+              dados={dadosComparativosDiaSemana}
+              rotuloSerieA="Concluídos"
+              rotuloSerieB="Agendados / Fila"
             />
             <GraficoFunilAssistencial
               titulo="Funil de Conversão Assistencial"
