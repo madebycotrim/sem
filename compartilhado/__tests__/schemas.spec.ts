@@ -163,8 +163,6 @@ describe('Schema: Ficha de Atendimento', () => {
     expect(resultado.success).toBe(true);
     if (resultado.success) {
       expect(resultado.data.procedimentos).toBeUndefined();
-      expect(resultado.data.insumosUtilizados).toBeUndefined();
-      expect(resultado.data.encaminhamentoExterno).toBeUndefined();
       expect(resultado.data.usuarioId).toBeUndefined();
     }
   });

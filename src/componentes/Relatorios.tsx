@@ -79,7 +79,6 @@ interface AtendimentoRelatorio {
   profissionalConselho?: string | null;
   resumo: string | null;
   procedimentos: string | null;
-  insumosUtilizados: string | null;
 }
 
 interface RegistroTabela {
@@ -95,7 +94,6 @@ interface RegistroTabela {
   status: string;
   resumo: string;
   procedimentos: string;
-  insumos: string;
 }
 
 const formatarDataBrasileira = (data: string) => {
@@ -320,7 +318,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
             status: item.status || StatusAtendimento.CONCLUIDO,
             resumo: item.resumo || 'Sem observações registradas',
             procedimentos: item.procedimentos || 'Procedimento padrão realizado',
-            insumos: item.insumosUtilizados || 'Nenhum insumo específico registrado',
           }))
         );
 
@@ -1904,16 +1901,6 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                 </span>
                 <div className="rounded-xl border border-slate-200 bg-white p-3 text-slate-700 leading-relaxed">
                   {atendimentoSelecionado.procedimentos}
-                </div>
-              </div>
-
-              {/* Bloco 5: Insumos */}
-              <div>
-                <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider block mb-1">
-                  Insumos e Materiais Utilizados
-                </span>
-                <div className="rounded-xl border border-slate-200 bg-white p-3 text-slate-700 leading-relaxed">
-                  {atendimentoSelecionado.insumos}
                 </div>
               </div>
             </div>

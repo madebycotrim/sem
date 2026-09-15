@@ -54,20 +54,6 @@ export const fichaAtendimentoSchema = z.object({
     .max(5000, 'Procedimentos devem ter no máximo 5000 caracteres')
     .trim()
     .optional(),
-
-  /** Insumos e materiais utilizados no atendimento */
-  insumosUtilizados: z
-    .string()
-    .max(2000, 'Insumos devem ter no máximo 2000 caracteres')
-    .trim()
-    .optional(),
-
-  /** Encaminhamento externo (se necessário) */
-  encaminhamentoExterno: z
-    .string()
-    .max(2000, 'Encaminhamento deve ter no máximo 2000 caracteres')
-    .trim()
-    .optional(),
 });
 
 /** Schema para listagem/busca de atendimentos (filtros) */

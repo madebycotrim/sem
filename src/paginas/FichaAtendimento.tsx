@@ -43,7 +43,6 @@ export function FichaAtendimento({
       especialidade: Especialidade.ODONTOLOGIA,
       resumo: '',
       procedimentos: '',
-      insumosUtilizados: '',
     },
   });
 
@@ -83,7 +82,6 @@ export function FichaAtendimento({
       ...dados,
       resumo: sanitizar(dados.resumo ?? 'Check-in realizado. Prontuário aguardando atendimento.'),
       procedimentos: dados.procedimentos ? sanitizar(dados.procedimentos) : undefined,
-      insumosUtilizados: dados.insumosUtilizados ? sanitizar(dados.insumosUtilizados) : undefined,
     };
 
     try {
@@ -106,7 +104,6 @@ export function FichaAtendimento({
       especialidade: Especialidade.ODONTOLOGIA,
       resumo: '',
       procedimentos: '',
-      insumosUtilizados: '',
     });
 
     if (aoVoltar) {
@@ -217,23 +214,14 @@ export function FichaAtendimento({
               {...register('resumo')}
             />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div>
               <CampoTextarea
                 id="procedimentos"
                 rotulo="Procedimentos Realizados"
                 erro={errors.procedimentos?.message}
-                linhas={2}
+                linhas={3}
                 placeholder="Ex: Triagem visual, profilaxia odontológica, aferição de PA..."
                 {...register('procedimentos')}
-              />
-
-              <CampoTextarea
-                id="insumosUtilizados"
-                rotulo="Insumos Utilizados"
-                erro={errors.insumosUtilizados?.message}
-                linhas={2}
-                placeholder="Ex: Escova dental, luvas, fita reagente..."
-                {...register('insumosUtilizados')}
               />
             </div>
           </div>

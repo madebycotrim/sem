@@ -391,7 +391,7 @@ describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () 
           'Foco Epidemiológico: Odontologia lidera a demanda com 60% do volume.',
           'Capacidade Operacional: 2 unidades escolares atendidas no cronograma móvel.',
         ],
-        recomendacao: 'Manter dimensionamento prioritário de insumos odontológicos.',
+        recomendacao: 'Manter dimensionamento prioritário de materiais odontológicos.',
       };
 
       expect(parecerExemplo.titulo).toBe('Síntese Executiva e Parecer Clínico Operacional');

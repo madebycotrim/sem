@@ -129,8 +129,8 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
             profissionalNome: String(item.profissional || item.profissionalNome || 'Profissional de Saúde'),
             profissionalRegistro: String(item.profissionalRegistro || 'Registro Ativo'),
             motivoConsulta: String(item.resumo || (status === 'CONCLUIDO' ? 'Consulta clínica realizada' : 'Atendimento registrado no sistema')),
-            condutaClinica: item.procedimentos || item.insumosUtilizados
-              ? String(item.procedimentos || item.insumosUtilizados)
+            condutaClinica: item.procedimentos
+              ? String(item.procedimentos)
               : undefined,
           };
         });

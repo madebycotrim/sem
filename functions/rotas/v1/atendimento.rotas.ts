@@ -134,8 +134,6 @@ rotasAtendimento.post(
           usuarioId: profissionalId,
           resumo: sanitizarTexto(dados.resumo),
           procedimentos: sanitizarTextoOpcional(dados.procedimentos),
-          insumosUtilizados: sanitizarTextoOpcional(dados.insumosUtilizados),
-          encaminhamentoExterno: sanitizarTextoOpcional(dados.encaminhamentoExterno),
           status: dados.status,
           entradaFilaEm,
           atualizadoEm: new Date().toISOString(),
@@ -184,8 +182,6 @@ rotasAtendimento.post(
         status: dados.status,
         resumo: sanitizarTexto(dados.resumo),
         procedimentos: sanitizarTextoOpcional(dados.procedimentos),
-        insumosUtilizados: sanitizarTextoOpcional(dados.insumosUtilizados),
-        encaminhamentoExterno: sanitizarTextoOpcional(dados.encaminhamentoExterno),
         chaveIdempotencia: dados.idempotencyKey || `atend:${novoAtendimentoId}`,
         entradaFilaEm,
         criadoEm: agoraIso,
@@ -234,8 +230,6 @@ rotasAtendimento.post(
 const atualizarAtendimentoSchema = z.object({
   resumo: z.string().min(1, 'Resumo não pode ser vazio').max(5000).trim().optional(),
   procedimentos: z.string().max(5000).trim().optional().nullable(),
-  insumosUtilizados: z.string().max(2000).trim().optional().nullable(),
-  encaminhamentoExterno: z.string().max(2000).trim().optional().nullable(),
   status: z.enum(Object.values(StatusAtendimento) as [string, ...string[]]).optional(),
   /** Permite corrigir o profissional responsável (ex.: registros criados pela triagem) */
   usuarioId: z.string().uuid('ID do profissional deve ser um UUID válido').optional(),
@@ -265,8 +259,6 @@ rotasAtendimento.patch('/:id', zValidator('json', atualizarAtendimentoSchema), a
 
   if (dados.resumo !== undefined) camposParaAtualizar.resumo = sanitizarTexto(dados.resumo);
   if (dados.procedimentos !== undefined) camposParaAtualizar.procedimentos = sanitizarTextoOpcional(dados.procedimentos);
-  if (dados.insumosUtilizados !== undefined) camposParaAtualizar.insumosUtilizados = sanitizarTextoOpcional(dados.insumosUtilizados);
-  if (dados.encaminhamentoExterno !== undefined) camposParaAtualizar.encaminhamentoExterno = sanitizarTextoOpcional(dados.encaminhamentoExterno);
   if (dados.status !== undefined) camposParaAtualizar.status = dados.status;
   if (dados.status === StatusAtendimento.AGENDADO || dados.status === StatusAtendimento.CONFIRMADO) {
     camposParaAtualizar.entradaFilaEm = new Date().toISOString();
@@ -857,7 +849,6 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
         entradaFilaEm: a.entradaFilaEm ?? a.criadoEm,
         resumo: a.resumo,
         procedimentos: a.procedimentos,
-        insumosUtilizados: a.insumosUtilizados,
         escolaLocal: a.escolaLocal?.nome ?? 'Desconhecida',
         profissional: a.usuario?.nomeCompleto ?? 'Desconhecido',
         profissionalNome: a.usuario?.nomeCompleto ?? 'Desconhecido',
