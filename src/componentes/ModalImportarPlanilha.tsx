@@ -769,7 +769,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-[2px] font-sans"
+      className="fixed inset-0 z-[100010] flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-[2px] font-sans"
       role="dialog"
       aria-modal="true"
     >

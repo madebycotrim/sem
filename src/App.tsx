@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { CircleAlert, CircleCheck, Info, LoaderCircle, LockKeyhole, FileSpreadsheet } from 'lucide-react';
+import { CircleAlert, CircleCheck, Info, LoaderCircle, LockKeyhole } from 'lucide-react';
 import { ProvedorPermissoes } from './contextos/ContextoPermissoes.tsx';
 import { Sidebar, type SecaoMenu } from './componentes/Sidebar.tsx';
 import { CabecalhoPagina } from './componentes/CabecalhoPagina.tsx';
@@ -997,18 +997,6 @@ export function App() {
                 rotulo: 'Novo Paciente',
                 aoClicar: () => setModalNovoPacienteAberto(true),
               } : undefined}
-              acoesExtras={
-                temPermissao('criarPaciente') ? (
-                  <button
-                    type="button"
-                    onClick={() => setModalImportarPlanilhaAberto(true)}
-                    className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-blue-600 bg-blue-600 px-3.5 text-xs font-bold text-white shadow-2xs transition-all hover:bg-blue-700 hover:shadow-xs cursor-pointer"
-                    title="Importar pacientes e consultas via planilha Excel ou CSV"
-                  >
-                    <FileSpreadsheet className="h-4 w-4" /> Importar Planilha
-                  </button>
-                ) : undefined
-              }
               statusSincronizacaoCatraki={statusSincronizacaoCatraki}
               fixo={true}
             />
@@ -1254,6 +1242,7 @@ export function App() {
           recarregarDados();
           setToastNotificacao({ texto: 'Exclusão definitiva concluída.', tipo: 'sucesso' });
         }}
+        aoImportarPlanilha={() => setModalImportarPlanilhaAberto(true)}
       />
 
       <ModalImportarPlanilha

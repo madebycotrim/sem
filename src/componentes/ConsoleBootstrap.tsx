@@ -17,6 +17,7 @@ import {
   Sparkles,
   Check,
   History,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { requisicaoApi } from '../servicos/api.ts';
 import { formatarHoraBrasilia } from '../../compartilhado/index.ts';
@@ -41,6 +42,7 @@ interface ConsoleBootstrapProps {
   aberto: boolean;
   aoFechar: () => void;
   aoConcluir: () => void;
+  aoImportarPlanilha?: () => void;
 }
 
 interface MetricasBanco {
@@ -95,7 +97,7 @@ const CONFIG_ENTIDADE: Record<
   },
 };
 
-export const ConsoleBootstrap: FC<ConsoleBootstrapProps> = ({ aberto, aoFechar, aoConcluir }) => {
+export const ConsoleBootstrap: FC<ConsoleBootstrapProps> = ({ aberto, aoFechar, aoConcluir, aoImportarPlanilha }) => {
   const [tipo, setTipo] = useState<TipoEntidade>('pacientes');
   const [modoExcluirTodosPacientes, setModoExcluirTodosPacientes] = useState(false);
   const [abaAtiva, setAbaAtiva] = useState<'acoes' | 'logs'>('acoes');
@@ -391,7 +393,19 @@ export const ConsoleBootstrap: FC<ConsoleBootstrapProps> = ({ aberto, aoFechar, 
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
+            {aoImportarPlanilha && (
+              <button
+                type="button"
+                onClick={aoImportarPlanilha}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-all cursor-pointer mr-1"
+                title="Importar pacientes e consultas via planilha Excel ou CSV"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Importar Planilha</span>
+              </button>
+            )}
+
             {/* Alternador de visualização Ações / Logs */}
             <div className="flex rounded-xl bg-slate-100 p-1 mr-2 border border-slate-200/70">
               <button
@@ -438,18 +452,31 @@ export const ConsoleBootstrap: FC<ConsoleBootstrapProps> = ({ aberto, aoFechar, 
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
               Registros no Banco de Dados (Cloudflare D1)
             </span>
-            <button
-              type="button"
-              onClick={() => {
-                void carregarMetricasGerais();
-                void carregarRegistros(tipo);
-              }}
-              disabled={carregando || carregandoMetricas || excluindo}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
-            >
-              <RefreshCw className={`h-3 w-3 ${carregando || carregandoMetricas ? 'animate-spin' : ''}`} />
-              Atualizar dados
-            </button>
+            <div className="flex items-center gap-2">
+              {aoImportarPlanilha && (
+                <button
+                  type="button"
+                  onClick={aoImportarPlanilha}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/80 hover:bg-blue-100 rounded-xl transition-all cursor-pointer"
+                  title="Carga em lote de dados via planilha"
+                >
+                  <FileSpreadsheet className="h-3 w-3 text-blue-600" />
+                  Carga / Importar Planilha
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  void carregarMetricasGerais();
+                  void carregarRegistros(tipo);
+                }}
+                disabled={carregando || carregandoMetricas || excluindo}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`h-3 w-3 ${carregando || carregandoMetricas ? 'animate-spin' : ''}`} />
+                Atualizar dados
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
