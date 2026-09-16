@@ -1,5 +1,5 @@
 import { type FC, useState, useMemo, useRef, useEffect } from 'react';
-import { Calendar, FileText, RotateCcw, ClipboardCheck, Play, Ban, FileSpreadsheet } from 'lucide-react';
+import { Calendar, FileText, RotateCcw, ClipboardCheck, Play, Ban } from 'lucide-react';
 import {
   ESPECIALIDADE_LABELS,
   Especialidade,
@@ -11,7 +11,6 @@ import {
   obterDataIsoBrasilia,
 } from '../../compartilhado/index.ts';
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
-import { ModalImportarPlanilha } from './ModalImportarPlanilha.tsx';
 import {
   useFiltroExcel,
   CabecalhoColunaExcel,
@@ -80,8 +79,8 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   escolas = [],
   profissionais = [],
   aoVerHistoricoPaciente,
-  statusSincronizacaoCatraki,
-  aoNovoAtendimento,
+  statusSincronizacaoCatraki: _statusSincronizacaoCatraki,
+  aoNovoAtendimento: _aoNovoAtendimento,
   paginaServidor,
   totalPaginasServidor,
   totalRegistrosServidor,
@@ -96,7 +95,6 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   const atendimentos = atendimentosLocais;
 
   const [modalAtendimentoAberto, setModalAtendimentoAberto] = useState(false);
-  const [modalImportarAberto, setModalImportarAberto] = useState(false);
   const [dadosAtendimentoAtivo, setDadosAtendimentoAtivo] = useState<DadosAtendimento | null>(null);
   const [modalModoVisualizacao, setModalModoVisualizacao] = useState(false);
   const [confirmandoAlteracaoId, setConfirmandoAlteracaoId] = useState<string | null>(null);
@@ -448,8 +446,6 @@ export const Atendimentos: FC<AtendimentosProps> = ({
           aoMudar: setBusca,
           placeholder: 'Buscar paciente, profissional ou especialidade...',
         }}
-        statusSincronizacaoCatraki={statusSincronizacaoCatraki}
-        acaoPrimaria={aoNovoAtendimento ? { rotulo: 'Novo Atendimento', aoClicar: aoNovoAtendimento } : undefined}
         acoesExtras={
           <div className="flex flex-col items-end gap-1.5">
             <div className="flex flex-nowrap items-center justify-end gap-2">
@@ -597,14 +593,6 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                 className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-rose-600 transition-colors hover:bg-rose-50 cursor-pointer"
               >
                 <RotateCcw className="h-3.5 w-3.5" /> Limpar
-              </button>
-              <button
-                type="button"
-                onClick={() => setModalImportarAberto(true)}
-                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-blue-600 bg-blue-600 px-3.5 text-xs font-bold text-white shadow-2xs transition-all hover:bg-blue-700 hover:shadow-xs cursor-pointer"
-                title="Importar consultas via planilha Excel ou CSV"
-              >
-                <FileSpreadsheet className="h-4 w-4" /> Importar Planilha
               </button>
             </div>
           </div>
@@ -1147,17 +1135,6 @@ export const Atendimentos: FC<AtendimentosProps> = ({
           setModalModoVisualizacao(false);
         }}
         aoConfirmar={handleSalvarAtendimentoProntuario}
-      />
-
-      <ModalImportarPlanilha
-        aberto={modalImportarAberto}
-        aoFechar={() => {
-          setModalImportarAberto(false);
-          aoSincronizar?.();
-        }}
-        aoConcluirImportacao={() => {
-          aoSincronizar?.();
-        }}
       />
     </div>
   );
