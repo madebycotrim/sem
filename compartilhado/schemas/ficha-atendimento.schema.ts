@@ -73,4 +73,8 @@ export const filtroAtendimentoSchema = z.object({
     .optional(),
   pagina: z.coerce.number().int().min(1).default(1),
   porPagina: z.coerce.number().int().min(1).max(100).default(20),
+  escola: z.string().optional(),
+  profissional: z.string().optional(),
+  listaEspecialidade: z.string().optional(),
+  listaStatus: z.string().optional(),
 });

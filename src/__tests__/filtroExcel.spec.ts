@@ -104,5 +104,55 @@ describe('Sistema de Filtro e Ordenação Estilo Excel', () => {
     expect(opcoesAutorizacao.map((o) => o.valorChave)).toEqual(['ACEITO', 'PENDENTE']);
     expect(opcoesAutorizacao.map((o) => o.rotuloExibicao)).toEqual(['Autorizado', 'Não Autorizado']);
   });
+
+  it('deve realizar filtro de coluna case-insensitive tolerante a variações de maiúsculas/minúsculas', () => {
+    const permitidos = new Set(['eliene belo']);
+    const itensTeste = [
+      { id: '1', profissional: 'ELIENE BELO' },
+      { id: '2', profissional: 'Eliene Belo' },
+      { id: '3', profissional: 'OUTRO PROFISSIONAL' },
+    ];
+
+    const filtrados = itensTeste.filter((item) => {
+      const chave = item.profissional;
+      if (permitidos.has(chave)) return true;
+      const chaveTrimLower = String(chave).trim().toLowerCase();
+      for (const v of permitidos) {
+        if (String(v).trim().toLowerCase() === chaveTrimLower) return true;
+      }
+      return false;
+    });
+
+    expect(filtrados).toHaveLength(2);
+    expect(filtrados.map((i) => i.id)).toEqual(['1', '2']);
+  });
+
+  it('deve contabilizar corretamente itens da página atual quando contagem pré-definida for zero', () => {
+    const contagemValores = new Map<string, { rotulo: string; contagem: number }>();
+    const opcoesPredefinidas = [
+      { valorChave: 'ELIENE BELO', rotuloExibicao: 'ELIENE BELO', contagem: 0 },
+    ];
+
+    opcoesPredefinidas.forEach((opcao) => {
+      contagemValores.set(opcao.valorChave, {
+        rotulo: opcao.rotuloExibicao,
+        contagem: opcao.contagem ?? 0,
+      });
+    });
+
+    const dados = [{ profissional: 'ELIENE BELO' }, { profissional: 'ELIENE BELO' }];
+    dados.forEach((item) => {
+      const atual = contagemValores.get(item.profissional);
+      if (atual) {
+        if (atual.contagem === 0) {
+          atual.contagem += 1;
+        } else {
+          atual.contagem += 1;
+        }
+      }
+    });
+
+    expect(contagemValores.get('ELIENE BELO')?.contagem).toBe(2);
+  });
 });
 

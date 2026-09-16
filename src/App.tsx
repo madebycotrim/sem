@@ -328,6 +328,22 @@ export function App() {
   const [paginaAtendimentos, setPaginaAtendimentos] = useState<number>(1);
   const [totalAtendimentos, setTotalAtendimentos] = useState<number>(0);
   const [totalPaginasAtendimentos, setTotalPaginasAtendimentos] = useState<number>(1);
+  const [filtrosAtendimentos, setFiltrosAtendimentos] = useState<{
+    especialidade?: string;
+    status?: string;
+    escola?: string;
+    profissional?: string;
+  }>({});
+
+  const handleMudarFiltrosAtendimentos = useCallback((novosFiltros: {
+    especialidade?: string;
+    status?: string;
+    escola?: string;
+    profissional?: string;
+  }) => {
+    setFiltrosAtendimentos(novosFiltros);
+    setPaginaAtendimentos(1);
+  }, []);
 
   const handleMudarFiltrosPacientes = useCallback((filtros: { escola?: string; autorizacao?: string }) => {
     setFiltroEscolaPacientes(filtros.escola || '');
@@ -387,7 +403,20 @@ export function App() {
     const carregarAtendimentos = async () => {
       if ((window as any)?.__importacaoEmAndamento || modalImportarPlanilhaAberto) return;
       try {
-        const resposta = await requisicaoApi<RespostaListaAtendimentos>(`/atendimentos?pagina=${paginaAtendimentos}&porPagina=${itensPorPaginaInteligente}`);
+        let url = `/atendimentos?pagina=${paginaAtendimentos}&porPagina=${itensPorPaginaInteligente}`;
+        if (filtrosAtendimentos.especialidade) {
+          url += `&listaEspecialidade=${encodeURIComponent(filtrosAtendimentos.especialidade)}`;
+        }
+        if (filtrosAtendimentos.status) {
+          url += `&listaStatus=${encodeURIComponent(filtrosAtendimentos.status)}`;
+        }
+        if (filtrosAtendimentos.escola) {
+          url += `&escola=${encodeURIComponent(filtrosAtendimentos.escola)}`;
+        }
+        if (filtrosAtendimentos.profissional) {
+          url += `&profissional=${encodeURIComponent(filtrosAtendimentos.profissional)}`;
+        }
+        const resposta = await requisicaoApi<RespostaListaAtendimentos>(url);
         if (ativo && resposta?.dados) {
           const listaMapeada: ItemAtendimentoLista[] = resposta.dados.map((d: any) => ({
             id: String(d.id),
@@ -431,7 +460,7 @@ export function App() {
       ativo = false;
       window.clearInterval(intervalo);
     };
-  }, [autenticado, gatilhoRecarregar, paginaAtendimentos, itensPorPaginaInteligente]);
+  }, [autenticado, gatilhoRecarregar, paginaAtendimentos, itensPorPaginaInteligente, filtrosAtendimentos]);
 
   useEffect(() => {
     if (!autenticado || carregandoAtendimentos) return;
@@ -1086,6 +1115,7 @@ export function App() {
                 totalPaginasServidor={totalPaginasAtendimentos}
                 totalRegistrosServidor={totalAtendimentos > 0 ? totalAtendimentos : todosAtendimentos.length}
                 aoMudarPaginaServidor={(novaPagina) => setPaginaAtendimentos(novaPagina)}
+                aoMudarFiltrosServidor={handleMudarFiltrosAtendimentos}
                 itensPorPaginaServidor={itensPorPaginaInteligente}
                 aoSincronizar={recarregarDados}
                 statusSincronizacaoCatraki={statusSincronizacaoCatraki}

@@ -69,6 +69,12 @@ export interface AtendimentosProps {
   totalRegistrosServidor?: number;
   aoMudarPaginaServidor?: (pagina: number) => void;
   itensPorPaginaServidor?: number;
+  aoMudarFiltrosServidor?: (filtros: {
+    especialidade?: string;
+    status?: string;
+    escola?: string;
+    profissional?: string;
+  }) => void;
 }
 
 export const Atendimentos: FC<AtendimentosProps> = ({
@@ -88,6 +94,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   totalRegistrosServidor,
   aoMudarPaginaServidor,
   itensPorPaginaServidor,
+  aoMudarFiltrosServidor,
 }) => {
   const [atendimentosLocais, setAtendimentosLocais] = useState<ItemAtendimentoLista[]>(atendimentosProp);
 
@@ -271,61 +278,195 @@ export const Atendimentos: FC<AtendimentosProps> = ({
     return obterDataIsoBrasilia(dataStr);
   };
 
-  // Opções completas de profissionais (todos os cadastrados no sistema + histórico)
+  const [metricasConsolidadas, setMetricasConsolidadas] = useState<{
+    porProfissional: Array<{ id: string; nome: string; total: number }>;
+    porEspecialidade: Array<{ especialidade: string; total: number }>;
+    porEscola: Array<{ id: string; nome: string; total: number }>;
+    porStatus: Record<string, number>;
+  } | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+    const carregarMetricas = async () => {
+      try {
+        const resposta = await requisicaoApi<{
+          porProfissional: Array<{ id: string; nome: string; total: number }>;
+          porEspecialidade: Array<{ especialidade: string; total: number }>;
+          porEscola: Array<{ id: string; nome: string; total: number }>;
+          porStatus: Record<string, number>;
+        }>('/atendimentos/relatorio');
+        if (ativo && resposta) {
+          setMetricasConsolidadas(resposta);
+        }
+      } catch (e) {
+        console.error('Erro ao carregar métricas para filtros do histórico:', e);
+      }
+    };
+    void carregarMetricas();
+    return () => {
+      ativo = false;
+    };
+  }, [aoSincronizar]);
+
+  // Opções completas de profissionais com contagem real consolidada
   const opcoesProfissionais = useMemo(() => {
-    const mapa = new Map<string, string>();
+    const contagemMap = new Map<string, number>();
+    if (metricasConsolidadas?.porProfissional) {
+      metricasConsolidadas.porProfissional.forEach((p) => {
+        if (p.nome) contagemMap.set(p.nome.trim().toLowerCase(), p.total);
+      });
+    }
+
+    const mapa = new Map<string, { nome: string; contagem: number }>();
     profissionais.forEach((p) => {
-      if (p.nome?.trim()) mapa.set(p.nome.trim(), p.nome.trim());
-    });
-    atendimentos.forEach((a) => {
-      if (a.profissionalNome?.trim() && a.profissionalNome !== 'Profissional de Saúde' && a.profissionalNome !== 'Desconhecido') {
-        mapa.set(a.profissionalNome.trim(), a.profissionalNome.trim());
+      if (p.nome?.trim()) {
+        const nomeTrim = p.nome.trim();
+        const chave = nomeTrim.toLowerCase();
+        mapa.set(chave, {
+          nome: nomeTrim,
+          contagem: contagemMap.get(chave) ?? 0,
+        });
       }
     });
-    return Array.from(mapa.values())
-      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
-      .map((nome) => ({
-        valorChave: nome,
-        rotuloExibicao: nome,
-      }));
-  }, [profissionais, atendimentos]);
 
-  // Opções completas de especialidades clínicas
+    if (metricasConsolidadas?.porProfissional) {
+      metricasConsolidadas.porProfissional.forEach((p) => {
+        if (p.nome?.trim()) {
+          const nomeTrim = p.nome.trim();
+          const chave = nomeTrim.toLowerCase();
+          const existente = mapa.get(chave);
+          if (existente) {
+            existente.contagem = Math.max(existente.contagem, p.total);
+          } else {
+            mapa.set(chave, {
+              nome: nomeTrim,
+              contagem: p.total,
+            });
+          }
+        }
+      });
+    }
+
+    atendimentos.forEach((a) => {
+      if (a.profissionalNome?.trim() && a.profissionalNome !== 'Profissional de Saúde' && a.profissionalNome !== 'Desconhecido') {
+        const nomeTrim = a.profissionalNome.trim();
+        const chave = nomeTrim.toLowerCase();
+        const existente = mapa.get(chave);
+        if (existente) {
+          if (!metricasConsolidadas && existente.contagem === 0) {
+            existente.contagem += 1;
+          }
+        } else {
+          mapa.set(chave, {
+            nome: nomeTrim,
+            contagem: contagemMap.get(chave) ?? 1,
+          });
+        }
+      }
+    });
+
+    return Array.from(mapa.values())
+      .sort((a, b) => b.contagem - a.contagem || a.nome.localeCompare(b.nome, 'pt-BR'))
+      .map((item) => ({
+        valorChave: item.nome,
+        rotuloExibicao: item.nome,
+        contagem: item.contagem,
+      }));
+  }, [profissionais, atendimentos, metricasConsolidadas]);
+
+  // Opções completas de especialidades clínicas com contagem real consolidada
   const opcoesEspecialidades = useMemo(() => {
+    const contagemMap = new Map<string, number>();
+    if (metricasConsolidadas?.porEspecialidade) {
+      metricasConsolidadas.porEspecialidade.forEach((e) => {
+        contagemMap.set(e.especialidade, e.total);
+      });
+    }
+
     return Object.entries(ESPECIALIDADE_LABELS)
-      .sort(([, a], [, b]) => String(a).localeCompare(String(b), 'pt-BR'))
       .map(([chave, rotulo]) => ({
         valorChave: chave,
         rotuloExibicao: String(rotulo),
-      }));
-  }, []);
+        contagem: contagemMap.get(chave) ?? 0,
+      }))
+      .sort((a, b) => b.contagem - a.contagem || a.rotuloExibicao.localeCompare(b.rotuloExibicao, 'pt-BR'));
+  }, [metricasConsolidadas]);
 
-  // Opções completas de instituições escolares
+  // Opções completas de instituições escolares com contagem real consolidada
   const opcoesEscolas = useMemo(() => {
-    const mapa = new Map<string, string>();
+    const contagemMap = new Map<string, number>();
+    if (metricasConsolidadas?.porEscola) {
+      metricasConsolidadas.porEscola.forEach((e) => {
+        if (e.nome) contagemMap.set(e.nome.trim().toLowerCase(), e.total);
+      });
+    }
+
+    const mapa = new Map<string, { nome: string; contagem: number }>();
     escolas.forEach((e) => {
-      if (e.nome?.trim()) mapa.set(e.nome.trim(), e.nome.trim());
-    });
-    atendimentos.forEach((a) => {
-      if (a.escolaNome?.trim() && a.escolaNome !== 'Não informada' && a.escolaNome !== 'Desconhecida') {
-        mapa.set(a.escolaNome.trim(), a.escolaNome.trim());
+      if (e.nome?.trim()) {
+        const nomeTrim = e.nome.trim();
+        const chave = nomeTrim.toLowerCase();
+        mapa.set(chave, {
+          nome: nomeTrim,
+          contagem: contagemMap.get(chave) ?? 0,
+        });
       }
     });
-    return Array.from(mapa.values())
-      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
-      .map((nome) => ({
-        valorChave: nome,
-        rotuloExibicao: nome,
-      }));
-  }, [escolas, atendimentos]);
 
-  // Opções completas de status de atendimento
+    if (metricasConsolidadas?.porEscola) {
+      metricasConsolidadas.porEscola.forEach((e) => {
+        if (e.nome?.trim()) {
+          const nomeTrim = e.nome.trim();
+          const chave = nomeTrim.toLowerCase();
+          const existente = mapa.get(chave);
+          if (existente) {
+            existente.contagem = Math.max(existente.contagem, e.total);
+          } else {
+            mapa.set(chave, {
+              nome: nomeTrim,
+              contagem: e.total,
+            });
+          }
+        }
+      });
+    }
+
+    atendimentos.forEach((a) => {
+      if (a.escolaNome?.trim() && a.escolaNome !== 'Não informada' && a.escolaNome !== 'Desconhecida') {
+        const nomeTrim = a.escolaNome.trim();
+        const chave = nomeTrim.toLowerCase();
+        const existente = mapa.get(chave);
+        if (existente) {
+          if (!metricasConsolidadas && existente.contagem === 0) {
+            existente.contagem += 1;
+          }
+        } else {
+          mapa.set(chave, {
+            nome: nomeTrim,
+            contagem: contagemMap.get(chave) ?? 1,
+          });
+        }
+      }
+    });
+
+    return Array.from(mapa.values())
+      .sort((a, b) => b.contagem - a.contagem || a.nome.localeCompare(b.nome, 'pt-BR'))
+      .map((item) => ({
+        valorChave: item.nome,
+        rotuloExibicao: item.nome,
+        contagem: item.contagem,
+      }));
+  }, [escolas, atendimentos, metricasConsolidadas]);
+
+  // Opções completas de status de atendimento com contagem real consolidada
   const opcoesStatus = useMemo(() => {
+    const porStatus = metricasConsolidadas?.porStatus || {};
     return Object.entries(STATUS_ATENDIMENTO_LABELS).map(([chave, rotulo]) => ({
       valorChave: chave,
       rotuloExibicao: String(rotulo),
-    }));
-  }, []);
+      contagem: porStatus[chave] ?? 0,
+    })).sort((a, b) => b.contagem - a.contagem);
+  }, [metricasConsolidadas]);
 
   const colunasConfig = useMemo<ConfiguracaoColuna<ItemAtendimentoLista>[]>(
     () => [
@@ -471,30 +612,81 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   });
 
   const { dadosFiltrados, temAlgumFiltroAtivo } = filtroExcel;
+  const filtrosColuna = filtroExcel.filtrosColuna;
+  const primeiraCargaFiltroRef = useRef(true);
+
+  // Sincroniza filtros do Excel com a busca paginada do servidor
+  useEffect(() => {
+    if (primeiraCargaFiltroRef.current) {
+      primeiraCargaFiltroRef.current = false;
+      return;
+    }
+    if (!aoMudarFiltrosServidor) return;
+
+    let escolaParam: string | undefined = undefined;
+    const selecaoEscola = filtrosColuna['escolaNome'];
+    if (selecaoEscola && selecaoEscola.size > 0 && selecaoEscola.size < opcoesEscolas.length) {
+      escolaParam = Array.from(selecaoEscola).join(',');
+    }
+
+    let profParam: string | undefined = undefined;
+    const selecaoProf = filtrosColuna['profissionalNome'];
+    if (selecaoProf && selecaoProf.size > 0 && selecaoProf.size < opcoesProfissionais.length) {
+      profParam = Array.from(selecaoProf).join(',');
+    }
+
+    let espParam: string | undefined = undefined;
+    const selecaoEsp = filtrosColuna['especialidade'];
+    if (selecaoEsp && selecaoEsp.size > 0 && selecaoEsp.size < opcoesEspecialidades.length) {
+      espParam = Array.from(selecaoEsp).join(',');
+    }
+
+    let statusParam: string | undefined = undefined;
+    const selecaoStatus = filtrosColuna['status'];
+    if (selecaoStatus && selecaoStatus.size > 0 && selecaoStatus.size < opcoesStatus.length) {
+      statusParam = Array.from(selecaoStatus).join(',');
+    }
+
+    aoMudarFiltrosServidor({
+      escola: escolaParam,
+      profissional: profParam,
+      especialidade: espParam,
+      status: statusParam,
+    });
+  }, [filtrosColuna, aoMudarFiltrosServidor, opcoesEscolas.length, opcoesProfissionais.length, opcoesEspecialidades.length, opcoesStatus.length]);
 
   const [paginaLocal, setPaginaLocal] = useState(1);
   const itensCalculados = useItensPorPaginaInteligente(310, 48, 6, 12);
   const itensPorPagina = itensPorPaginaServidor || itensCalculados;
-  const usandoPaginacaoServidor = typeof totalPaginasServidor === 'number' && totalPaginasServidor > 1;
+  const usandoPaginacaoServidor = typeof totalPaginasServidor === 'number' && (totalPaginasServidor > 1 || totalRegistrosServidor !== undefined);
+  const usaServidor = usandoPaginacaoServidor && Boolean(aoMudarFiltrosServidor);
 
-  const totalPaginas = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+  const totalPaginas = usaServidor
+    ? (totalPaginasServidor ?? 1)
+    : usandoPaginacaoServidor && !temAlgumFiltroAtivo
     ? totalPaginasServidor
     : Math.max(1, Math.ceil(dadosFiltrados.length / itensPorPagina));
 
-  const totalRegistros = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+  const totalRegistros = usaServidor
+    ? (totalRegistrosServidor ?? dadosFiltrados.length)
+    : usandoPaginacaoServidor && !temAlgumFiltroAtivo
     ? (totalRegistrosServidor ?? dadosFiltrados.length)
     : dadosFiltrados.length;
 
-  const paginaExibida = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+  const paginaExibida = usaServidor
+    ? (paginaServidor ?? 1)
+    : usandoPaginacaoServidor && !temAlgumFiltroAtivo
     ? (paginaServidor ?? 1)
     : Math.min(paginaLocal, totalPaginas);
 
-  const dadosPaginados = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+  const dadosPaginados = usaServidor
+    ? dadosFiltrados.slice(0, itensPorPagina)
+    : usandoPaginacaoServidor && !temAlgumFiltroAtivo
     ? dadosFiltrados.slice(0, itensPorPagina)
     : dadosFiltrados.slice((paginaExibida - 1) * itensPorPagina, paginaExibida * itensPorPagina);
 
   const handleMudarPagina = (novaPagina: number) => {
-    if (usandoPaginacaoServidor && !temAlgumFiltroAtivo && aoMudarPaginaServidor) {
+    if ((usaServidor || (usandoPaginacaoServidor && !temAlgumFiltroAtivo)) && aoMudarPaginaServidor) {
       aoMudarPaginaServidor(novaPagina);
     } else {
       setPaginaLocal(novaPagina);

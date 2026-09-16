@@ -9,7 +9,7 @@ import {
 } from '../../../compartilhado/index.js';
 import { getDb } from '../../infraestrutura/banco/drizzle.js';
 import { atendimentos, pacientes, escolasLocais, usuarios, consentimentos } from '../../infraestrutura/banco/schema.js';
-import { eq, and, desc, asc, count, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, desc, asc, count, gte, lte, sql, inArray, or } from 'drizzle-orm';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import { middlewareIdempotencia } from '../../middlewares/idempotencia.js';
@@ -389,6 +389,8 @@ rotasAtendimento.get('/analitico', async (c) => {
         criadoEm: true,
         entradaFilaEm: true,
         pacienteId: true,
+        escolaLocalId: true,
+        usuarioId: true,
       },
       with: {
         escolaLocal: { columns: { id: true, nome: true } },
@@ -455,6 +457,8 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
       especialidade: true,
       status: true,
       criadoEm: true,
+      escolaLocalId: true,
+      usuarioId: true,
     },
     with: {
       escolaLocal: { columns: { id: true, nome: true } },
@@ -481,24 +485,28 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
     especialidade.total += 1;
     porEspecialidade.set(atendimento.especialidade, especialidade);
     
-    if (atendimento.escolaLocal) {
-      const escola = porEscola.get(atendimento.escolaLocal.id) ?? {
-        id: atendimento.escolaLocal.id,
-        nome: atendimento.escolaLocal.nome,
+    if (atendimento.escolaLocal || atendimento.escolaLocalId) {
+      const escId = atendimento.escolaLocal?.id || atendimento.escolaLocalId || 'desconhecida';
+      const escNome = atendimento.escolaLocal?.nome || 'Não informada';
+      const escola = porEscola.get(escId) ?? {
+        id: escId,
+        nome: escNome,
         total: 0,
       };
       escola.total += 1;
-      porEscola.set(escola.id, escola);
+      porEscola.set(escId, escola);
     }
 
-    if (atendimento.usuario) {
-      const profissional = porProfissional.get(atendimento.usuario.id) ?? {
-        id: atendimento.usuario.id,
-        nome: atendimento.usuario.nomeCompleto,
+    if (atendimento.usuario || atendimento.usuarioId) {
+      const profId = atendimento.usuario?.id || atendimento.usuarioId || 'desconhecido';
+      const profNome = atendimento.usuario?.nomeCompleto || 'Profissional de Saúde';
+      const profissional = porProfissional.get(profId) ?? {
+        id: profId,
+        nome: profNome,
         total: 0,
       };
       profissional.total += 1;
-      porProfissional.set(profissional.id, profissional);
+      porProfissional.set(profId, profissional);
     }
   }
 
@@ -839,9 +847,61 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
   const condicoes = [];
 
   if (filtros.especialidade) condicoes.push(eq(atendimentos.especialidade, filtros.especialidade));
+  if (filtros.listaEspecialidade) {
+    const espList = filtros.listaEspecialidade.split(',').map((s) => s.trim()).filter(Boolean);
+    if (espList.length > 0) condicoes.push(inArray(atendimentos.especialidade, espList as Especialidade[]));
+  }
+
   if (filtros.status) condicoes.push(eq(atendimentos.status, filtros.status));
+  if (filtros.listaStatus) {
+    const statusList = filtros.listaStatus.split(',').map((s) => s.trim()).filter(Boolean);
+    if (statusList.length > 0) condicoes.push(inArray(atendimentos.status, statusList as StatusAtendimento[]));
+  }
+
   if (filtros.escolaLocalId) condicoes.push(eq(atendimentos.escolaLocalId, filtros.escolaLocalId));
+  if (filtros.escola) {
+    const termosEscola = filtros.escola.split(',').map((s) => s.trim()).filter(Boolean);
+    if (termosEscola.length > 0) {
+      const termosEscolaLower = termosEscola.map((t) => t.toLowerCase());
+      const escolasEncontradas = await db.query.escolasLocais.findMany({
+        where: or(
+          inArray(sql`lower(${escolasLocais.nome})`, termosEscolaLower),
+          inArray(escolasLocais.nome, termosEscola),
+          inArray(escolasLocais.id, termosEscola)
+        ),
+        columns: { id: true },
+      });
+      const idsEscolas = escolasEncontradas.map((e) => e.id);
+      if (idsEscolas.length > 0) {
+        condicoes.push(inArray(atendimentos.escolaLocalId, idsEscolas));
+      } else {
+        condicoes.push(sql`1 = 0`);
+      }
+    }
+  }
+
   if (filtros.usuarioId) condicoes.push(eq(atendimentos.usuarioId, filtros.usuarioId));
+  if (filtros.profissional) {
+    const termosProfissional = filtros.profissional.split(',').map((s) => s.trim()).filter(Boolean);
+    if (termosProfissional.length > 0) {
+      const termosProfissionalLower = termosProfissional.map((t) => t.toLowerCase());
+      const usuariosEncontrados = await db.query.usuarios.findMany({
+        where: or(
+          inArray(sql`lower(${usuarios.nomeCompleto})`, termosProfissionalLower),
+          inArray(usuarios.nomeCompleto, termosProfissional),
+          inArray(usuarios.id, termosProfissional)
+        ),
+        columns: { id: true },
+      });
+      const idsUsuarios = usuariosEncontrados.map((u) => u.id);
+      if (idsUsuarios.length > 0) {
+        condicoes.push(inArray(atendimentos.usuarioId, idsUsuarios));
+      } else {
+        condicoes.push(sql`1 = 0`);
+      }
+    }
+  }
+
   if (filtros.pacienteId) condicoes.push(eq(atendimentos.pacienteId, filtros.pacienteId));
   if (filtros.dataInicio) condicoes.push(gte(atendimentos.criadoEm, `${filtros.dataInicio} 00:00:00`));
   if (filtros.dataFim) condicoes.push(lte(atendimentos.criadoEm, `${filtros.dataFim} 23:59:59`));

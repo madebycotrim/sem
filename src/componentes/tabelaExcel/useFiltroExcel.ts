@@ -133,7 +133,9 @@ export function useFiltroExcel<T>({
         const { chave, rotulo } = extrairChaveString(item, col.id);
         const atual = contagemValores.get(chave);
         if (atual) {
-          if (!col.valoresOpcoesPredefinidas || col.valoresOpcoesPredefinidas.every(o => o.contagem === undefined)) {
+          if (!col.valoresOpcoesPredefinidas || col.valoresOpcoesPredefinidas.every((o) => o.contagem === undefined)) {
+            atual.contagem += 1;
+          } else if (atual.contagem === 0) {
             atual.contagem += 1;
           }
         } else {
@@ -290,7 +292,12 @@ export function useFiltroExcel<T>({
       if (!valoresPermitidos) return;
       resultado = resultado.filter((item) => {
         const { chave } = extrairChaveString(item, colunaId);
-        return valoresPermitidos.has(chave);
+        if (valoresPermitidos.has(chave)) return true;
+        const chaveTrimLower = String(chave).trim().toLowerCase();
+        for (const v of valoresPermitidos) {
+          if (String(v).trim().toLowerCase() === chaveTrimLower) return true;
+        }
+        return false;
       });
     });
 
