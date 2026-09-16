@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { criarPacienteSchema, atualizarPacienteSchema } from '../../../compartilhado/index.js';
 import { getDb, type AppDatabase } from '../../infraestrutura/banco/drizzle.js';
 import { pacientes, escolasLocais, consentimentos } from '../../infraestrutura/banco/schema.js';
-import { eq, and, desc, count, ne, isNull } from 'drizzle-orm';
+import { eq, and, desc, count, ne, isNull, inArray, or, sql } from 'drizzle-orm';
 import {
   criptografarPii,
   descriptografarPii,
@@ -184,11 +184,54 @@ rotasPaciente.get('/', async (c) => {
   const pagina = Math.max(1, parseInt(query['pagina'] ?? '1', 10));
   const porPagina = Math.min(100, Math.max(1, parseInt(query['porPagina'] ?? '20', 10)));
 
+  const condicoes = [eq(pacientes.ativo, true)];
+
+  // Filtro por Instituição / Escola
+  const escolaParam = query['escola'];
+  if (escolaParam) {
+    const termosEscola = escolaParam.split(',').map((s) => s.trim()).filter(Boolean);
+    if (termosEscola.length > 0) {
+      const escolasEncontradas = await db.query.escolasLocais.findMany({
+        where: and(
+          eq(escolasLocais.ativo, true),
+          or(
+            inArray(escolasLocais.nome, termosEscola),
+            inArray(escolasLocais.id, termosEscola)
+          )
+        ),
+        columns: { id: true },
+      });
+      const idsEscolas = escolasEncontradas.map((e) => e.id);
+      if (idsEscolas.length > 0) {
+        condicoes.push(inArray(pacientes.escolaLocalId, idsEscolas));
+      } else {
+        condicoes.push(sql`1 = 0`);
+      }
+    }
+  }
+
+  // Filtro por Autorização (ACEITO / PENDENTE)
+  const autorizacaoParam = query['autorizacao'];
+  if (autorizacaoParam) {
+    const statusAutorizacao = autorizacaoParam.toUpperCase().trim();
+    if (statusAutorizacao === 'ACEITO' || statusAutorizacao === 'AUTORIZADO') {
+      condicoes.push(
+        sql`${pacientes.id} IN (SELECT ${consentimentos.pacienteId} FROM ${consentimentos} WHERE ${consentimentos.dataConsentimento} IS NOT NULL AND (${consentimentos.consentimentoDispensado} IS NULL OR ${consentimentos.consentimentoDispensado} = 0))`
+      );
+    } else if (statusAutorizacao === 'PENDENTE' || statusAutorizacao === 'NAO_AUTORIZADO' || statusAutorizacao === 'RECUSADO') {
+      condicoes.push(
+        sql`${pacientes.id} NOT IN (SELECT ${consentimentos.pacienteId} FROM ${consentimentos} WHERE ${consentimentos.dataConsentimento} IS NOT NULL AND (${consentimentos.consentimentoDispensado} IS NULL OR ${consentimentos.consentimentoDispensado} = 0))`
+      );
+    }
+  }
+
+  const whereClause = condicoes.length > 1 ? and(...condicoes) : condicoes[0];
+
   const [pacientesList, totalResult] = await Promise.all([
     db.query.pacientes.findMany({
       offset: (pagina - 1) * porPagina,
       limit: porPagina,
-      where: eq(pacientes.ativo, true),
+      where: whereClause,
       orderBy: [desc(pacientes.criadoEm)],
       with: {
         escolaLocal: { columns: { nome: true } },
@@ -201,7 +244,7 @@ rotasPaciente.get('/', async (c) => {
         },
       },
     }),
-    db.select({ total: count() }).from(pacientes).where(eq(pacientes.ativo, true)),
+    db.select({ total: count() }).from(pacientes).where(whereClause),
   ]);
 
   const total = totalResult[0]?.total ?? 0;

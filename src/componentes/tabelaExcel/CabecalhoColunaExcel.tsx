@@ -70,6 +70,13 @@ export function CabecalhoColunaExcel<T>({
   }, [alinhamento]);
 
   const abrirMenu = () => {
+    if (desabilitarFiltro && desabilitarOrdenacao) {
+      return;
+    }
+    if (desabilitarFiltro && !desabilitarOrdenacao) {
+      estado.definirOrdenacao(colunaId);
+      return;
+    }
     atualizarPosicao();
     setAberto((prev) => !prev);
   };
@@ -148,7 +155,13 @@ export function CabecalhoColunaExcel<T>({
       : 'Classificar de Z a A';
 
   const tooltipTexto =
-    filtroAtivo && estaOrdenado
+    desabilitarFiltro && !desabilitarOrdenacao
+      ? estaOrdenado
+        ? `Classificado (${direcaoOrdenacao === 'asc' ? 'crescente' : 'decrescente'}) por "${rotulo}". Clique para inverter.`
+        : `Classificar por "${rotulo}"`
+      : desabilitarFiltro && desabilitarOrdenacao
+      ? rotulo
+      : filtroAtivo && estaOrdenado
       ? `Filtrado e ordenado (${direcaoOrdenacao === 'asc' ? 'crescente' : 'decrescente'}) por "${rotulo}"`
       : filtroAtivo
       ? `Filtro ativo na coluna "${rotulo}"`
@@ -169,7 +182,9 @@ export function CabecalhoColunaExcel<T>({
           ref={triggerRef}
           type="button"
           onClick={abrirMenu}
-          className={`group w-full flex items-center justify-between gap-2 py-1 text-[11px] font-bold tracking-wider uppercase transition-colors cursor-pointer select-none ${
+          className={`group w-full flex items-center justify-between gap-2 py-1 text-[11px] font-bold tracking-wider uppercase transition-colors select-none ${
+            desabilitarFiltro && desabilitarOrdenacao ? 'cursor-default' : 'cursor-pointer'
+          } ${
             aberto
               ? 'text-[#034b7f]'
               : filtroAtivo || estaOrdenado
@@ -185,27 +200,29 @@ export function CabecalhoColunaExcel<T>({
 
           {/* Ícone de Filtro (Funil) direto, sem círculos ou caixas */}
           <div className="flex items-center gap-1 shrink-0 ml-1">
-            <svg
-              className={`w-3 h-3 transition-colors ${
-                filtroAtivo
-                  ? 'text-[#034b7f] fill-[#034b7f]'
-                  : aberto
-                  ? 'text-[#034b7f]'
-                  : 'text-slate-400 group-hover:text-[#034b7f]'
-              }`}
-              viewBox="0 0 24 24"
-              fill={filtroAtivo ? 'currentColor' : 'none'}
-              stroke="currentColor"
-              strokeWidth={filtroAtivo ? '0' : '2'}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              {filtroAtivo ? (
-                <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-              ) : (
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-              )}
-            </svg>
+            {!desabilitarFiltro && (
+              <svg
+                className={`w-3 h-3 transition-colors ${
+                  filtroAtivo
+                    ? 'text-[#034b7f] fill-[#034b7f]'
+                    : aberto
+                    ? 'text-[#034b7f]'
+                    : 'text-slate-400 group-hover:text-[#034b7f]'
+                }`}
+                viewBox="0 0 24 24"
+                fill={filtroAtivo ? 'currentColor' : 'none'}
+                stroke="currentColor"
+                strokeWidth={filtroAtivo ? '0' : '2'}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {filtroAtivo ? (
+                  <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+                ) : (
+                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                )}
+              </svg>
+            )}
 
             {/* Indicador de Ordenação (se houver) */}
             {estaOrdenado && (

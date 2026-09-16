@@ -10,6 +10,7 @@ export interface ConfiguracaoColuna<T> {
   formatarRotulo?: (valor: any, item?: T) => string;
   desabilitarFiltro?: boolean;
   desabilitarOrdenacao?: boolean;
+  valoresOpcoesPredefinidas?: { valorChave: string; rotuloExibicao: string; contagem?: number }[];
 }
 
 export interface ItemValorFiltro {
@@ -118,11 +119,23 @@ export function useFiltroExcel<T>({
 
       const contagemValores = new Map<string, { rotulo: string; contagem: number }>();
 
+      // Popula previamente as opções pré-definidas se existirem (ex: todas as instituições ou autorizações)
+      if (col.valoresOpcoesPredefinidas && col.valoresOpcoesPredefinidas.length > 0) {
+        col.valoresOpcoesPredefinidas.forEach((opcao) => {
+          contagemValores.set(opcao.valorChave, {
+            rotulo: opcao.rotuloExibicao,
+            contagem: opcao.contagem ?? 0,
+          });
+        });
+      }
+
       dados.forEach((item) => {
         const { chave, rotulo } = extrairChaveString(item, col.id);
         const atual = contagemValores.get(chave);
         if (atual) {
-          atual.contagem += 1;
+          if (!col.valoresOpcoesPredefinidas || col.valoresOpcoesPredefinidas.every(o => o.contagem === undefined)) {
+            atual.contagem += 1;
+          }
         } else {
           contagemValores.set(chave, { rotulo, contagem: 1 });
         }

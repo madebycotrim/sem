@@ -1,4 +1,4 @@
-import { type FC, useMemo, useState } from 'react';
+import { type FC, useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   useFiltroExcel,
@@ -118,6 +118,8 @@ interface TabelaPacientesProps {
   totalRegistrosServidor?: number;
   aoMudarPaginaServidor?: (pagina: number) => void;
   itensPorPaginaServidor?: number;
+  escolasDisponiveis?: { id: string; nome: string; alunosMatriculados?: number }[];
+  aoMudarFiltrosServidor?: (filtros: { escola?: string; autorizacao?: string }) => void;
 }
 
 export const TabelaPacientes: FC<TabelaPacientesProps> = ({
@@ -133,11 +135,29 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
   totalRegistrosServidor,
   aoMudarPaginaServidor,
   itensPorPaginaServidor,
+  escolasDisponiveis,
+  aoMudarFiltrosServidor,
 }) => {
   const [menuAcoesAbertoId, setMenuAcoesAbertoId] = useState<string | null>(null);
   const [pacienteConfirmarExclusao, setPacienteConfirmarExclusao] = useState<ItemPaciente | null>(null);
   const [pacienteParaComprovante, setPacienteParaComprovante] = useState<ItemPaciente | null>(null);
   const { temPermissaoAcao } = usePermissoes();
+
+  // Opções completas de instituições (todas as cadastradas)
+  const opcoesInstituicao = useMemo(() => {
+    if (!escolasDisponiveis || escolasDisponiveis.length === 0) return undefined;
+    return escolasDisponiveis.map((e) => ({
+      valorChave: e.nome,
+      rotuloExibicao: e.nome,
+      contagem: e.alunosMatriculados,
+    }));
+  }, [escolasDisponiveis]);
+
+  // Opções completas de autorização (todas as possíveis)
+  const opcoesAutorizacao = useMemo(() => [
+    { valorChave: 'ACEITO', rotuloExibicao: 'Autorizado' },
+    { valorChave: 'PENDENTE', rotuloExibicao: 'Não Autorizado' },
+  ], []);
 
   // Configuração das colunas para o Sistema Excel
   const colunasConfig = useMemo<ConfiguracaoColuna<ItemPaciente>[]>(
@@ -147,6 +167,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
         rotulo: 'PACIENTE',
         tipo: 'texto',
         obterValor: (p) => p.nome,
+        desabilitarFiltro: true,
       },
       {
         id: 'termoConsentimentoStatus',
@@ -154,12 +175,14 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
         tipo: 'opcao',
         obterValor: (p) => p.termoConsentimentoStatus,
         formatarRotulo: (val) => (val === 'ACEITO' ? 'Autorizado' : 'Não Autorizado'),
+        valoresOpcoesPredefinidas: opcoesAutorizacao,
       },
       {
         id: 'escolaNome',
         rotulo: 'INSTITUIÇÃO',
         tipo: 'texto',
         obterValor: (p) => p.escolaNome,
+        valoresOpcoesPredefinidas: opcoesInstituicao,
       },
       {
         id: 'cpf',
@@ -167,6 +190,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
         tipo: 'texto',
         obterValor: (p) => p.cpf || '',
         formatarRotulo: (val) => (val ? String(val) : '(Não informado)'),
+        desabilitarFiltro: true,
       },
       {
         id: 'dataNascimento',
@@ -174,6 +198,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
         tipo: 'data',
         obterValor: (p) => p.dataNascimento,
         formatarRotulo: (val) => formatarDataBR(val),
+        desabilitarFiltro: true,
       },
       {
         id: 'acoes',
@@ -182,7 +207,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
         desabilitarOrdenacao: true,
       },
     ],
-    []
+    [opcoesInstituicao, opcoesAutorizacao]
   );
 
   const filtroExcel = useFiltroExcel<ItemPaciente>({
@@ -191,31 +216,65 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
   });
 
   const { dadosFiltrados, temAlgumFiltroAtivo } = filtroExcel;
+  const filtrosColuna = filtroExcel.filtrosColuna;
+  const primeiraCargaFiltroRef = useRef(true);
+
+  // Sincroniza filtros do Excel com a busca paginada do servidor
+  useEffect(() => {
+    if (primeiraCargaFiltroRef.current) {
+      primeiraCargaFiltroRef.current = false;
+      return;
+    }
+    if (!aoMudarFiltrosServidor) return;
+
+    let escolaParam: string | undefined = undefined;
+    const selecaoEscola = filtrosColuna['escolaNome'];
+    if (selecaoEscola && selecaoEscola.size > 0) {
+      escolaParam = Array.from(selecaoEscola).join(',');
+    }
+
+    let autorizacaoParam: string | undefined = undefined;
+    const selecaoAutorizacao = filtrosColuna['termoConsentimentoStatus'];
+    if (selecaoAutorizacao && selecaoAutorizacao.size === 1) {
+      autorizacaoParam = Array.from(selecaoAutorizacao)[0];
+    }
+
+    aoMudarFiltrosServidor({ escola: escolaParam, autorizacao: autorizacaoParam });
+  }, [filtrosColuna, aoMudarFiltrosServidor]);
 
   // Paginação sob demanda com suporte a dimensionamento inteligente
   const [paginaLocal, setPaginaLocal] = useState(1);
   const itensCalculados = useItensPorPaginaInteligente(310, 48, 6, 12);
   const itensPorPagina = itensPorPaginaServidor || itensCalculados;
-  const usandoPaginacaoServidor = typeof totalPaginasServidor === 'number' && totalPaginasServidor > 1;
+  const usandoPaginacaoServidor = typeof totalPaginasServidor === 'number' && (totalPaginasServidor > 1 || totalRegistrosServidor !== undefined);
+  const usaServidor = usandoPaginacaoServidor && Boolean(aoMudarFiltrosServidor);
 
-  const totalPaginas = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+  const totalPaginas = usaServidor
+    ? (totalPaginasServidor ?? 1)
+    : usandoPaginacaoServidor && !temAlgumFiltroAtivo
     ? totalPaginasServidor
     : Math.max(1, Math.ceil(dadosFiltrados.length / itensPorPagina));
 
-  const totalRegistros = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+  const totalRegistros = usaServidor
+    ? (totalRegistrosServidor ?? dadosFiltrados.length)
+    : usandoPaginacaoServidor && !temAlgumFiltroAtivo
     ? (totalRegistrosServidor ?? dadosFiltrados.length)
     : dadosFiltrados.length;
 
-  const paginaExibida = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+  const paginaExibida = usaServidor
+    ? (paginaServidor ?? 1)
+    : usandoPaginacaoServidor && !temAlgumFiltroAtivo
     ? (paginaServidor ?? 1)
     : Math.min(paginaLocal, totalPaginas);
 
-  const dadosPaginados = usandoPaginacaoServidor && !temAlgumFiltroAtivo
+  const dadosPaginados = usaServidor
+    ? dadosFiltrados.slice(0, itensPorPagina)
+    : usandoPaginacaoServidor && !temAlgumFiltroAtivo
     ? dadosFiltrados.slice(0, itensPorPagina)
     : dadosFiltrados.slice((paginaExibida - 1) * itensPorPagina, paginaExibida * itensPorPagina);
 
   const handleMudarPagina = (novaPagina: number) => {
-    if (usandoPaginacaoServidor && !temAlgumFiltroAtivo && aoMudarPaginaServidor) {
+    if ((usaServidor || (usandoPaginacaoServidor && !temAlgumFiltroAtivo)) && aoMudarPaginaServidor) {
       aoMudarPaginaServidor(novaPagina);
     } else {
       setPaginaLocal(novaPagina);

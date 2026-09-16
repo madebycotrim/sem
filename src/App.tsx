@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { CircleAlert, CircleCheck, Info, LoaderCircle, LockKeyhole } from 'lucide-react';
 import { ProvedorPermissoes } from './contextos/ContextoPermissoes.tsx';
 import { Sidebar, type SecaoMenu } from './componentes/Sidebar.tsx';
@@ -322,10 +322,18 @@ export function App() {
   const [paginaPacientes, setPaginaPacientes] = useState<number>(1);
   const [totalPacientes, setTotalPacientes] = useState<number>(0);
   const [totalPaginasPacientes, setTotalPaginasPacientes] = useState<number>(1);
+  const [filtroEscolaPacientes, setFiltroEscolaPacientes] = useState<string>('');
+  const [filtroAutorizacaoPacientes, setFiltroAutorizacaoPacientes] = useState<string>('');
 
   const [paginaAtendimentos, setPaginaAtendimentos] = useState<number>(1);
   const [totalAtendimentos, setTotalAtendimentos] = useState<number>(0);
   const [totalPaginasAtendimentos, setTotalPaginasAtendimentos] = useState<number>(1);
+
+  const handleMudarFiltrosPacientes = useCallback((filtros: { escola?: string; autorizacao?: string }) => {
+    setFiltroEscolaPacientes(filtros.escola || '');
+    setFiltroAutorizacaoPacientes(filtros.autorizacao || '');
+    setPaginaPacientes(1);
+  }, []);
 
   useEffect(() => {
     if (!autenticado) return;
@@ -333,7 +341,14 @@ export function App() {
     const carregarPacientes = async () => {
       if ((window as any)?.__importacaoEmAndamento || modalImportarPlanilhaAberto) return;
       try {
-        const resposta = await requisicaoApi<RespostaListaPacientes>(`/pacientes?pagina=${paginaPacientes}&porPagina=${itensPorPaginaInteligente}`);
+        let url = `/pacientes?pagina=${paginaPacientes}&porPagina=${itensPorPaginaInteligente}`;
+        if (filtroEscolaPacientes) {
+          url += `&escola=${encodeURIComponent(filtroEscolaPacientes)}`;
+        }
+        if (filtroAutorizacaoPacientes) {
+          url += `&autorizacao=${encodeURIComponent(filtroAutorizacaoPacientes)}`;
+        }
+        const resposta = await requisicaoApi<RespostaListaPacientes>(url);
         if (ativo && resposta?.dados) {
           setPacientes(resposta.dados.map(converterPacienteApi));
           if (typeof resposta.total === 'number') {
@@ -360,7 +375,7 @@ export function App() {
       ativo = false;
       window.clearInterval(intervalo);
     };
-  }, [autenticado, gatilhoRecarregar, paginaPacientes, itensPorPaginaInteligente]);
+  }, [autenticado, gatilhoRecarregar, paginaPacientes, itensPorPaginaInteligente, filtroEscolaPacientes, filtroAutorizacaoPacientes]);
 
   // Lista de Atendimentos (estado puro em memória diretamente alimentado pela API)
   const [atendimentos, setAtendimentos] = useState<ItemAtendimentoLista[]>([]);
@@ -1011,6 +1026,8 @@ export function App() {
               totalRegistrosServidor={totalPacientes > 0 ? totalPacientes : pacientesFiltrados.length}
               aoMudarPaginaServidor={(novaPagina) => setPaginaPacientes(novaPagina)}
               itensPorPaginaServidor={itensPorPaginaInteligente}
+              escolasDisponiveis={escolasGlobais}
+              aoMudarFiltrosServidor={handleMudarFiltrosPacientes}
               aoNovoPaciente={() => {
                 setPacienteParaEditar(null);
                 setModalNovoPacienteAberto(true);

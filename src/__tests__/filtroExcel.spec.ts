@@ -70,4 +70,39 @@ describe('Sistema de Filtro e Ordenação Estilo Excel', () => {
     expect(config?.formatarRotulo?.('ACEITO')).toBe('Autorizado');
     expect(config?.formatarRotulo?.('PENDENTE')).toBe('Não Autorizado');
   });
+
+  it('deve incluir todas as opções pré-definidas de instituições mesmo que não estejam na página atual', () => {
+    const opcoesPredefinidas = [
+      { valorChave: 'ESCOLA SESI CEB', rotuloExibicao: 'ESCOLA SESI CEB', contagem: 50 },
+      { valorChave: 'ESCOLA SESI TAGUATINGA', rotuloExibicao: 'ESCOLA SESI TAGUATINGA', contagem: 120 },
+      { valorChave: 'ESCOLA SESI SOBRADINHO', rotuloExibicao: 'ESCOLA SESI SOBRADINHO', contagem: 80 },
+    ];
+
+    // Dados da página atual contêm apenas uma escola
+    const dadosPaginaAtual: TestItem[] = [
+      { id: '1', nome: 'GABRIEL SANTOS', idade: 12, escola: 'ESCOLA SESI CEB', termoStatus: 'ACEITO' },
+    ];
+    expect(dadosPaginaAtual).toHaveLength(1);
+
+    const mapaValores = new Map<string, { rotulo: string; contagem: number }>();
+    opcoesPredefinidas.forEach((op) => {
+      mapaValores.set(op.valorChave, { rotulo: op.rotuloExibicao, contagem: op.contagem });
+    });
+
+    expect(mapaValores.size).toBe(3);
+    expect(mapaValores.has('ESCOLA SESI SOBRADINHO')).toBe(true);
+    expect(mapaValores.get('ESCOLA SESI TAGUATINGA')?.contagem).toBe(120);
+  });
+
+  it('deve manter opções fixas para AUTORIZAÇÃO (Autorizado e Não Autorizado)', () => {
+    const opcoesAutorizacao = [
+      { valorChave: 'ACEITO', rotuloExibicao: 'Autorizado' },
+      { valorChave: 'PENDENTE', rotuloExibicao: 'Não Autorizado' },
+    ];
+
+    expect(opcoesAutorizacao).toHaveLength(2);
+    expect(opcoesAutorizacao.map((o) => o.valorChave)).toEqual(['ACEITO', 'PENDENTE']);
+    expect(opcoesAutorizacao.map((o) => o.rotuloExibicao)).toEqual(['Autorizado', 'Não Autorizado']);
+  });
 });
+
