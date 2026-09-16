@@ -252,7 +252,7 @@ export const Dashboard: FC<DashboardProps> = ({
               <button
                 type="button"
                 onClick={aoNovoPaciente}
-                className="p-4 rounded-2xl border border-blue-200/90 bg-gradient-to-br from-blue-50/60 to-white hover:from-blue-100/70 hover:to-blue-50/40 text-left transition-all cursor-pointer group shadow-2xs active:scale-[0.99]"
+                className="flex flex-col items-center text-center p-4 rounded-2xl border border-blue-200/90 bg-gradient-to-br from-blue-50/60 to-white hover:from-blue-100/70 hover:to-blue-50/40 transition-all cursor-pointer group shadow-2xs active:scale-[0.99] h-full"
               >
                 <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center mb-2.5 shadow-2xs group-hover:scale-105 transition-transform">
                   <UserPlus className="w-5 h-5" />
@@ -263,7 +263,7 @@ export const Dashboard: FC<DashboardProps> = ({
                 <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
                   Registre os dados escolares, o consentimento e as informações essenciais do paciente.
                 </p>
-                <span className="inline-block mt-2.5 text-[10.5px] font-bold text-blue-600">
+                <span className="inline-block mt-auto pt-2.5 text-[10.5px] font-bold text-blue-600">
                   Abrir cadastro →
                 </span>
               </button>
@@ -271,7 +271,7 @@ export const Dashboard: FC<DashboardProps> = ({
               <button
                 type="button"
                 onClick={aoNovoAtendimento}
-                className="p-4 rounded-2xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/60 to-white hover:from-emerald-100/70 hover:to-emerald-50/40 text-left transition-all cursor-pointer group shadow-2xs active:scale-[0.99]"
+                className="flex flex-col items-center text-center p-4 rounded-2xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/60 to-white hover:from-emerald-100/70 hover:to-emerald-50/40 transition-all cursor-pointer group shadow-2xs active:scale-[0.99] h-full"
               >
                 <div className="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center mb-2.5 shadow-2xs group-hover:scale-105 transition-transform">
                   <FileText className="w-5 h-5" />
@@ -282,7 +282,7 @@ export const Dashboard: FC<DashboardProps> = ({
                 <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
                   Documente a consulta e os procedimentos clínicos realizados.
                 </p>
-                <span className="inline-block mt-2.5 text-[10.5px] font-bold text-emerald-600">
+                <span className="inline-block mt-auto pt-2.5 text-[10.5px] font-bold text-emerald-600">
                   Preencher ficha →
                 </span>
               </button>
@@ -290,7 +290,7 @@ export const Dashboard: FC<DashboardProps> = ({
               <button
                 type="button"
                 onClick={aoAbrirBi ?? aoAbrirRelatorios}
-                className="p-4 rounded-2xl border border-indigo-200/90 bg-gradient-to-br from-indigo-50/60 to-white hover:from-indigo-100/70 hover:to-indigo-50/40 text-left transition-all cursor-pointer group shadow-2xs active:scale-[0.99]"
+                className="flex flex-col items-center text-center p-4 rounded-2xl border border-indigo-200/90 bg-gradient-to-br from-indigo-50/60 to-white hover:from-indigo-100/70 hover:to-indigo-50/40 transition-all cursor-pointer group shadow-2xs active:scale-[0.99] h-full"
               >
                 <div className="w-9 h-9 rounded-2xl bg-indigo-600 text-white flex items-center justify-center mb-2.5 shadow-2xs group-hover:scale-105 transition-transform">
                   <BarChart3 className="w-5 h-5" />
@@ -301,7 +301,7 @@ export const Dashboard: FC<DashboardProps> = ({
                 <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
                   Acompanhe indicadores, tendências e a distribuição dos atendimentos em uma visão completa.
                 </p>
-                <span className="inline-block mt-2.5 text-[10.5px] font-bold text-indigo-600">
+                <span className="inline-block mt-auto pt-2.5 text-[10.5px] font-bold text-indigo-600">
                   Abrir dashboard →
                 </span>
               </button>

@@ -101,8 +101,14 @@ export interface PainelAnaliticoProps {
   aoImportarPlanilha?: () => void;
 }
 
+// Cache em memória para os dados analíticos consolidados (evita saltos de 12 para 6.000+ ao reabrir a aba)
+let cacheDadosAnaliticos: {
+  dados: AtendimentoAnalitico[];
+  totalConsentimentosPendentes?: number;
+} | null = null;
+
 export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
-  atendimentos,
+  atendimentos: _atendimentosProp,
   pacientes,
   escolas,
   carregando = false,
@@ -116,16 +122,24 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
   const [profissional, setProfissional] = useState('');
   const [escola, setEscola] = useState('');
   const [profissionaisSaude, setProfissionaisSaude] = useState<Array<{ id: string; nome: string; especialidade?: string | null }>>([]);
-  const [atendimentosRemotos, setAtendimentosRemotos] = useState<AtendimentoAnalitico[]>([]);
-  const [totalConsentimentosPendentesRemoto, setTotalConsentimentosPendentesRemoto] = useState<number | null>(null);
-  const [carregandoAnalitico, setCarregandoAnalitico] = useState<boolean>(true);
+  const [atendimentosRemotos, setAtendimentosRemotos] = useState<AtendimentoAnalitico[]>(
+    () => cacheDadosAnaliticos?.dados || []
+  );
+  const [totalConsentimentosPendentesRemoto, setTotalConsentimentosPendentesRemoto] = useState<number | null>(
+    () => cacheDadosAnaliticos?.totalConsentimentosPendentes ?? null
+  );
+  const [carregandoAnalitico, setCarregandoAnalitico] = useState<boolean>(
+    () => !cacheDadosAnaliticos || cacheDadosAnaliticos.dados.length === 0
+  );
 
-  // Carrega a totalidade dos atendimentos analíticos do banco de dados para eliminar a limitação de 50 registros
+  // Carrega a totalidade dos atendimentos analíticos do banco de dados para eliminar a limitação de registros
   useEffect(() => {
     let ativo = true;
     const carregarDadosAnaliticos = async () => {
       try {
-        setCarregandoAnalitico(true);
+        if (!cacheDadosAnaliticos || cacheDadosAnaliticos.dados.length === 0) {
+          setCarregandoAnalitico(true);
+        }
         const resposta = await requisicaoApi<{
           dados: AtendimentoAnalitico[];
           total: number;
@@ -134,13 +148,17 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
         }>('/atendimentos/analitico');
 
         if (ativo && resposta?.dados) {
+          cacheDadosAnaliticos = {
+            dados: resposta.dados,
+            totalConsentimentosPendentes: resposta.totalConsentimentosPendentes,
+          };
           setAtendimentosRemotos(resposta.dados);
           if (typeof resposta.totalConsentimentosPendentes === 'number') {
             setTotalConsentimentosPendentesRemoto(resposta.totalConsentimentosPendentes);
           }
         }
       } catch (erro) {
-        console.error('Erro ao carregar dados analíticos para BI:', erro);
+        console.error('Erro ao carregar dados analíticos para Dashboard:', erro);
       } finally {
         if (ativo) setCarregandoAnalitico(false);
       }
@@ -154,8 +172,10 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
 
   const todosAtendimentos = useMemo(() => {
     if (atendimentosRemotos.length > 0) return atendimentosRemotos;
-    return atendimentos || [];
-  }, [atendimentosRemotos, atendimentos]);
+    if (cacheDadosAnaliticos && cacheDadosAnaliticos.dados.length > 0) return cacheDadosAnaliticos.dados;
+    // Não usar amostra paginada (ex: 12 itens) para evitar que o painel exiba 12 e depois salte para 6.000+
+    return [];
+  }, [atendimentosRemotos]);
 
   useEffect(() => {
     let ativo = true;
@@ -523,7 +543,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
     return (
       <div className="flex flex-1 flex-col animate-fade-in font-sans pb-10">
         <CabecalhoPagina
-          titulo="Painel BI & Inteligência Clínica"
+          titulo="Dashboard"
           subtitulo="INDICADORES ESTATÍSTICOS, CONVERSÃO E PRODUTIVIDADE OPERACIONAL"
           fixo={false}
         />
@@ -539,7 +559,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
   return (
     <div className="flex flex-1 flex-col animate-fade-in font-sans pb-10">
       <CabecalhoPagina
-        titulo="Painel BI & Inteligência Clínica"
+        titulo="Dashboard"
         subtitulo="INDICADORES ESTATÍSTICOS, CONVERSÃO E PRODUTIVIDADE OPERACIONAL"
         fixo={false}
         aoExportar={handleExportarExcel}
@@ -552,7 +572,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
             <BarChart3 className="h-7 w-7 stroke-[2.2]" />
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-[#0b2545] tracking-tight">
-            Painel de Inteligência Clínica Aguardando Dados
+            Dashboard de Inteligência Clínica Aguardando Dados
           </h2>
           <p className="mt-2 text-sm text-slate-500 max-w-xl mx-auto leading-relaxed">
             O Business Intelligence (BI) consolida indicadores clínicos, taxa de conversão assistencial, curva horária e produtividade por especialidade em tempo real. Importe uma planilha de consultas ou inicie atendimentos na Fila do Dia para visualizar as projeções.

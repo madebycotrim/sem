@@ -271,6 +271,62 @@ export const Atendimentos: FC<AtendimentosProps> = ({
     return obterDataIsoBrasilia(dataStr);
   };
 
+  // Opções completas de profissionais (todos os cadastrados no sistema + histórico)
+  const opcoesProfissionais = useMemo(() => {
+    const mapa = new Map<string, string>();
+    profissionais.forEach((p) => {
+      if (p.nome?.trim()) mapa.set(p.nome.trim(), p.nome.trim());
+    });
+    atendimentos.forEach((a) => {
+      if (a.profissionalNome?.trim() && a.profissionalNome !== 'Profissional de Saúde' && a.profissionalNome !== 'Desconhecido') {
+        mapa.set(a.profissionalNome.trim(), a.profissionalNome.trim());
+      }
+    });
+    return Array.from(mapa.values())
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      .map((nome) => ({
+        valorChave: nome,
+        rotuloExibicao: nome,
+      }));
+  }, [profissionais, atendimentos]);
+
+  // Opções completas de especialidades clínicas
+  const opcoesEspecialidades = useMemo(() => {
+    return Object.entries(ESPECIALIDADE_LABELS)
+      .sort(([, a], [, b]) => String(a).localeCompare(String(b), 'pt-BR'))
+      .map(([chave, rotulo]) => ({
+        valorChave: chave,
+        rotuloExibicao: String(rotulo),
+      }));
+  }, []);
+
+  // Opções completas de instituições escolares
+  const opcoesEscolas = useMemo(() => {
+    const mapa = new Map<string, string>();
+    escolas.forEach((e) => {
+      if (e.nome?.trim()) mapa.set(e.nome.trim(), e.nome.trim());
+    });
+    atendimentos.forEach((a) => {
+      if (a.escolaNome?.trim() && a.escolaNome !== 'Não informada' && a.escolaNome !== 'Desconhecida') {
+        mapa.set(a.escolaNome.trim(), a.escolaNome.trim());
+      }
+    });
+    return Array.from(mapa.values())
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      .map((nome) => ({
+        valorChave: nome,
+        rotuloExibicao: nome,
+      }));
+  }, [escolas, atendimentos]);
+
+  // Opções completas de status de atendimento
+  const opcoesStatus = useMemo(() => {
+    return Object.entries(STATUS_ATENDIMENTO_LABELS).map(([chave, rotulo]) => ({
+      valorChave: chave,
+      rotuloExibicao: String(rotulo),
+    }));
+  }, []);
+
   const colunasConfig = useMemo<ConfiguracaoColuna<ItemAtendimentoLista>[]>(
     () => [
       {
@@ -278,12 +334,14 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         rotulo: 'PACIENTE',
         tipo: 'texto',
         obterValor: (i) => i.pacienteNome,
+        desabilitarFiltro: true,
       },
       {
         id: 'profissionalNome',
         rotulo: 'PROFISSIONAL',
         tipo: 'texto',
         obterValor: (i) => i.profissionalNome,
+        valoresOpcoesPredefinidas: opcoesProfissionais,
       },
       {
         id: 'especialidade',
@@ -291,19 +349,22 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         tipo: 'opcao',
         obterValor: (i) => i.especialidade,
         formatarRotulo: (val) => ESPECIALIDADE_LABELS[val as Especialidade] || String(val),
+        valoresOpcoesPredefinidas: opcoesEspecialidades,
       },
       {
         id: 'escolaNome',
-        rotulo: 'ESCOLA / POLO',
+        rotulo: 'ESCOLA',
         tipo: 'texto',
         obterValor: (i) => i.escolaNome,
+        valoresOpcoesPredefinidas: opcoesEscolas,
       },
       {
         id: 'criadoEm',
-        rotulo: 'DATA / HORA',
+        rotulo: 'DATA',
         tipo: 'data',
         obterValor: (i) => i.criadoEm,
         formatarRotulo: (val) => formatarDataEHoraBrasilia(val),
+        desabilitarFiltro: true,
       },
       {
         id: 'status',
@@ -311,9 +372,10 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         tipo: 'opcao',
         obterValor: (i) => normalizarStatusAtendimento(i.status),
         formatarRotulo: (val) => STATUS_ATENDIMENTO_LABELS[val as StatusAtendimento] || String(val),
+        valoresOpcoesPredefinidas: opcoesStatus,
       },
     ],
-    []
+    [opcoesProfissionais, opcoesEspecialidades, opcoesEscolas, opcoesStatus]
   );
 
   const dadosBase = useMemo(() => {
