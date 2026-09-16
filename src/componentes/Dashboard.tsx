@@ -122,7 +122,7 @@ export const Dashboard: FC<DashboardProps> = ({
   };
   const atendimentosRecentes = [...atendimentos]
     .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
-    .slice(0, 5);
+    .slice(0, 3);
   const especialidadesTotal = [
     { id: 'ODONTOLOGIA', nome: 'Odontologia', icone: Smile, cor: 'text-blue-600', fundo: 'bg-blue-50' },
     { id: 'OFTALMOLOGIA', nome: 'Oftalmologia', icone: Eye, cor: 'text-indigo-600', fundo: 'bg-indigo-50' },
@@ -322,8 +322,8 @@ export const Dashboard: FC<DashboardProps> = ({
             </div>
 
             <div className="mt-2 space-y-2">
-              {atendimentosRecentes.length > 0 ? atendimentosRecentes.map((atendimento) => (
-                <div key={`${atendimento.criadoEm}-${atendimento.pacienteNome}`} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50/80 px-3 py-2.5">
+              {atendimentosRecentes.length > 0 ? atendimentosRecentes.map((atendimento, idx) => (
+                <div key={(atendimento as any).id || `${atendimento.criadoEm}-${atendimento.pacienteNome}-${idx}`} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50/80 px-3 py-2.5">
                   <div className="min-w-0">
                     <p className="truncate text-xs font-bold text-slate-700">{atendimento.pacienteNome || 'Paciente'}</p>
                     <p className="mt-0.5 truncate text-[10px] font-medium text-slate-400">

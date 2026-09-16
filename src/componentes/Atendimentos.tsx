@@ -1131,7 +1131,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
             paginaAtual={paginaExibida}
             totalPaginas={totalPaginas}
             totalRegistros={totalRegistros}
-            itensPorPagina={usandoPaginacaoServidor && !temAlgumFiltroAtivo ? atendimentosProp.length : itensPorPagina}
+            itensPorPagina={usandoPaginacaoServidor && !temAlgumFiltroAtivo ? 50 : itensPorPagina}
             aoMudarPagina={handleMudarPagina}
           />
         </div>

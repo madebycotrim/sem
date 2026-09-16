@@ -724,17 +724,25 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           { length: totalPaginas - 1 },
           (_, indice) => indice + 2,
         );
-        const respostasRestantes = await Promise.all(
-          paginasRestantes.map((pagina) => {
-            const parametros = new URLSearchParams(parametrosBase);
-            parametros.set('pagina', String(pagina));
-            return requisicaoApi<{ dados: AtendimentoRelatorio[] }>(`/atendimentos?${parametros.toString()}`);
-          }),
-        );
-        atendimentos = [
-          ...atendimentos,
-          ...respostasRestantes.flatMap((r) => r.dados ?? []),
-        ];
+        // Processa páginas em pequenos lotes de 4 requisições com intervalo para evitar rate limit (HTTP 429)
+        const TAMANHO_LOTE = 4;
+        for (let i = 0; i < paginasRestantes.length; i += TAMANHO_LOTE) {
+          const lote = paginasRestantes.slice(i, i + TAMANHO_LOTE);
+          const respostasLote = await Promise.all(
+            lote.map((pagina) => {
+              const parametros = new URLSearchParams(parametrosBase);
+              parametros.set('pagina', String(pagina));
+              return requisicaoApi<{ dados: AtendimentoRelatorio[] }>(`/atendimentos?${parametros.toString()}`);
+            }),
+          );
+          atendimentos = [
+            ...atendimentos,
+            ...respostasLote.flatMap((r) => r.dados ?? []),
+          ];
+          if (i + TAMANHO_LOTE < paginasRestantes.length) {
+            await new Promise((resolve) => setTimeout(resolve, 150));
+          }
+        }
       }
 
       const filtrosTexto = [

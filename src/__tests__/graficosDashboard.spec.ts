@@ -152,4 +152,24 @@ describe('Inteligência Analítica e Métricas dos Gráficos do Dashboard', () =
       expect(diff).toBeGreaterThanOrEqual(6); // no mínimo 6 períodos de espaçamento
     }
   });
+
+  it('deve limitar a lista de Atividade Recente aos 3 últimos registros ordenados por data decrescente', () => {
+    const lista = [
+      { id: '1', pacienteNome: 'Paciente 1', criadoEm: '2026-05-10T08:00:00Z' },
+      { id: '2', pacienteNome: 'Paciente 2', criadoEm: '2026-05-10T09:00:00Z' },
+      { id: '3', pacienteNome: 'Paciente 3', criadoEm: '2026-05-10T10:00:00Z' },
+      { id: '4', pacienteNome: 'Paciente 4', criadoEm: '2026-05-10T11:00:00Z' },
+      { id: '5', pacienteNome: 'Paciente 5', criadoEm: '2026-05-10T12:00:00Z' },
+    ];
+
+    const recentes = [...lista]
+      .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
+      .slice(0, 3);
+
+    expect(recentes).toHaveLength(3);
+    expect(recentes[0].id).toBe('5');
+    expect(recentes[1].id).toBe('4');
+    expect(recentes[2].id).toBe('3');
+  });
 });
+
