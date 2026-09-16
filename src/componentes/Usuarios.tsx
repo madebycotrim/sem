@@ -10,6 +10,7 @@ import {
 } from './tabelaExcel/index.ts';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { Paginacao } from './Paginacao.tsx';
+import { useItensPorPaginaInteligente } from '../utilitarios/useItensPorPaginaInteligente.ts';
 import { requisicaoApi } from '../servicos/api.ts';
 
 import { ModalNovoUsuario, type FormNovoUsuario } from './ModalNovoUsuario.tsx';
@@ -51,7 +52,7 @@ interface UsuariosProps {
 export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
   const [busca, setBusca] = useState('');
   const [paginaAtual, setPaginaAtual] = useState(1);
-  const itensPorPagina = 10;
+  const itensPorPagina = useItensPorPaginaInteligente(320, 48, 6, 12);
 
   const [usuarios, setUsuarios] = useState<UsuarioItem[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -229,7 +230,7 @@ export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
       />
 
       {/* ─── Tabela de Registros com Sistema Excel ────────────────────────── */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-[460px]">
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-0">
         {/* Barra de Filtros Ativos Estilo Excel */}
         <BarraFiltrosAtivos estado={filtroExcel} entidadeNome="usuário(s)" />
 
@@ -532,6 +533,7 @@ export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
             paginaAtual={paginaCorrigida}
             totalPaginas={totalPaginas}
             totalRegistros={dadosFiltrados.length}
+            itensPorPagina={itensPorPagina}
             aoMudarPagina={(novaPagina) => setPaginaAtual(novaPagina)}
           />
         </div>

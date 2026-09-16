@@ -8,6 +8,7 @@ import {
 } from './tabelaExcel/index.ts';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { Paginacao } from './Paginacao.tsx';
+import { useItensPorPaginaInteligente } from '../utilitarios/useItensPorPaginaInteligente.ts';
 
 import { ModalValidacaoCatraki } from './ModalValidacaoCatraki.tsx';
 import { CardHoverPaciente } from './CardHoverPaciente.tsx';
@@ -116,6 +117,7 @@ interface TabelaPacientesProps {
   totalPaginasServidor?: number;
   totalRegistrosServidor?: number;
   aoMudarPaginaServidor?: (pagina: number) => void;
+  itensPorPaginaServidor?: number;
 }
 
 export const TabelaPacientes: FC<TabelaPacientesProps> = ({
@@ -130,6 +132,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
   totalPaginasServidor,
   totalRegistrosServidor,
   aoMudarPaginaServidor,
+  itensPorPaginaServidor,
 }) => {
   const [menuAcoesAbertoId, setMenuAcoesAbertoId] = useState<string | null>(null);
   const [pacienteConfirmarExclusao, setPacienteConfirmarExclusao] = useState<ItemPaciente | null>(null);
@@ -189,9 +192,10 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
 
   const { dadosFiltrados, temAlgumFiltroAtivo } = filtroExcel;
 
-  // Paginação sob demanda com suporte a servidor
+  // Paginação sob demanda com suporte a dimensionamento inteligente
   const [paginaLocal, setPaginaLocal] = useState(1);
-  const itensPorPagina = 10;
+  const itensCalculados = useItensPorPaginaInteligente(310, 48, 6, 12);
+  const itensPorPagina = itensPorPaginaServidor || itensCalculados;
   const usandoPaginacaoServidor = typeof totalPaginasServidor === 'number' && totalPaginasServidor > 1;
 
   const totalPaginas = usandoPaginacaoServidor && !temAlgumFiltroAtivo
@@ -207,7 +211,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
     : Math.min(paginaLocal, totalPaginas);
 
   const dadosPaginados = usandoPaginacaoServidor && !temAlgumFiltroAtivo
-    ? dadosFiltrados
+    ? dadosFiltrados.slice(0, itensPorPagina)
     : dadosFiltrados.slice((paginaExibida - 1) * itensPorPagina, paginaExibida * itensPorPagina);
 
   const handleMudarPagina = (novaPagina: number) => {
@@ -221,7 +225,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
   return (
     <div className="flex flex-col gap-4 flex-1">
       {/* ─── Tabela Principal Estilo Enterprise ───────────────────────────── */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-[460px]">
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-0">
         {/* ─── Barra de Filtros Ativos Estilo Excel ─────────────────────────── */}
         <BarraFiltrosAtivos estado={filtroExcel} entidadeNome="paciente(s)" />
 
@@ -552,7 +556,7 @@ export const TabelaPacientes: FC<TabelaPacientesProps> = ({
             paginaAtual={paginaExibida}
             totalPaginas={totalPaginas}
             totalRegistros={totalRegistros}
-            itensPorPagina={usandoPaginacaoServidor && !temAlgumFiltroAtivo ? pacientes.length : itensPorPagina}
+            itensPorPagina={itensPorPagina}
             aoMudarPagina={handleMudarPagina}
           />
         </div>

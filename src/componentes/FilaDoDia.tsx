@@ -8,6 +8,7 @@ import {
   type ConfiguracaoColuna,
 } from './tabelaExcel/index.ts';
 import { Paginacao } from './Paginacao.tsx';
+import { useItensPorPaginaInteligente } from '../utilitarios/useItensPorPaginaInteligente.ts';
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 import { StatusAtendimentoBadge } from './StatusAtendimentoBadge.tsx';
 import { censurarCpf, type ItemPaciente } from './TabelaPacientes.tsx';
@@ -569,7 +570,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   const { dadosFiltrados, temAlgumFiltroAtivo } = filtroExcel;
 
   const [paginaAtual, setPaginaAtual] = useState(1);
-  const itensPorPagina = 10;
+  const itensPorPagina = useItensPorPaginaInteligente(330, 48, 6, 12);
   const totalPaginas = Math.max(1, Math.ceil(dadosFiltrados.length / itensPorPagina));
   const paginaCorrigida = Math.min(paginaAtual, totalPaginas);
   const indiceInicio = (paginaCorrigida - 1) * itensPorPagina;
@@ -605,7 +606,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
       )}
 
       {/* ─── Tabela da Fila de Presença com Filtros Excel ─────────────────── */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-[460px]">
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-0">
         {/* Barra de Filtros Ativos */}
         <BarraFiltrosAtivos estado={filtroExcel} entidadeNome="aluno(s) na fila" />
 
@@ -1136,6 +1137,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
             paginaAtual={paginaCorrigida}
             totalPaginas={totalPaginas}
             totalRegistros={dadosFiltrados.length}
+            itensPorPagina={itensPorPagina}
             aoMudarPagina={(novaPagina) => setPaginaAtual(novaPagina)}
           />
         </div>

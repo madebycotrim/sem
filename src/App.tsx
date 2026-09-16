@@ -22,6 +22,7 @@ import { ModalImportarPlanilha } from './componentes/ModalImportarPlanilha.tsx';
 import { requisicaoApi, ErroApi } from './servicos/api.ts';
 import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCatraki.ts';
 import { formatarCpf, formatarTelefone } from './utilitarios/mascaras.ts';
+import { useItensPorPaginaInteligente } from './utilitarios/useItensPorPaginaInteligente.ts';
 import { type PermissoesPerfil, type PerfilAcesso, StatusAtendimento, type StatusAtendimento as TipoStatusAtendimento, formatarHoraBrasilia, formatarDataBrasilia } from '../compartilhado/index.ts';
 
 interface RespostaListaPacientes {
@@ -317,6 +318,7 @@ export function App() {
   };
 
   // Paginação sob demanda e contadores reais
+  const itensPorPaginaInteligente = useItensPorPaginaInteligente(310, 48, 6, 12);
   const [paginaPacientes, setPaginaPacientes] = useState<number>(1);
   const [totalPacientes, setTotalPacientes] = useState<number>(0);
   const [totalPaginasPacientes, setTotalPaginasPacientes] = useState<number>(1);
@@ -331,7 +333,7 @@ export function App() {
     const carregarPacientes = async () => {
       if ((window as any)?.__importacaoEmAndamento || modalImportarPlanilhaAberto) return;
       try {
-        const resposta = await requisicaoApi<RespostaListaPacientes>(`/pacientes?pagina=${paginaPacientes}&porPagina=50`);
+        const resposta = await requisicaoApi<RespostaListaPacientes>(`/pacientes?pagina=${paginaPacientes}&porPagina=${itensPorPaginaInteligente}`);
         if (ativo && resposta?.dados) {
           setPacientes(resposta.dados.map(converterPacienteApi));
           if (typeof resposta.total === 'number') {
@@ -358,7 +360,7 @@ export function App() {
       ativo = false;
       window.clearInterval(intervalo);
     };
-  }, [autenticado, gatilhoRecarregar, paginaPacientes]);
+  }, [autenticado, gatilhoRecarregar, paginaPacientes, itensPorPaginaInteligente]);
 
   // Lista de Atendimentos (estado puro em memória diretamente alimentado pela API)
   const [atendimentos, setAtendimentos] = useState<ItemAtendimentoLista[]>([]);
@@ -370,7 +372,7 @@ export function App() {
     const carregarAtendimentos = async () => {
       if ((window as any)?.__importacaoEmAndamento || modalImportarPlanilhaAberto) return;
       try {
-        const resposta = await requisicaoApi<RespostaListaAtendimentos>(`/atendimentos?pagina=${paginaAtendimentos}&porPagina=50`);
+        const resposta = await requisicaoApi<RespostaListaAtendimentos>(`/atendimentos?pagina=${paginaAtendimentos}&porPagina=${itensPorPaginaInteligente}`);
         if (ativo && resposta?.dados) {
           const listaMapeada: ItemAtendimentoLista[] = resposta.dados.map((d: any) => ({
             id: String(d.id),
@@ -414,7 +416,7 @@ export function App() {
       ativo = false;
       window.clearInterval(intervalo);
     };
-  }, [autenticado, gatilhoRecarregar, paginaAtendimentos]);
+  }, [autenticado, gatilhoRecarregar, paginaAtendimentos, itensPorPaginaInteligente]);
 
   useEffect(() => {
     if (!autenticado || carregandoAtendimentos) return;
@@ -934,7 +936,7 @@ export function App() {
       />
 
       {/* ─── Área Principal de Conteúdo ───────────────────────────────────── */}
-      <main className="flex-1 flex flex-col min-w-0 p-4 sm:p-6 max-w-7xl mx-auto w-full">
+      <main className="flex-1 flex flex-col min-w-0 px-3 sm:px-5 py-2.5 sm:py-3.5 max-w-7xl mx-auto w-full">
         {/* Toast Notificação de Ações */}
         {toastNotificacao && (
           <div
@@ -1008,6 +1010,7 @@ export function App() {
               totalPaginasServidor={totalPaginasPacientes}
               totalRegistrosServidor={totalPacientes > 0 ? totalPacientes : pacientesFiltrados.length}
               aoMudarPaginaServidor={(novaPagina) => setPaginaPacientes(novaPagina)}
+              itensPorPaginaServidor={itensPorPaginaInteligente}
               aoNovoPaciente={() => {
                 setPacienteParaEditar(null);
                 setModalNovoPacienteAberto(true);
@@ -1066,6 +1069,7 @@ export function App() {
                 totalPaginasServidor={totalPaginasAtendimentos}
                 totalRegistrosServidor={totalAtendimentos > 0 ? totalAtendimentos : todosAtendimentos.length}
                 aoMudarPaginaServidor={(novaPagina) => setPaginaAtendimentos(novaPagina)}
+                itensPorPaginaServidor={itensPorPaginaInteligente}
                 aoSincronizar={recarregarDados}
                 statusSincronizacaoCatraki={statusSincronizacaoCatraki}
                 aoAtualizarStatus={handleAtualizarStatusAtendimento}

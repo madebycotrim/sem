@@ -18,6 +18,7 @@ import {
   type ConfiguracaoColuna,
 } from './tabelaExcel/index.ts';
 import { Paginacao } from './Paginacao.tsx';
+import { useItensPorPaginaInteligente } from '../utilitarios/useItensPorPaginaInteligente.ts';
 import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 import { SelectModal } from './Modal.tsx';
 import { Botao } from './Botao.tsx';
@@ -67,6 +68,7 @@ export interface AtendimentosProps {
   totalPaginasServidor?: number;
   totalRegistrosServidor?: number;
   aoMudarPaginaServidor?: (pagina: number) => void;
+  itensPorPaginaServidor?: number;
 }
 
 export const Atendimentos: FC<AtendimentosProps> = ({
@@ -85,6 +87,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   totalPaginasServidor,
   totalRegistrosServidor,
   aoMudarPaginaServidor,
+  itensPorPaginaServidor,
 }) => {
   const [atendimentosLocais, setAtendimentosLocais] = useState<ItemAtendimentoLista[]>(atendimentosProp);
 
@@ -408,7 +411,8 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   const { dadosFiltrados, temAlgumFiltroAtivo } = filtroExcel;
 
   const [paginaLocal, setPaginaLocal] = useState(1);
-  const itensPorPagina = 10;
+  const itensCalculados = useItensPorPaginaInteligente(310, 48, 6, 12);
+  const itensPorPagina = itensPorPaginaServidor || itensCalculados;
   const usandoPaginacaoServidor = typeof totalPaginasServidor === 'number' && totalPaginasServidor > 1;
 
   const totalPaginas = usandoPaginacaoServidor && !temAlgumFiltroAtivo
@@ -424,7 +428,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
     : Math.min(paginaLocal, totalPaginas);
 
   const dadosPaginados = usandoPaginacaoServidor && !temAlgumFiltroAtivo
-    ? dadosFiltrados
+    ? dadosFiltrados.slice(0, itensPorPagina)
     : dadosFiltrados.slice((paginaExibida - 1) * itensPorPagina, paginaExibida * itensPorPagina);
 
   const handleMudarPagina = (novaPagina: number) => {
@@ -601,7 +605,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
       />
 
       {/* ─── Tabela de Registros com Filtros Excel ────────────────────────── */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-[460px]">
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-0">
         {/* Barra de Filtros Ativos */}
         <BarraFiltrosAtivos estado={filtroExcel} entidadeNome="atendimento(s)" />
 
@@ -1119,7 +1123,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
             paginaAtual={paginaExibida}
             totalPaginas={totalPaginas}
             totalRegistros={totalRegistros}
-            itensPorPagina={usandoPaginacaoServidor && !temAlgumFiltroAtivo ? 50 : itensPorPagina}
+            itensPorPagina={itensPorPagina}
             aoMudarPagina={handleMudarPagina}
           />
         </div>
