@@ -93,7 +93,7 @@ export interface EscolaAnalitica {
 }
 
 export interface PainelAnaliticoProps {
-  atendimentos: AtendimentoAnalitico[];
+  atendimentos?: AtendimentoAnalitico[];
   pacientes: PacienteAnalitico[];
   escolas: EscolaAnalitica[];
   carregando?: boolean;
@@ -116,8 +116,46 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
   const [profissional, setProfissional] = useState('');
   const [escola, setEscola] = useState('');
   const [profissionaisSaude, setProfissionaisSaude] = useState<Array<{ id: string; nome: string; especialidade?: string | null }>>([]);
+  const [atendimentosRemotos, setAtendimentosRemotos] = useState<AtendimentoAnalitico[]>([]);
+  const [totalConsentimentosPendentesRemoto, setTotalConsentimentosPendentesRemoto] = useState<number | null>(null);
+  const [carregandoAnalitico, setCarregandoAnalitico] = useState<boolean>(true);
 
-  const todosAtendimentos = atendimentos;
+  // Carrega a totalidade dos atendimentos analíticos do banco de dados para eliminar a limitação de 50 registros
+  useEffect(() => {
+    let ativo = true;
+    const carregarDadosAnaliticos = async () => {
+      try {
+        setCarregandoAnalitico(true);
+        const resposta = await requisicaoApi<{
+          dados: AtendimentoAnalitico[];
+          total: number;
+          totalPacientes?: number;
+          totalConsentimentosPendentes?: number;
+        }>('/atendimentos/analitico');
+
+        if (ativo && resposta?.dados) {
+          setAtendimentosRemotos(resposta.dados);
+          if (typeof resposta.totalConsentimentosPendentes === 'number') {
+            setTotalConsentimentosPendentesRemoto(resposta.totalConsentimentosPendentes);
+          }
+        }
+      } catch (erro) {
+        console.error('Erro ao carregar dados analíticos para BI:', erro);
+      } finally {
+        if (ativo) setCarregandoAnalitico(false);
+      }
+    };
+
+    void carregarDadosAnaliticos();
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  const todosAtendimentos = useMemo(() => {
+    if (atendimentosRemotos.length > 0) return atendimentosRemotos;
+    return atendimentos || [];
+  }, [atendimentosRemotos, atendimentos]);
 
   useEffect(() => {
     let ativo = true;
@@ -481,7 +519,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
     writeFile(wb, `relatorio_bi_catraki_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  if (carregando) {
+  if (carregando || (carregandoAnalitico && todosAtendimentos.length === 0)) {
     return (
       <div className="flex flex-1 flex-col animate-fade-in font-sans pb-10">
         <CabecalhoPagina
@@ -1289,11 +1327,11 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
                 LGPD Art. 46
               </span>
             </div>
-            {pacientes.filter((paciente) => paciente.termoConsentimentoStatus === 'PENDENTE').length > 0 ? (
+            {((totalConsentimentosPendentesRemoto ?? pacientes.filter((paciente) => paciente.termoConsentimentoStatus === 'PENDENTE').length) > 0) ? (
               <div className="rounded-xl border border-amber-200 bg-amber-50/90 p-4 text-xs font-medium text-amber-900 flex items-center gap-3">
                 <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
                 <div>
-                  <strong>Consentimentos pendentes:</strong> existem <span className="font-black text-amber-950 underline">{pacientes.filter((paciente) => paciente.termoConsentimentoStatus === 'PENDENTE').length} pacientes</span> aguardando regularização do termo de consentimento dos responsáveis.
+                  <strong>Consentimentos pendentes:</strong> existem <span className="font-black text-amber-950 underline">{totalConsentimentosPendentesRemoto ?? pacientes.filter((paciente) => paciente.termoConsentimentoStatus === 'PENDENTE').length} pacientes</span> aguardando regularização do termo de consentimento dos responsáveis.
                 </div>
               </div>
             ) : (

@@ -8,8 +8,8 @@ import {
   StatusAtendimento,
 } from '../../../compartilhado/index.js';
 import { getDb } from '../../infraestrutura/banco/drizzle.js';
-import { atendimentos, pacientes, escolasLocais, usuarios } from '../../infraestrutura/banco/schema.js';
-import { eq, and, desc, asc, count, gte, lte } from 'drizzle-orm';
+import { atendimentos, pacientes, escolasLocais, usuarios, consentimentos } from '../../infraestrutura/banco/schema.js';
+import { eq, and, desc, asc, count, gte, lte, sql } from 'drizzle-orm';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import { middlewareIdempotencia } from '../../middlewares/idempotencia.js';
@@ -368,6 +368,60 @@ rotasAtendimento.get('/profissionais', async (c) => {
       registro: profissional.registroProfissional,
       conselho: profissional.conselhoProfissional,
     })),
+  });
+});
+
+/**
+ * GET /atendimentos/analitico
+ * Retorna todos os atendimentos para o Painel BI & Inteligência Clínica sem truncamento de paginação.
+ * Respeita LGPD e otimiza a performance: extrai dados operacionais, relacionamentos e timestamps
+ * sem a sobrecarga de descriptografia AES-GCM em massa.
+ */
+rotasAtendimento.get('/analitico', async (c) => {
+  const db = getDb(c.env.DB);
+
+  const [listaAtendimentos, totalPacientesRes, totalPendentesRes] = await Promise.all([
+    db.query.atendimentos.findMany({
+      columns: {
+        id: true,
+        especialidade: true,
+        status: true,
+        criadoEm: true,
+        entradaFilaEm: true,
+        pacienteId: true,
+      },
+      with: {
+        escolaLocal: { columns: { id: true, nome: true } },
+        usuario: { columns: { id: true, nomeCompleto: true } },
+      },
+      orderBy: [desc(atendimentos.criadoEm)],
+    }),
+    db.select({ total: count() }).from(pacientes).where(eq(pacientes.ativo, true)),
+    db.select({ total: count() }).from(pacientes).where(
+      and(
+        eq(pacientes.ativo, true),
+        sql`${pacientes.id} NOT IN (SELECT ${consentimentos.pacienteId} FROM ${consentimentos} WHERE ${consentimentos.dataConsentimento} IS NOT NULL AND (${consentimentos.consentimentoDispensado} IS NULL OR ${consentimentos.consentimentoDispensado} = 0))`
+      )
+    ),
+  ]);
+
+  const dados = listaAtendimentos.map((a) => ({
+    id: a.id,
+    pacienteId: a.pacienteId,
+    pacienteNome: 'Paciente',
+    especialidade: a.especialidade,
+    status: a.status || 'CONCLUIDO',
+    criadoEm: a.criadoEm,
+    entradaFilaEm: a.entradaFilaEm ?? a.criadoEm,
+    escolaNome: a.escolaLocal?.nome || 'Não informada',
+    profissionalNome: a.usuario?.nomeCompleto || 'Profissional de Saúde',
+  }));
+
+  return c.json({
+    dados,
+    total: dados.length,
+    totalPacientes: totalPacientesRes[0]?.total ?? 0,
+    totalConsentimentosPendentes: totalPendentesRes[0]?.total ?? 0,
   });
 });
 
