@@ -75,6 +75,10 @@ describe('Importação Inteligente de Planilhas de Consultas', () => {
     it('deve mapear cancelamentos e faltas', () => {
       expect(mapearStatusAtendimento('Cancelado')).toBe(StatusAtendimento.CANCELADO);
       expect(mapearStatusAtendimento('Desistência')).toBe(StatusAtendimento.CANCELADO);
+      expect(mapearStatusAtendimento('Cancelou')).toBe(StatusAtendimento.CANCELADO);
+      expect(mapearStatusAtendimento('Não atendido')).toBe(StatusAtendimento.CANCELADO);
+      expect(mapearStatusAtendimento('Não realizado')).toBe(StatusAtendimento.CANCELADO);
+      expect(mapearStatusAtendimento('Não concluído')).toBe(StatusAtendimento.CANCELADO);
       expect(mapearStatusAtendimento('Faltou')).toBe(StatusAtendimento.FALTOU);
       expect(mapearStatusAtendimento('Ausente')).toBe(StatusAtendimento.FALTOU);
       expect(mapearStatusAtendimento('Não compareceu')).toBe(StatusAtendimento.FALTOU);
@@ -101,6 +105,15 @@ describe('Importação Inteligente de Planilhas de Consultas', () => {
       expect(identificarStatusPermitidoImportacao('Canceladas')).toBe(StatusAtendimento.CANCELADO);
       expect(identificarStatusPermitidoImportacao('Desistência')).toBe(StatusAtendimento.CANCELADO);
       expect(identificarStatusPermitidoImportacao('desistente')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('Cancelou')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('Cancelamento')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('Canc')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('Canc.')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('Não atendido')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('Nao atendido')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('Não realizado')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('Nao realizado')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('Não concluído')).toBe(StatusAtendimento.CANCELADO);
     });
 
     it('deve rejeitar e desconsiderar qualquer outro status (Agendado, Confirmado, Faltou, etc.)', () => {

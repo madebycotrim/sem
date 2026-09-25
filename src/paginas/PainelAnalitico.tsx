@@ -271,21 +271,38 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
         (!especialidade || atendimento.especialidade === especialidade) &&
         (!profissional || atendimento.profissionalNome === profissional) &&
         (!escola || atendimento.escolaNome === escola) &&
-        (!statusFiltro || (atendimento.status || StatusAtendimento.CONCLUIDO) === statusFiltro)
+        (!statusFiltro || (() => {
+          const s = String(atendimento.status || '').toUpperCase().trim();
+          if (statusFiltro === StatusAtendimento.CANCELADO) {
+            return s.includes('CANCEL') || s.includes('DESIST') || s.includes('FALT') || s.includes('AUSENT');
+          }
+          if (statusFiltro === StatusAtendimento.CONCLUIDO) {
+            return s === 'CONCLUIDO' || (!s.includes('CANCEL') && !s.includes('DESIST') && !s.includes('FALT') && !s.includes('AGEND') && !s.includes('CONFIRM') && !s.includes('EM_ATEND'));
+          }
+          return s === statusFiltro;
+        })())
       );
     });
   }, [todosAtendimentos, dataInicio, dataFim, especialidade, profissional, escola, statusFiltro]);
 
   const totalConsultasTodasUnidades = todosAtendimentos.length;
-  const totalConsultasConcluidas = todosAtendimentos.filter((atendimento) =>
-    atendimento.status === 'CONCLUIDO' || !atendimento.status
-  ).length;
-  const totalConsultasPendentes = todosAtendimentos.filter((atendimento) =>
-    ['AGUARDANDO', 'CONFIRMADO', 'EM_ATENDIMENTO', 'AGENDADO', 'PENDENTE'].includes(atendimento.status || '')
-  ).length;
-  const totalConsultasCanceladas = todosAtendimentos.filter((atendimento) =>
-    ['CANCELADO', 'FALTOU', 'CANCELADA'].includes(atendimento.status || '')
-  ).length;
+
+  const totalConsultasCanceladas = todosAtendimentos.filter((atendimento) => {
+    const s = String(atendimento.status || '').toUpperCase().trim();
+    return s.includes('CANCEL') || s.includes('DESIST') || s.includes('FALT') || s.includes('AUSENT');
+  }).length;
+
+  const totalConsultasPendentes = todosAtendimentos.filter((atendimento) => {
+    const s = String(atendimento.status || '').toUpperCase().trim();
+    return ['AGUARDANDO', 'CONFIRMADO', 'EM_ATENDIMENTO', 'EM_ANDAMENTO', 'AGENDADO', 'PENDENTE'].includes(s);
+  }).length;
+
+  const totalConsultasConcluidas = todosAtendimentos.filter((atendimento) => {
+    const s = String(atendimento.status || '').toUpperCase().trim();
+    if (s.includes('CANCEL') || s.includes('DESIST') || s.includes('FALT') || s.includes('AUSENT')) return false;
+    if (['AGUARDANDO', 'CONFIRMADO', 'EM_ATENDIMENTO', 'EM_ANDAMENTO', 'AGENDADO', 'PENDENTE'].includes(s)) return false;
+    return true;
+  }).length;
 
   const totaisEspecialidades = [
     { id: 'ODONTOLOGIA', nome: 'Odontologia', icone: Smile, cor: 'text-blue-600', fundo: 'bg-blue-50' },

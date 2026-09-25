@@ -270,7 +270,10 @@ export const Atendimentos: FC<AtendimentosProps> = ({
 
   const normalizarStatusAtendimento = (status?: string): StatusAtendimento => {
     if (!status) return StatusAtendimento.CONCLUIDO;
-    if (status === 'AGUARDANDO') return StatusAtendimento.AGENDADO;
+    const s = String(status).toUpperCase().trim();
+    if (s.includes('CANCEL') || s.includes('DESIST')) return StatusAtendimento.CANCELADO;
+    if (s.includes('FALT') || s.includes('AUSENT')) return StatusAtendimento.FALTOU;
+    if (s === 'AGUARDANDO') return StatusAtendimento.AGENDADO;
     return status as StatusAtendimento;
   };
 

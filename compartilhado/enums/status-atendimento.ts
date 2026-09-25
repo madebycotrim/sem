@@ -48,21 +48,42 @@ export function identificarStatusPermitidoImportacao(termo?: string | null): Sta
   const norm = normalizarTexto(termo);
   if (!norm) return null;
 
+  // 1. Prioridade Absoluta: Termos de cancelamento, desistência e negações
+  // NUNCA avaliar termos positivos primeiro, pois "não atendido" e "não realizado" contêm "atendid" e "realizad"!
   if (
-    norm.includes('concluid') ||
-    norm.includes('realizad') ||
-    norm.includes('atendid') ||
-    norm.includes('finalizad')
-  ) {
-    return StatusAtendimento.CONCLUIDO;
-  }
-
-  if (
-    norm.includes('cancelad') ||
-    norm.includes('desist')
+    norm.includes('cancel') ||
+    norm.includes('canc') ||
+    norm.includes('desist') ||
+    norm.includes('nao atendid') ||
+    norm.includes('nao atendeu') ||
+    norm.includes('nao realizad') ||
+    norm.includes('nao concluid') ||
+    norm.includes('sem atend') ||
+    norm.includes('sem realiz') ||
+    norm.includes('sem conclu') ||
+    norm.includes('inapt') ||
+    norm.includes('recus') ||
+    norm.includes('suspens') ||
+    norm.includes('anulad') ||
+    norm === 'nao' ||
+    norm === 'n'
   ) {
     return StatusAtendimento.CANCELADO;
   }
 
+  // 2. Termos de conclusão e atendimento positivo
+  if (
+    norm.includes('concluid') ||
+    norm.includes('realizad') ||
+    norm.includes('atendid') ||
+    norm.includes('finalizad') ||
+    norm === 'ok' ||
+    norm === 'sim' ||
+    norm === 's'
+  ) {
+    return StatusAtendimento.CONCLUIDO;
+  }
+
   return null;
-}
+}
+

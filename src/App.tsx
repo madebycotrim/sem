@@ -477,13 +477,21 @@ export function App() {
       return Math.max(0, idade);
     };
 
-    const statusFila: Record<TipoStatusAtendimento, ItemFila['status']> = {
-      [StatusAtendimento.AGENDADO]: 'AGUARDANDO',
-      [StatusAtendimento.CONFIRMADO]: 'CONFIRMADO',
-      [StatusAtendimento.EM_ATENDIMENTO]: 'EM_ATENDIMENTO',
-      [StatusAtendimento.CONCLUIDO]: 'CONCLUIDO',
-      [StatusAtendimento.CANCELADO]: 'CANCELADO',
-      [StatusAtendimento.FALTOU]: 'CANCELADO',
+    const resolverStatusFila = (status?: string | TipoStatusAtendimento | null): ItemFila['status'] => {
+      const s = String(status || '').toUpperCase().trim();
+      if (s.includes('CANCEL') || s.includes('DESIST') || s.includes('FALT') || s.includes('AUSENT')) {
+        return 'CANCELADO';
+      }
+      if (s === 'EM_ATENDIMENTO' || s === 'EM_ANDAMENTO') {
+        return 'EM_ATENDIMENTO';
+      }
+      if (s === 'CONFIRMADO') {
+        return 'CONFIRMADO';
+      }
+      if (s === 'AGENDADO' || s === 'AGUARDANDO') {
+        return 'AGUARDANDO';
+      }
+      return 'CONCLUIDO';
     };
 
     const filaPersistida: ItemFila[] = atendimentos.map((atendimento) => {
@@ -501,7 +509,7 @@ export function App() {
         idade: calcularIdade(paciente?.dataNascimento),
         escolaNome: atendimento.escolaNome || escola?.nome || 'Não informada',
         especialidade: atendimento.especialidade,
-        status: statusFila[atendimento.status || StatusAtendimento.CONCLUIDO],
+        status: resolverStatusFila(atendimento.status),
         horarioChegada: formatarHoraBrasilia(atendimento.entradaFilaEm || atendimento.criadoEm),
         dataChegada: formatarDataBrasilia(atendimento.entradaFilaEm || atendimento.criadoEm),
         profissional: atendimento.profissionalNome || profissional?.nome,

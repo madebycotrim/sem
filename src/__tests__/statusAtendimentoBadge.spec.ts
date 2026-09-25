@@ -42,13 +42,19 @@ describe('Padronização Visual de Status de Atendimento (StatusAtendimentoBadge
     expect(estiloAgendado.animarPonto).toBe(false);
   });
 
-  it('deve retornar estilo vermelho para CANCELADO', () => {
+  it('deve retornar estilo vermelho para CANCELADO e variações (plural, gênero e minúsculas)', () => {
     const estilo = obterEstiloStatusAtendimento(StatusAtendimento.CANCELADO);
     expect(estilo.rotulo).toBe('Cancelado');
     expect(estilo.fundo).toBe('bg-rose-50');
     expect(estilo.texto).toBe('text-rose-700');
     expect(estilo.borda).toBe('border-rose-200');
     expect(estilo.ponto).toBe('bg-rose-500');
+
+    expect(obterEstiloStatusAtendimento('CANCELADOS').rotulo).toBe('Cancelado');
+    expect(obterEstiloStatusAtendimento('Cancelados').rotulo).toBe('Cancelado');
+    expect(obterEstiloStatusAtendimento('CANCELADA').rotulo).toBe('Cancelado');
+    expect(obterEstiloStatusAtendimento('Cancelado').rotulo).toBe('Cancelado');
+    expect(obterEstiloStatusAtendimento('DESISTENCIA').rotulo).toBe('Cancelado');
   });
 
   it('deve retornar estilo ardósia para FALTOU', () => {

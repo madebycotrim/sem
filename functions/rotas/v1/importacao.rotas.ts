@@ -128,12 +128,20 @@ export function mapearEspecialidade(termo?: string | null): Especialidade {
 export function mapearStatusAtendimento(termo?: string | null): StatusAtendimento {
   const norm = normalizarTexto(termo);
   if (
-    norm.includes('concluid') ||
-    norm.includes('realizad') ||
-    norm.includes('atendid') ||
-    norm.includes('finalizad')
+    norm.includes('nao atendid') ||
+    norm.includes('nao atendeu') ||
+    norm.includes('nao realizad') ||
+    norm.includes('nao concluid') ||
+    norm.includes('sem atend') ||
+    norm.includes('sem realiz') ||
+    norm.includes('cancel') ||
+    norm.includes('canc') ||
+    norm.includes('desist')
   ) {
-    return StatusAtendimento.CONCLUIDO;
+    return StatusAtendimento.CANCELADO;
+  }
+  if (norm.includes('falt') || norm.includes('ausent') || norm.includes('nao compareceu')) {
+    return StatusAtendimento.FALTOU;
   }
   if (norm.includes('agendad') || norm.includes('marcad') || norm.includes('aguard')) {
     return StatusAtendimento.AGENDADO;
@@ -144,11 +152,13 @@ export function mapearStatusAtendimento(termo?: string | null): StatusAtendiment
   if (norm.includes('em atend') || norm.includes('andamento')) {
     return StatusAtendimento.EM_ATENDIMENTO;
   }
-  if (norm.includes('cancelad') || norm.includes('desist')) {
-    return StatusAtendimento.CANCELADO;
-  }
-  if (norm.includes('falt') || norm.includes('ausent') || norm.includes('nao compareceu')) {
-    return StatusAtendimento.FALTOU;
+  if (
+    norm.includes('concluid') ||
+    norm.includes('realizad') ||
+    norm.includes('atendid') ||
+    norm.includes('finalizad')
+  ) {
+    return StatusAtendimento.CONCLUIDO;
   }
 
   return StatusAtendimento.CONCLUIDO;
@@ -202,6 +212,7 @@ const itemImportacaoSchema = z.object({
   especialidade: z.string().min(1, 'Especialidade é obrigatória'),
   profissionalNome: z.string().min(1, 'Profissional é obrigatório'),
   situacao: z.string().optional().default('Concluído'),
+  status: z.string().optional(),
   instituicaoNome: z.string().min(1, 'Instituição é obrigatória'),
   dataAtendimento: z.string().nullable().optional(),
 });
@@ -377,16 +388,19 @@ rotasImportacao.post(
 
     // 4. Pré-busca em lote de atendimentos para os pacientes conhecidos (evita N queries e respeita D1)
     const idsPacientesConhecidos = Array.from(new Set(mapaPacientesPorHash.values()));
-    const setConsultasExistentesBanco = new Set<string>();
+    const mapaAtendimentosExistentesBanco = new Map<
+      string,
+      { id: string; status: StatusAtendimento; resumo: string | null }
+    >();
     if (idsPacientesConhecidos.length > 0) {
       for (let i = 0; i < idsPacientesConhecidos.length; i += 50) {
         const chunkIds = idsPacientesConhecidos.slice(i, i + 50);
         const atendimentosBanco = await db.query.atendimentos.findMany({
           where: inArray(atendimentos.pacienteId, chunkIds),
-          columns: { pacienteId: true, especialidade: true },
+          columns: { id: true, pacienteId: true, especialidade: true, status: true, resumo: true },
         });
         for (const at of atendimentosBanco) {
-          setConsultasExistentesBanco.add(`${at.pacienteId}:${at.especialidade}`);
+          mapaAtendimentosExistentesBanco.set(`${at.pacienteId}:${at.especialidade}`, at as any);
         }
       }
     }
@@ -395,6 +409,12 @@ rotasImportacao.post(
     const novosPacientesParaInserir: Array<typeof pacientes.$inferInsert> = [];
     const novosConsentimentosParaInserir: Array<typeof consentimentos.$inferInsert> = [];
     const novosAtendimentosParaInserir: Array<typeof atendimentos.$inferInsert> = [];
+    const atendimentosParaAtualizar: Array<{
+      id: string;
+      status: StatusAtendimento;
+      usuarioId: string;
+      resumo: string;
+    }> = [];
 
     for (const item of itens) {
       totalProcessados++;
@@ -572,9 +592,9 @@ rotasImportacao.post(
         }
 
         // ── D. Criação da Consulta (Atendimento com Unicidade por Especialidade) ─
-        const statusPermitido = identificarStatusPermitidoImportacao(item.situacao);
+        const statusPermitido = identificarStatusPermitidoImportacao(item.status || item.situacao);
         if (!statusPermitido) {
-          const msgErro = `Status "${item.situacao}" não permitido. Apenas consultas com status Concluído ou Cancelado são importadas.`;
+          const msgErro = `Status "${item.status || item.situacao}" não permitido. Apenas consultas com status Concluído ou Cancelado são importadas.`;
           falhas.push({
             linha: item.linhaOriginal,
             erro: msgErro,
@@ -610,7 +630,7 @@ rotasImportacao.post(
         // Regra Inegociável: Não permitir mais de uma consulta para o mesmo paciente/CPF na mesma especialidade
         const chavePacienteEspecialidade = `${pacienteId}:${especialidadeEnum}`;
 
-        // 1. Checagem em memória na sessão atual do lote
+        // 1. Checagem em memória na sessão atual do lote (evita duplicações dentro da própria planilha)
         if (consultasProcessadasSessao.has(chavePacienteEspecialidade)) {
           falhas.push({
             linha: item.linhaOriginal,
@@ -620,19 +640,22 @@ rotasImportacao.post(
           continue;
         }
 
-        // 2. Checagem no cache em lote de atendimentos pré-existentes no banco
-        if (setConsultasExistentesBanco.has(chavePacienteEspecialidade)) {
-          falhas.push({
-            linha: item.linhaOriginal,
-            erro: `Consulta duplicada ignorada: o paciente já possui uma consulta prévia cadastrada na especialidade "${especialidadeEnum}". Cada CPF/aluno só pode ter 1 consulta por especialidade.`,
-            detalhe: item.pacienteNome ? `Paciente: ${item.pacienteNome}` : undefined,
+        // Marca como processada na sessão
+        consultasProcessadasSessao.add(chavePacienteEspecialidade);
+
+        // 2. Se a consulta já existe no banco de dados para este paciente nesta especialidade:
+        // ATUALIZA o status e o profissional (ex.: de Concluído para Cancelado ou vice-versa) em vez de descartar e deixar o status desatualizado
+        const atendimentoExistente = mapaAtendimentosExistentesBanco.get(chavePacienteEspecialidade);
+        if (atendimentoExistente) {
+          atendimentosParaAtualizar.push({
+            id: atendimentoExistente.id,
+            status: statusEnum,
+            usuarioId: profissional.id,
+            resumo: `Atendimento atualizado via planilha. Situação: ${statusEnum === StatusAtendimento.CANCELADO ? 'Cancelado' : 'Concluído'} (original: ${item.situacao || '-'}). Profissional: ${item.profissionalNome}.`,
           });
+          atendimentosCriados++;
           continue;
         }
-
-        // 3. Marca como processada na sessão e no cache do banco para garantir unicidade estrita
-        consultasProcessadasSessao.add(chavePacienteEspecialidade);
-        setConsultasExistentesBanco.add(chavePacienteEspecialidade);
 
         const atendimentoId = crypto.randomUUID();
         // Prefixo de sessão que garante identificação unívoca para cancelamento atômico
@@ -714,6 +737,19 @@ rotasImportacao.post(
       }
       if (novosAtendimentosParaInserir.length > 0) {
         await inserirEmSubLotesSeguros(db, atendimentos, novosAtendimentosParaInserir);
+      }
+      if (atendimentosParaAtualizar.length > 0) {
+        for (const atAtualizar of atendimentosParaAtualizar) {
+          await db
+            .update(atendimentos)
+            .set({
+              status: atAtualizar.status,
+              usuarioId: atAtualizar.usuarioId,
+              resumo: atAtualizar.resumo,
+              atualizadoEm: new Date().toISOString(),
+            })
+            .where(eq(atendimentos.id, atAtualizar.id));
+        }
       }
     } catch (erroBanco: any) {
       const detalheErro =

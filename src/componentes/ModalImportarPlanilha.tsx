@@ -46,6 +46,7 @@ interface LinhaNormalizada {
   especialidade: string;
   profissionalNome: string;
   situacao: string;
+  status?: StatusAtendimento;
   instituicaoNome: string;
   dataAtendimento?: string | null;
   escolaEncontrada?: boolean;
@@ -298,7 +299,15 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
           mapaChaves['especialidade'] = chaveOriginal;
         } else if (norm.includes('profissi') || norm.includes('medico')) {
           mapaChaves['profissional'] = chaveOriginal;
-        } else if (norm.includes('situac') || norm.includes('status')) {
+        } else if (
+          norm.includes('situac') ||
+          norm.includes('status') ||
+          norm.includes('estado') ||
+          norm.includes('resultado') ||
+          norm.includes('comparec') ||
+          norm.includes('presenc') ||
+          norm.includes('condic')
+        ) {
           mapaChaves['situacao'] = chaveOriginal;
         } else if (norm.includes('institu') || norm.includes('escola') || norm.includes('polo')) {
           mapaChaves['instituicao'] = chaveOriginal;
@@ -401,6 +410,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
           especialidade,
           profissionalNome,
           situacao: statusIdentificado === StatusAtendimento.CANCELADO ? 'Cancelado' : 'Concluído',
+          status: statusIdentificado,
           instituicaoNome,
           dataAtendimento,
           escolaEncontrada: escolaExiste,
@@ -1110,7 +1120,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                           <td className="p-2.5">
                             <span
                               className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                                normalizarTexto(linha.situacao).includes('cancelad')
+                                linha.status === StatusAtendimento.CANCELADO || normalizarTexto(linha.situacao).includes('cancel')
                                   ? 'bg-rose-50 text-rose-700 border-rose-200'
                                   : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               }`}

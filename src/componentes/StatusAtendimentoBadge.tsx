@@ -13,74 +13,82 @@ export interface EstiloStatus {
 export const obterEstiloStatusAtendimento = (
   status?: string | StatusAtendimento | null
 ): EstiloStatus => {
-  const s = String(status || '').toUpperCase();
-  switch (s) {
-    case 'AGUARDANDO':
-      return {
-        rotulo: 'Aguardando',
-        fundo: 'bg-amber-50',
-        texto: 'text-amber-800',
-        borda: 'border-amber-200',
-        ponto: 'bg-amber-500',
-        animarPonto: true,
-      };
-    case 'AGENDADO':
-      return {
-        rotulo: 'Agendado',
-        fundo: 'bg-amber-50',
-        texto: 'text-amber-800',
-        borda: 'border-amber-200',
-        ponto: 'bg-amber-500',
-        animarPonto: false,
-      };
-    case 'CONFIRMADO':
-      return {
-        rotulo: 'Confirmado',
-        fundo: 'bg-violet-50',
-        texto: 'text-violet-700',
-        borda: 'border-violet-200',
-        ponto: 'bg-violet-500',
-        animarPonto: false,
-      };
-    case 'EM_ATENDIMENTO':
-    case 'EM_ANDAMENTO':
-      return {
-        rotulo: 'Em Atendimento',
-        fundo: 'bg-blue-50',
-        texto: 'text-blue-700',
-        borda: 'border-blue-200',
-        ponto: 'bg-blue-500',
-        animarPonto: false,
-      };
-    case 'CANCELADO':
-      return {
-        rotulo: 'Cancelado',
-        fundo: 'bg-rose-50',
-        texto: 'text-rose-700',
-        borda: 'border-rose-200',
-        ponto: 'bg-rose-500',
-        animarPonto: false,
-      };
-    case 'FALTOU':
-      return {
-        rotulo: 'Faltou',
-        fundo: 'bg-slate-100',
-        texto: 'text-slate-700',
-        borda: 'border-slate-200',
-        ponto: 'bg-slate-400',
-        animarPonto: false,
-      };
-    case 'CONCLUIDO':
-    default:
-      return {
-        rotulo: 'Concluído',
-        fundo: 'bg-emerald-50',
-        texto: 'text-emerald-700',
-        borda: 'border-emerald-200',
-        ponto: 'bg-emerald-500',
-        animarPonto: false,
-      };
+  const s = String(status || '').toUpperCase().trim();
+
+  if (s.includes('CANCEL') || s.includes('DESIST')) {
+    return {
+      rotulo: 'Cancelado',
+      fundo: 'bg-rose-50',
+      texto: 'text-rose-700',
+      borda: 'border-rose-200',
+      ponto: 'bg-rose-500',
+      animarPonto: false,
+    };
   }
+
+  if (s.includes('FALT') || s.includes('AUSENT')) {
+    return {
+      rotulo: 'Faltou',
+      fundo: 'bg-slate-100',
+      texto: 'text-slate-700',
+      borda: 'border-slate-200',
+      ponto: 'bg-slate-400',
+      animarPonto: false,
+    };
+  }
+
+  if (s === 'AGUARDANDO') {
+    return {
+      rotulo: 'Aguardando',
+      fundo: 'bg-amber-50',
+      texto: 'text-amber-800',
+      borda: 'border-amber-200',
+      ponto: 'bg-amber-500',
+      animarPonto: true,
+    };
+  }
+
+  if (s === 'AGENDADO') {
+    return {
+      rotulo: 'Agendado',
+      fundo: 'bg-amber-50',
+      texto: 'text-amber-800',
+      borda: 'border-amber-200',
+      ponto: 'bg-amber-500',
+      animarPonto: false,
+    };
+  }
+
+  if (s === 'CONFIRMADO') {
+    return {
+      rotulo: 'Confirmado',
+      fundo: 'bg-violet-50',
+      texto: 'text-violet-700',
+      borda: 'border-violet-200',
+      ponto: 'bg-violet-500',
+      animarPonto: false,
+    };
+  }
+
+  if (s === 'EM_ATENDIMENTO' || s === 'EM_ANDAMENTO') {
+    return {
+      rotulo: 'Em Atendimento',
+      fundo: 'bg-blue-50',
+      texto: 'text-blue-700',
+      borda: 'border-blue-200',
+      ponto: 'bg-blue-500',
+      animarPonto: false,
+    };
+  }
+
+  return {
+    rotulo: 'Concluído',
+    fundo: 'bg-emerald-50',
+    texto: 'text-emerald-700',
+    borda: 'border-emerald-200',
+    ponto: 'bg-emerald-500',
+    animarPonto: false,
+  };
 };
 
 export interface StatusAtendimentoBadgeProps {

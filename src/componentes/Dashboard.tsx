@@ -89,7 +89,7 @@ export const Dashboard: FC<DashboardProps> = ({
   const todasConsultasHoje = [
     ...atendimentosHojeBanco.map((a) => ({
       especialidade: a.especialidade,
-      status: a.status || 'CONCLUIDO',
+      status: a.status,
       criadoEm: a.criadoEm,
     })),
     ...itensFilaNaoDuplicados.map((f) => ({
@@ -100,18 +100,28 @@ export const Dashboard: FC<DashboardProps> = ({
   ];
 
   const totalConsultasTodasUnidades = todasConsultasHoje.length;
-  const totalConsultasConcluidas = todasConsultasHoje.filter((item) =>
-    (item.status === 'CONCLUIDO' || !item.status)
-  ).length;
-  const totalConsultasAguardando = todasConsultasHoje.filter((item) =>
-    ['AGUARDANDO', 'CONFIRMADO', 'AGENDADO', 'PENDENTE'].includes(item.status || '')
-  ).length;
-  const totalConsultasEmAtendimento = todasConsultasHoje.filter((item) =>
-    item.status === 'EM_ATENDIMENTO'
-  ).length;
-  const totalConsultasCanceladas = todasConsultasHoje.filter((item) =>
-    ['CANCELADO', 'FALTOU', 'CANCELADA'].includes(item.status || '')
-  ).length;
+
+  const totalConsultasCanceladas = todasConsultasHoje.filter((item) => {
+    const s = String(item.status || '').toUpperCase().trim();
+    return s.includes('CANCEL') || s.includes('DESIST') || s.includes('FALT') || s.includes('AUSENT');
+  }).length;
+
+  const totalConsultasAguardando = todasConsultasHoje.filter((item) => {
+    const s = String(item.status || '').toUpperCase().trim();
+    return ['AGUARDANDO', 'CONFIRMADO', 'AGENDADO', 'PENDENTE'].includes(s);
+  }).length;
+
+  const totalConsultasEmAtendimento = todasConsultasHoje.filter((item) => {
+    const s = String(item.status || '').toUpperCase().trim();
+    return s === 'EM_ATENDIMENTO' || s === 'EM_ANDAMENTO';
+  }).length;
+
+  const totalConsultasConcluidas = todasConsultasHoje.filter((item) => {
+    const s = String(item.status || '').toUpperCase().trim();
+    if (s.includes('CANCEL') || s.includes('DESIST') || s.includes('FALT') || s.includes('AUSENT')) return false;
+    if (['AGUARDANDO', 'CONFIRMADO', 'AGENDADO', 'PENDENTE', 'EM_ATENDIMENTO', 'EM_ANDAMENTO'].includes(s)) return false;
+    return true;
+  }).length;
 
   const nomesEspecialidades: Record<string, string> = {
     ODONTOLOGIA: 'Odontologia',
