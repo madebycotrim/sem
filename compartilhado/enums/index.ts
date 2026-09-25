@@ -1,6 +1,11 @@
 export { Especialidade, ESPECIALIDADE_LABELS } from './especialidade.js';
 export { ConselhoProfissional, CONSELHO_PROFISSIONAL_LABELS } from './conselho.js';
-export { StatusAtendimento, STATUS_ATENDIMENTO_LABELS } from './status-atendimento.js';
+export {
+  StatusAtendimento,
+  STATUS_ATENDIMENTO_LABELS,
+  STATUS_PERMITIDOS_IMPORTACAO,
+  identificarStatusPermitidoImportacao,
+} from './status-atendimento.js';
 export {
   PerfilAcesso,
   PERFIL_ACESSO_LABELS,

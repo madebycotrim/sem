@@ -6,6 +6,8 @@ export {
   CONSELHO_PROFISSIONAL_LABELS,
   StatusAtendimento,
   STATUS_ATENDIMENTO_LABELS,
+  STATUS_PERMITIDOS_IMPORTACAO,
+  identificarStatusPermitidoImportacao,
   PerfilAcesso,
   PERFIL_ACESSO_LABELS,
   PERFIS_MFA_OBRIGATORIO,

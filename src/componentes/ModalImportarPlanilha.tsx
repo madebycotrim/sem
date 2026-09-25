@@ -20,7 +20,12 @@ import { utils, read, writeFile } from 'xlsx';
 import { requisicaoApi } from '../servicos/api.ts';
 import { Botao } from './Botao.tsx';
 import { formatarCpf } from '../utilitarios/mascaras.ts';
-import { formatarHoraBrasilia, obterDataIsoBrasilia } from '../../compartilhado/index.ts';
+import {
+  formatarHoraBrasilia,
+  obterDataIsoBrasilia,
+  StatusAtendimento,
+  identificarStatusPermitidoImportacao,
+} from '../../compartilhado/index.ts';
 
 export interface ModalImportarPlanilhaProps {
   aberto: boolean;
@@ -55,6 +60,9 @@ interface ResumoDiagnostico {
   especialidadesContagem: Record<string, number>;
   linhasValidas: LinhaNormalizada[];
   linhasInvalidas: Array<{ linha: number; motivo: string }>;
+  linhasIgnoradasStatus: Array<{ linha: number; situacao: string }>;
+  totalConcluidos: number;
+  totalCancelados: number;
   duplicidadesEspecialidadeDetectadas: number;
 }
 
@@ -119,7 +127,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
   // Opções de configuração
   const [tamanhoLote, setTamanhoLote] = useState(10);
   const [autoCriarProfissionais, setAutoCriarProfissionais] = useState(true);
-  const [turmaPadrao, setTurmaPadrao] = useState('Geral');
+  const turmaPadrao = 'Geral';
 
   // Estado da execução em lote
   const [loteAtual, setLoteAtual] = useState(0);
@@ -230,7 +238,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       '(61) 99123-4567',
       'Odontologia',
       'Dra. Juliana Ferreira',
-      'Agendado',
+      'Cancelado',
       escolasSistema[0]?.nome || 'ESCOLA CLASSE 01',
     ];
 
@@ -313,12 +321,15 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
 
       const linhasValidas: LinhaNormalizada[] = [];
       const linhasInvalidas: Array<{ linha: number; motivo: string }> = [];
+      const linhasIgnoradasStatus: Array<{ linha: number; situacao: string }> = [];
       const escolasIdentificadasSet = new Set<string>();
       const escolasNaoEncontradasSet = new Set<string>();
       const profissionaisSet = new Set<string>();
       const alunosSet = new Set<string>();
       const consultasCpfEspecialidadeSet = new Set<string>();
       let duplicidadesEspecialidadeCount = 0;
+      let totalConcluidosCount = 0;
+      let totalCanceladosCount = 0;
       const especialidadesContagem: Record<string, number> = {};
 
       linhasJson.forEach((linha, idx) => {
@@ -327,7 +338,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
         const instituicaoNome = String(linha[mapaChaves['instituicao']] || '').trim();
         const especialidade = String(linha[mapaChaves['especialidade']] || 'Oftalmologia').trim();
         const profissionalNome = String(linha[mapaChaves['profissional']] || 'Profissional Geral').trim();
-        const situacao = String(linha[mapaChaves['situacao']] || 'Concluído').trim();
+        const situacaoBruta = String(linha[mapaChaves['situacao']] || '').trim();
         const pacienteCpf = String(linha[mapaChaves['cpf']] || '').trim() || null;
         const dataNascimento = formatarDataPlanilha(linha[mapaChaves['dataNascimento']]);
         const dataAtendimento = formatarDataPlanilha(linha[mapaChaves['dataAtendimento']]);
@@ -340,6 +351,22 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
         if (!instituicaoNome) {
           linhasInvalidas.push({ linha: linhaNum, motivo: 'Nome da instituição em branco' });
           return;
+        }
+
+        // Validação estrita da regra de negócio: apenas status Concluído e Cancelados são permitidos para subida
+        const statusIdentificado = identificarStatusPermitidoImportacao(situacaoBruta);
+        if (!statusIdentificado) {
+          linhasIgnoradasStatus.push({
+            linha: linhaNum,
+            situacao: situacaoBruta || '(não informada)',
+          });
+          return;
+        }
+
+        if (statusIdentificado === StatusAtendimento.CONCLUIDO) {
+          totalConcluidosCount++;
+        } else if (statusIdentificado === StatusAtendimento.CANCELADO) {
+          totalCanceladosCount++;
         }
 
         const instNorm = normalizarTexto(instituicaoNome);
@@ -373,7 +400,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
           pacienteTelefone,
           especialidade,
           profissionalNome,
-          situacao,
+          situacao: statusIdentificado === StatusAtendimento.CANCELADO ? 'Cancelado' : 'Concluído',
           instituicaoNome,
           dataAtendimento,
           escolaEncontrada: escolaExiste,
@@ -389,6 +416,9 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
         especialidadesContagem,
         linhasValidas,
         linhasInvalidas,
+        linhasIgnoradasStatus,
+        totalConcluidos: totalConcluidosCount,
+        totalCancelados: totalCanceladosCount,
         duplicidadesEspecialidadeDetectadas: duplicidadesEspecialidadeCount,
       });
 
@@ -539,7 +569,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
     setDetalhesFalhas([]);
 
     adicionarLog(
-      `Iniciando importação de ${linhas.length.toLocaleString('pt-BR')} consultas em ${totalChunks} lotes (${tamanhoDoChunk} linhas/lote) [Sessão: ${importacaoIdRef.current}]...`,
+      `Iniciando importação de ${linhas.length.toLocaleString('pt-BR')} consultas (${diagnostico.totalConcluidos} Concluídas, ${diagnostico.totalCancelados} Canceladas) em ${totalChunks} lotes (${tamanhoDoChunk} linhas/lote) [Sessão: ${importacaoIdRef.current}]...`,
       'info'
     );
 
@@ -825,6 +855,17 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                         Paciente | Patient Cpf | Data de nascimento | Patient Phone | Especialidade | Profissional | Situação | Instituição
                       </span>
                     </p>
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600 font-medium pt-0.5">
+                      <span className="font-bold text-slate-700">Situações permitidas para subir:</span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        Concluído
+                      </span>
+                      <span className="text-slate-400">e</span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                        Cancelado
+                      </span>
+                      <span className="text-slate-400 text-[10.5px]">(linhas com outros status serão desconsideradas)</span>
+                    </div>
                   </div>
                 </div>
                 <button
@@ -916,7 +957,9 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                   <div className="text-xl font-black text-blue-950 mt-1">
                     {diagnostico.linhasValidas.length.toLocaleString('pt-BR')}
                   </div>
-                  <div className="text-[10px] text-blue-700 mt-0.5">linhas prontas para carga</div>
+                  <div className="text-[10px] text-blue-700 mt-0.5 font-medium">
+                    {diagnostico.totalConcluidos} Concluídas • {diagnostico.totalCancelados} Canceladas
+                  </div>
                 </div>
 
                 <div className="p-3.5 bg-purple-50/60 rounded-xl border border-purple-200">
@@ -951,6 +994,38 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Alerta de Linhas Ignoradas por Status (Apenas Concluído e Cancelado) */}
+              {diagnostico.linhasIgnoradasStatus.length > 0 && (
+                <div className="p-3 bg-blue-50/70 border border-blue-200/90 rounded-xl flex items-start gap-3">
+                  <div className="p-1 bg-blue-100 text-blue-700 rounded-lg shrink-0 mt-0.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                  <div className="text-xs text-blue-950 space-y-1">
+                    <p className="font-bold">
+                      Filtro de Situação Ativo: {diagnostico.linhasValidas.length} consulta(s) apta(s) para carga ({diagnostico.totalConcluidos} Concluídas e {diagnostico.totalCancelados} Canceladas).
+                    </p>
+                    <p className="text-[11px] text-blue-800 leading-relaxed">
+                      {diagnostico.linhasIgnoradasStatus.length} linha(s) com outros status (ex: Agendado, Faltou ou não preenchido) foram desconsideradas automaticamente, respeitando a regra de subir apenas consultas <strong>Concluídas</strong> e <strong>Canceladas</strong>.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Alerta se não houver nenhuma linha válida elegível */}
+              {diagnostico.linhasValidas.length === 0 && (
+                <div className="p-4 bg-rose-50 border border-rose-300 rounded-xl flex items-start gap-3">
+                  <AlertOctagon className="w-6 h-6 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="text-xs text-rose-950 space-y-1">
+                    <p className="font-bold text-sm">
+                      Nenhuma consulta elegível para importação
+                    </p>
+                    <p className="text-xs text-rose-800 leading-relaxed">
+                      Todas as {diagnostico.totalLinhas} linhas lidas da planilha possuem status não permitidos para importação (ex: Agendado, Faltou, ou em branco). Para subir as consultas, a coluna <strong>Situação</strong> deve conter os valores <strong>Concluído</strong> ou <strong>Cancelado</strong>.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Alerta de Escolas Não Encontradas (se houver) */}
               {diagnostico.escolasNaoEncontradas.length > 0 && (
@@ -1033,7 +1108,13 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                             </span>
                           </td>
                           <td className="p-2.5">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                normalizarTexto(linha.situacao).includes('cancelad')
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              }`}
+                            >
                               {linha.situacao}
                             </span>
                           </td>
@@ -1055,37 +1136,24 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                 <div className="text-xs font-black uppercase text-slate-800 tracking-wider">
                   Configurações de Processamento em Lote
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Tamanho do Lote (Chunk)
-                    </label>
-                    <select
-                      value={tamanhoLote}
-                      onChange={(e) => setTamanhoLote(Number(e.target.value))}
-                      className="w-full text-xs font-medium bg-white border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value={10}>10 linhas por lote (Recomendado — Plano Gratuito Cloudflare)</option>
-                      <option value={15}>15 linhas por lote (Equilibrado)</option>
-                      <option value={20}>20 linhas por lote (Padrão)</option>
-                      <option value={30}>30 linhas por lote (Rápido)</option>
-                    </select>
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      O plano gratuito da Cloudflare limita a CPU a 10ms por chamada. Lotes de 10 linhas operam com ~3ms de CPU para estabilidade máxima.
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Turma Padrão para Novos Alunos
-                    </label>
-                    <input
-                      type="text"
-                      value={turmaPadrao}
-                      onChange={(e) => setTurmaPadrao(e.target.value)}
-                      className="w-full text-xs font-medium bg-white border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500"
-                      placeholder="Ex: Geral ou Não Informada"
-                    />
-                  </div>
+                <div className="max-w-md">
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Tamanho do Lote (Chunk)
+                  </label>
+                  <select
+                    value={tamanhoLote}
+                    onChange={(e) => setTamanhoLote(Number(e.target.value))}
+                    className="w-full text-xs font-medium bg-white border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value={10}>10 linhas por lote (Estabilidade Máxima)</option>
+                    <option value={20}>20 linhas por lote (Padrão)</option>
+                    <option value={30}>30 linhas por lote (Rápido)</option>
+                    <option value={50}>50 linhas por lote (Alta Performance)</option>
+                    <option value={100}>100 linhas por lote (Carga Máxima)</option>
+                  </select>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Escolha a velocidade da carga. Lotes de 50 ou 100 linhas aceleram o processamento em planilhas volumosas.
+                  </p>
                 </div>
 
                 <div className="pt-2 border-t border-slate-200">
@@ -1375,8 +1443,9 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                 </Botao>
                 <button
                   type="button"
+                  disabled={!diagnostico || diagnostico.linhasValidas.length === 0}
                   onClick={iniciarImportacaoEmLote}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs text-white bg-blue-600 hover:bg-blue-700 shadow-xs hover:shadow-sm transition-all cursor-pointer"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs text-white bg-blue-600 hover:bg-blue-700 shadow-xs hover:shadow-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Play className="w-3.5 h-3.5 fill-white" />
                   Iniciar Importação em Lote ({diagnostico?.linhasValidas.length || 0} Consultas)

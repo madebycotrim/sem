@@ -5,6 +5,7 @@ import {
   mapearStatusAtendimento,
   extrairNomeCanonicoProfissional,
   inserirEmSubLotesSeguros,
+  identificarStatusPermitidoImportacao,
 } from '../../functions/rotas/v1/importacao.rotas.ts';
 import { Especialidade, StatusAtendimento } from '../../compartilhado/index.ts';
 
@@ -77,6 +78,78 @@ describe('Importação Inteligente de Planilhas de Consultas', () => {
       expect(mapearStatusAtendimento('Faltou')).toBe(StatusAtendimento.FALTOU);
       expect(mapearStatusAtendimento('Ausente')).toBe(StatusAtendimento.FALTOU);
       expect(mapearStatusAtendimento('Não compareceu')).toBe(StatusAtendimento.FALTOU);
+    });
+  });
+
+  describe('Regra de Negócio Estrita: Subir Apenas Status Concluído e Cancelados', () => {
+    it('deve permitir apenas Concluído e Cancelados (incluindo sinônimos e plural)', () => {
+      // Variações de Concluído
+      expect(identificarStatusPermitidoImportacao('Concluído')).toBe(StatusAtendimento.CONCLUIDO);
+      expect(identificarStatusPermitidoImportacao('concluido')).toBe(StatusAtendimento.CONCLUIDO);
+      expect(identificarStatusPermitidoImportacao('CONCLUIDO')).toBe(StatusAtendimento.CONCLUIDO);
+      expect(identificarStatusPermitidoImportacao('Realizado')).toBe(StatusAtendimento.CONCLUIDO);
+      expect(identificarStatusPermitidoImportacao('Atendido')).toBe(StatusAtendimento.CONCLUIDO);
+      expect(identificarStatusPermitidoImportacao('Finalizado')).toBe(StatusAtendimento.CONCLUIDO);
+
+      // Variações de Cancelado / Cancelados
+      expect(identificarStatusPermitidoImportacao('Cancelado')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('cancelado')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('Cancelados')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('cancelados')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('CANCELADOS')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('Cancelada')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('Canceladas')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('Desistência')).toBe(StatusAtendimento.CANCELADO);
+      expect(identificarStatusPermitidoImportacao('desistente')).toBe(StatusAtendimento.CANCELADO);
+    });
+
+    it('deve rejeitar e desconsiderar qualquer outro status (Agendado, Confirmado, Faltou, etc.)', () => {
+      expect(identificarStatusPermitidoImportacao('Agendado')).toBeNull();
+      expect(identificarStatusPermitidoImportacao('agendado')).toBeNull();
+      expect(identificarStatusPermitidoImportacao('Aguardando')).toBeNull();
+      expect(identificarStatusPermitidoImportacao('Confirmado')).toBeNull();
+      expect(identificarStatusPermitidoImportacao('Presente')).toBeNull();
+      expect(identificarStatusPermitidoImportacao('Em atendimento')).toBeNull();
+      expect(identificarStatusPermitidoImportacao('Em andamento')).toBeNull();
+      expect(identificarStatusPermitidoImportacao('Faltou')).toBeNull();
+      expect(identificarStatusPermitidoImportacao('Ausente')).toBeNull();
+      expect(identificarStatusPermitidoImportacao('Não compareceu')).toBeNull();
+      expect(identificarStatusPermitidoImportacao('')).toBeNull();
+      expect(identificarStatusPermitidoImportacao('   ')).toBeNull();
+      expect(identificarStatusPermitidoImportacao(null)).toBeNull();
+      expect(identificarStatusPermitidoImportacao(undefined)).toBeNull();
+      expect(identificarStatusPermitidoImportacao('Pendente')).toBeNull();
+      expect(identificarStatusPermitidoImportacao('Outro Status')).toBeNull();
+    });
+
+    it('deve filtrar conjunto de dados simulado mantendo apenas linhas Concluídas e Canceladas', () => {
+      const linhasPlanilha = [
+        { linha: 2, paciente: 'Aluno 1', situacao: 'Concluído' },
+        { linha: 3, paciente: 'Aluno 2', situacao: 'Agendado' }, // Não deve subir
+        { linha: 4, paciente: 'Aluno 3', situacao: 'Cancelados' },
+        { linha: 5, paciente: 'Aluno 4', situacao: 'Faltou' }, // Não deve subir
+        { linha: 6, paciente: 'Aluno 5', situacao: 'Cancelado' },
+        { linha: 7, paciente: 'Aluno 6', situacao: 'Confirmado' }, // Não deve subir
+        { linha: 8, paciente: 'Aluno 7', situacao: 'Realizado' }, // Sinônimo de Concluído
+        { linha: 9, paciente: 'Aluno 8', situacao: '' }, // Vazio: não deve subir
+      ];
+
+      const linhasValidas = linhasPlanilha.filter((l) => identificarStatusPermitidoImportacao(l.situacao) !== null);
+      const linhasIgnoradas = linhasPlanilha.filter((l) => identificarStatusPermitidoImportacao(l.situacao) === null);
+
+      expect(linhasValidas).toHaveLength(4);
+      expect(linhasValidas.map((l) => l.linha)).toEqual([2, 4, 6, 8]);
+      expect(linhasIgnoradas).toHaveLength(4);
+      expect(linhasIgnoradas.map((l) => l.linha)).toEqual([3, 5, 7, 9]);
+
+      // Mapeamento normalizado
+      const statusNormalizados = linhasValidas.map((l) => identificarStatusPermitidoImportacao(l.situacao));
+      expect(statusNormalizados).toEqual([
+        StatusAtendimento.CONCLUIDO,
+        StatusAtendimento.CANCELADO,
+        StatusAtendimento.CANCELADO,
+        StatusAtendimento.CONCLUIDO,
+      ]);
     });
   });
 

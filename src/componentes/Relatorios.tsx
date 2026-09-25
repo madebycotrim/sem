@@ -1525,27 +1525,32 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
               </span>
             </div>
 
-            <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {rankingEspecialidades.map((item) => {
                 const paleta = paletaEspecialidade(item.especialidadeChave);
                 const Icone = paleta.icone;
                 return (
-                  <div key={item.especialidadeChave} className="group rounded-xl p-2 hover:bg-slate-50/80 transition-colors">
-                    <div className="mb-1.5 flex items-center justify-between text-xs font-semibold text-slate-700">
-                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                  <div
+                    key={item.especialidadeChave}
+                    className="group flex flex-col justify-between rounded-xl bg-slate-50/70 p-2.5 border border-slate-100 hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="mb-2 flex items-center justify-between text-xs font-semibold text-slate-700 gap-1.5">
+                      <div className="flex items-center gap-2 min-w-0 pr-1">
                         <span className={`flex h-6 w-6 items-center justify-center rounded-full shrink-0 ${paleta.bgIcone}`}>
                           <Icone className="h-3.5 w-3.5" />
                         </span>
-                        <span className="font-semibold text-slate-800 text-xs truncate">{item.especialidade}</span>
+                        <span className="font-semibold text-slate-800 text-xs truncate" title={item.especialidade}>
+                          {item.especialidade}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-[10px] text-slate-400 font-medium">({item.pctTotal}%)</span>
                         <span className="inline-flex min-w-[24px] items-center justify-center rounded-lg bg-white px-2 py-0.5 text-xs font-black text-slate-800 shadow-2xs border border-slate-200/60 tabular-nums">
                           {item.atendimentos}
                         </span>
                       </div>
                     </div>
-                    <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                    <div className="h-1.5 w-full rounded-full bg-slate-200/70 overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{

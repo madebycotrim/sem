@@ -20,7 +20,11 @@ import { registrarAuditoria } from '../../middlewares/auditoria.js';
 import {
   Especialidade,
   StatusAtendimento,
+  STATUS_PERMITIDOS_IMPORTACAO,
+  identificarStatusPermitidoImportacao,
 } from '../../../compartilhado/index.js';
+
+export { identificarStatusPermitidoImportacao, STATUS_PERMITIDOS_IMPORTACAO };
 import type { Bindings } from '../../config/env.js';
 import { sanitizarTexto } from '../../infraestrutura/sanitizacao.js';
 
@@ -568,9 +572,40 @@ rotasImportacao.post(
         }
 
         // ── D. Criação da Consulta (Atendimento com Unicidade por Especialidade) ─
-        const statusEnum = item.situacao
-          ? mapearStatusAtendimento(item.situacao)
-          : (opcoes.statusPadrao as StatusAtendimento) || StatusAtendimento.CONCLUIDO;
+        const statusPermitido = identificarStatusPermitidoImportacao(item.situacao);
+        if (!statusPermitido) {
+          const msgErro = `Status "${item.situacao}" não permitido. Apenas consultas com status Concluído ou Cancelado são importadas.`;
+          falhas.push({
+            linha: item.linhaOriginal,
+            erro: msgErro,
+            detalhe: item.pacienteNome ? `Paciente: ${item.pacienteNome}` : undefined,
+          });
+
+          if (opcoes.abortarNoPrimeiroErro) {
+            return c.json(
+              {
+                sucesso: false,
+                abortado: true,
+                importacaoId,
+                erro: `Erro na linha ${item.linhaOriginal}: ${msgErro}. Rollback acionado.`,
+                totalProcessados,
+                atendimentosCriados: 0,
+                pacientesCriados: 0,
+                pacientesReaproveitados,
+                profissionaisCriados: 0,
+                atendimentosCriadosIds: [],
+                pacientesCriadosIds: [],
+                profissionaisCriadosIds: [],
+                totalFalhas: falhas.length,
+                falhas,
+              },
+              422
+            );
+          }
+          continue;
+        }
+
+        const statusEnum = statusPermitido;
 
         // Regra Inegociável: Não permitir mais de uma consulta para o mesmo paciente/CPF na mesma especialidade
         const chavePacienteEspecialidade = `${pacienteId}:${especialidadeEnum}`;
@@ -614,7 +649,7 @@ rotasImportacao.post(
           usuarioId: profissional.id,
           especialidade: especialidadeEnum,
           status: statusEnum,
-          resumo: `Atendimento importado via planilha. Situação original: ${item.situacao || 'Concluído'}. Profissional: ${item.profissionalNome}.`,
+          resumo: `Atendimento importado via planilha. Situação: ${statusEnum === StatusAtendimento.CANCELADO ? 'Cancelado' : 'Concluído'} (original: ${item.situacao || '-'}). Profissional: ${item.profissionalNome}.`,
           chaveIdempotencia,
           criadoEm: dataCriacao,
           atualizadoEm: dataCriacao,

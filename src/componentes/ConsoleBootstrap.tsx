@@ -367,39 +367,30 @@ export const ConsoleBootstrap: FC<ConsoleBootstrapProps> = ({ aberto, aoFechar, 
       aria-modal="true"
       aria-labelledby="console-bootstrap-titulo"
     >
-      <div className="flex w-full max-w-4xl max-h-[92vh] flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-2xl transition-all">
+      <div className="flex w-full max-w-4xl max-h-[92vh] flex-col overflow-hidden rounded-[24px] sm:rounded-[28px] border border-slate-200/90 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)] transition-all">
         {/* Topo / Cabeçalho Executivo */}
         <div className="flex items-center justify-between border-b border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-6 py-4.5">
           <div className="flex items-center gap-3.5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-red-200/80 bg-red-50 text-red-600 shadow-2xs">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-red-200/80 bg-gradient-to-br from-red-50 to-rose-100 text-red-600 shadow-2xs">
               <ShieldAlert className="h-5 w-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2.5">
-                <h2 id="console-bootstrap-titulo" className="text-base font-extrabold text-slate-900 tracking-tight">
-                  Console de Administração Bootstrap
-                </h2>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white">
-                  Perfil BOOTSTRAP
-                </span>
-                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200/70">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Auditoria Ativa
-                </span>
-              </div>
-              <p className="mt-0.5 text-xs text-slate-500">
-                Gestão avançada e expurgo de dados críticos com integridade relacional FK e registro em trilha de auditoria.
+              <h2 id="console-bootstrap-titulo" className="text-[1.12rem] font-black text-slate-900 tracking-[-0.02em] leading-tight">
+                Console de Administração
+              </h2>
+              <p className="mt-0.5 text-xs font-medium text-slate-500">
+                Gestão avançada, expurgo seguro de registros e integridade dos dados.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             {aoImportarPlanilha && (
               <button
                 type="button"
                 onClick={aoImportarPlanilha}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-all cursor-pointer mr-1"
-                title="Importar pacientes e consultas via planilha Excel ou CSV"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] rounded-xl shadow-xs transition-all cursor-pointer"
+                title="Importar consultas via planilha Excel ou CSV"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5" />
                 <span>Importar Planilha</span>
@@ -407,30 +398,33 @@ export const ConsoleBootstrap: FC<ConsoleBootstrapProps> = ({ aberto, aoFechar, 
             )}
 
             {/* Alternador de visualização Ações / Logs */}
-            <div className="flex rounded-xl bg-slate-100 p-1 mr-2 border border-slate-200/70">
+            <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200/70 shadow-2xs">
               <button
                 type="button"
                 onClick={() => setAbaAtiva('acoes')}
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   abaAtiva === 'acoes'
-                    ? 'bg-white text-slate-900 shadow-2xs'
+                    ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-950/5'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <Database className="w-3.5 h-3.5" />
-                Painel
+                <Database className="w-3.5 h-3.5 text-slate-500" />
+                <span>Painel</span>
               </button>
               <button
                 type="button"
                 onClick={() => setAbaAtiva('logs')}
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   abaAtiva === 'logs'
-                    ? 'bg-white text-slate-900 shadow-2xs'
+                    ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-950/5'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <History className="w-3.5 h-3.5" />
-                Logs ({log.length})
+                <History className="w-3.5 h-3.5 text-slate-500" />
+                <span>Logs</span>
+                <span className="ml-0.5 px-1.5 py-0.2 rounded-md bg-slate-200/80 text-[10px] font-bold text-slate-700 font-mono">
+                  {log.length}
+                </span>
               </button>
             </div>
 
@@ -438,7 +432,7 @@ export const ConsoleBootstrap: FC<ConsoleBootstrapProps> = ({ aberto, aoFechar, 
               type="button"
               onClick={aoFechar}
               disabled={excluindo}
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-50 cursor-pointer"
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-50 cursor-pointer ml-0.5"
               aria-label="Fechar console"
             >
               <X className="h-4.5 w-4.5" />
@@ -447,39 +441,26 @@ export const ConsoleBootstrap: FC<ConsoleBootstrapProps> = ({ aberto, aoFechar, 
         </div>
 
         {/* Visão Geral: Stat Cards de Entidades */}
-        <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-3.5">
-          <div className="flex items-center justify-between mb-2">
+        <div className="border-b border-slate-200/70 bg-slate-50/60 px-6 py-4">
+          <div className="flex items-center justify-between mb-3">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-              Registros no Banco de Dados (Cloudflare D1)
+              Registros no Banco de Dados
             </span>
-            <div className="flex items-center gap-2">
-              {aoImportarPlanilha && (
-                <button
-                  type="button"
-                  onClick={aoImportarPlanilha}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/80 hover:bg-blue-100 rounded-xl transition-all cursor-pointer"
-                  title="Carga em lote de dados via planilha"
-                >
-                  <FileSpreadsheet className="h-3 w-3 text-blue-600" />
-                  Carga / Importar Planilha
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  void carregarMetricasGerais();
-                  void carregarRegistros(tipo);
-                }}
-                disabled={carregando || carregandoMetricas || excluindo}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
-              >
-                <RefreshCw className={`h-3 w-3 ${carregando || carregandoMetricas ? 'animate-spin' : ''}`} />
-                Atualizar dados
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                void carregarMetricasGerais();
+                void carregarRegistros(tipo);
+              }}
+              disabled={carregando || carregandoMetricas || excluindo}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-blue-600 bg-white hover:bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-lg shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw className={`h-3 w-3 text-slate-400 ${carregando || carregandoMetricas ? 'animate-spin' : ''}`} />
+              Atualizar contagens
+            </button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {(Object.keys(CONFIG_ENTIDADE) as TipoEntidade[]).map((opcao) => {
               const cfg = CONFIG_ENTIDADE[opcao];
               const Icone = cfg.icone;
@@ -498,33 +479,33 @@ export const ConsoleBootstrap: FC<ConsoleBootstrapProps> = ({ aberto, aoFechar, 
                     setConfirmacao('');
                     setCienciaConfirmada(false);
                   }}
-                  className={`flex items-center justify-between p-3 rounded-2xl border transition-all text-left cursor-pointer ${
+                  className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all text-left cursor-pointer ${
                     ativo
-                      ? 'border-blue-500 bg-blue-50/70 shadow-xs ring-1 ring-blue-400/40'
-                      : 'border-slate-200/80 bg-white hover:border-slate-300 hover:bg-slate-50/80'
+                      ? 'border-blue-500 bg-gradient-to-br from-blue-50/90 to-indigo-50/40 shadow-xs ring-2 ring-blue-500/20'
+                      : 'border-slate-200/80 bg-white hover:border-slate-300 hover:bg-slate-50/80 hover:shadow-2xs'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div
-                      className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all ${
                         ativo
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                           : 'bg-slate-100 text-slate-600 border-slate-200/70'
                       }`}
                     >
-                      <Icone className="w-4 h-4" />
+                      <Icone className="w-4.5 h-4.5" />
                     </div>
                     <div className="min-w-0">
-                      <span className={`block text-[11px] font-bold truncate ${ativo ? 'text-blue-950' : 'text-slate-600'}`}>
+                      <span className={`block text-[11px] font-bold truncate ${ativo ? 'text-blue-950 font-extrabold' : 'text-slate-600'}`}>
                         {cfg.rotulo}
                       </span>
-                      <span className="block text-sm font-black text-slate-900">
+                      <span className="block text-base font-black text-slate-900 tracking-tight mt-0.5">
                         {carregandoMetricas ? '...' : contagem.toLocaleString('pt-BR')}
                       </span>
                     </div>
                   </div>
                   {ativo && (
-                    <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 ml-1.5" />
+                    <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 ml-1.5 animate-pulse" />
                   )}
                 </button>
               );
