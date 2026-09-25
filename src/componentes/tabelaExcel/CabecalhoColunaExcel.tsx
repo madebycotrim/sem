@@ -44,7 +44,7 @@ export function CabecalhoColunaExcel<T>({
   const atualizarPosicao = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    const larguraPopover = 290;
+    const larguraPopover = Math.min(360, window.innerWidth - 24);
 
     let left = rect.left;
     if (alinhamento === 'right') {
@@ -243,7 +243,7 @@ export function CabecalhoColunaExcel<T>({
             style={{
               top: `${posicaoPopover.top}px`,
               left: `${posicaoPopover.left}px`,
-              width: '290px',
+              width: 'min(360px, calc(100vw - 24px))',
               zIndex: 999999,
             }}
           >
@@ -406,22 +406,22 @@ export function CabecalhoColunaExcel<T>({
                       return (
                         <label
                           key={item.valorChave}
-                          className={`flex items-center justify-between px-2 py-1.5 rounded-lg transition-colors cursor-pointer select-none ${
+                          className={`flex items-start justify-between px-2 py-1.5 rounded-lg transition-colors cursor-pointer select-none ${
                             isChecked ? 'bg-slate-100 text-slate-800 font-medium' : 'text-slate-600 hover:bg-slate-100'
                           }`}
                         >
-                          <div className="flex items-center gap-2 truncate mr-2">
+                          <div className="flex items-start gap-2 mr-2 min-w-0 flex-1">
                             <input
                               type="checkbox"
                               checked={isChecked}
                               onChange={() => estado.alternarValorFiltro(colunaId, item.valorChave)}
-                              className="w-3.5 h-3.5 rounded border-slate-300 focus:ring-slate-200 focus:ring-1 cursor-pointer shrink-0 accent-slate-700"
+                              className="mt-0.5 w-3.5 h-3.5 rounded border-slate-300 focus:ring-slate-200 focus:ring-1 cursor-pointer shrink-0 accent-slate-700"
                             />
-                            <span className="truncate text-[11px]" title={item.rotuloExibicao || '(Vazio)'}>
+                            <span className="text-[11px] whitespace-normal break-words leading-tight" title={item.rotuloExibicao || '(Vazio)'}>
                               {item.rotuloExibicao || '(Vazio)'}
                             </span>
                           </div>
-                          <span className="text-[10px] font-medium text-slate-500 bg-white border border-slate-200 px-1.5 py-0.2 rounded shrink-0">
+                          <span className="text-[10px] font-medium text-slate-500 bg-white border border-slate-200 px-1.5 py-0.2 rounded shrink-0 mt-0.5">
                             {item.contagem}
                           </span>
                         </label>
