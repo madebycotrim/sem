@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowRight, CircleAlert, KeyRound, Mail } from 'lucide-react';
+import { ArrowRight, CircleAlert, KeyRound, Mail, X } from 'lucide-react';
 import { requisicaoApi } from '../servicos/api.ts';
 import { Botao } from '../componentes/Botao.tsx';
 import catrakiLogo from '../assets/catraki.png';
+import sesiSaudeLogo from '../assets/SESI-SAUDE.png';
 
 const formLoginSchema = z.object({
   email: z.string().min(1, 'O e-mail é obrigatório').email('Digite um e-mail válido'),
@@ -108,7 +109,33 @@ export function Login({ aoLogar }: LoginProps) {
         </div>
 
         <div className="relative z-10 flex flex-col items-start justify-center h-full px-20">
-          <img src={catrakiLogo} alt="Catraki" className="h-16 mb-12 drop-shadow-xl filter brightness-0 invert" />
+          {/* ─── Card de Parceria Oficial: Catraki × SESI Saúde ───────────────── */}
+          <div
+            className="inline-flex flex-col items-center bg-white/95 backdrop-blur-md px-6 py-4 rounded-2xl shadow-2xl shadow-blue-950/25 border border-white/60 mb-10 group transition-all duration-300 hover:scale-[1.02] hover:bg-white select-none"
+            title="Parceria Catraki × SESI Saúde"
+          >
+            <img
+              src={catrakiLogo}
+              alt="Catraki"
+              className="w-12 h-12 object-contain drop-shadow-2xs transition-transform duration-200 group-hover:scale-105"
+            />
+
+            {/* Símbolo de Parceria Estilizado: Badge Micro-chip com linhas em gradiente */}
+            <div className="flex items-center justify-center w-full px-2 my-2.5 gap-2 opacity-85 group-hover:opacity-100 transition-opacity">
+              <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-slate-200 to-slate-300" />
+              <div className="w-5 h-5 rounded-full bg-slate-100/90 border border-slate-200/90 flex items-center justify-center shadow-3xs group-hover:border-blue-300 group-hover:bg-blue-50 transition-all">
+                <X className="w-2.5 h-2.5 text-slate-400 group-hover:text-blue-600 stroke-[2.5] transition-colors" />
+              </div>
+              <div className="flex-1 h-[1px] bg-gradient-to-l from-transparent via-slate-200 to-slate-300" />
+            </div>
+
+            <img
+              src={sesiSaudeLogo}
+              alt="SESI Saúde"
+              className="w-16 h-auto max-h-9 object-contain drop-shadow-2xs transition-transform duration-200 group-hover:scale-105"
+            />
+          </div>
+
           <h1 className="text-4xl xl:text-5xl font-extrabold text-white leading-tight tracking-tight mb-6">
             Gestão de Atendimentos<br />
             <span className="text-blue-200">Simples e Inteligente.</span>
@@ -128,8 +155,21 @@ export function Login({ aoLogar }: LoginProps) {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 lg:p-20 relative bg-white lg:rounded-l-3xl lg:shadow-[-20px_0_40px_rgba(0,0,0,0.05)] z-10">
         <div className="w-full max-w-md animate-fade-in">
           
-          <div className="lg:hidden flex items-center justify-center mb-10">
-             <img src={catrakiLogo} alt="Catraki" className="h-14 drop-shadow-sm" />
+          <div className="lg:hidden flex items-center justify-center mb-8">
+            <div
+              className="inline-flex items-center gap-3.5 bg-slate-50/90 border border-slate-200/90 px-4 py-2.5 rounded-2xl shadow-xs"
+              title="Parceria Catraki × SESI Saúde"
+            >
+              <img src={catrakiLogo} alt="Catraki" className="w-8 h-8 object-contain drop-shadow-2xs" />
+              <div className="flex items-center gap-1.5 opacity-85">
+                <div className="w-3 h-[1px] bg-gradient-to-r from-transparent via-slate-200 to-slate-300" />
+                <div className="w-4 h-4 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-3xs">
+                  <X className="w-2 h-2 text-slate-400 stroke-[2.5]" />
+                </div>
+                <div className="w-3 h-[1px] bg-gradient-to-l from-transparent via-slate-200 to-slate-300" />
+              </div>
+              <img src={sesiSaudeLogo} alt="SESI Saúde" className="w-12 h-auto max-h-7 object-contain drop-shadow-2xs" />
+            </div>
           </div>
 
           {trocaObrigatoria ? (
