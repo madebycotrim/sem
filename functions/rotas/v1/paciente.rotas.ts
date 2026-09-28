@@ -19,16 +19,6 @@ export const rotasPaciente = new Hono<{ Bindings: Bindings; Variables: AppVariab
 
 const normalizarCpf = (valor?: string | null) => (valor ?? '').replace(/\D/g, '').slice(0, 11);
 
-/**
- * Mascara o CPF para conformidade LGPD (ex: 042.***.***-91).
- */
-function mascararCpf(cpf?: string | null): string {
-  if (!cpf) return 'Não informado';
-  const limpo = cpf.replace(/\D/g, '');
-  if (limpo.length !== 11) return cpf;
-  return `${limpo.slice(0, 3)}.***.***-${limpo.slice(9, 11)}`;
-}
-
 const verificarCpfDuplicado = async (
   db: AppDatabase,
   cpf: string,
@@ -271,7 +261,7 @@ rotasPaciente.get('/', async (c) => {
         return {
           id: p.id,
           nome: pii.nome,
-          cpf: mascararCpf(pii.cpf),
+          cpf: pii.cpf,
           dataNascimento: pii.dataNascimento,
           telefone: null,
           sexo: pii.sexo ?? undefined,

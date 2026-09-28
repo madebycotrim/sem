@@ -111,28 +111,28 @@ export function Login({ aoLogar }: LoginProps) {
         <div className="relative z-10 flex flex-col items-start justify-center h-full px-20">
           {/* ─── Card de Parceria Oficial: Catraki × SESI Saúde ───────────────── */}
           <div
-            className="inline-flex flex-col items-center bg-white/95 backdrop-blur-md px-6 py-4 rounded-2xl shadow-2xl shadow-blue-950/25 border border-white/60 mb-10 group transition-all duration-300 hover:scale-[1.02] hover:bg-white select-none"
+            className="inline-flex items-center gap-4 bg-white/95 backdrop-blur-md px-6 py-3.5 rounded-2xl shadow-2xl shadow-blue-950/25 border border-white/60 mb-10 group transition-all duration-300 hover:scale-[1.02] hover:bg-white select-none"
             title="Parceria Catraki × SESI Saúde"
           >
             <img
               src={catrakiLogo}
               alt="Catraki"
-              className="w-12 h-12 object-contain drop-shadow-2xs transition-transform duration-200 group-hover:scale-105"
+              className="h-11 w-auto object-contain drop-shadow-2xs transition-transform duration-200 group-hover:scale-105"
             />
 
-            {/* Símbolo de Parceria Estilizado: Badge Micro-chip com linhas em gradiente */}
-            <div className="flex items-center justify-center w-full px-2 my-2.5 gap-2 opacity-85 group-hover:opacity-100 transition-opacity">
-              <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-slate-200 to-slate-300" />
+            {/* Símbolo de Parceria Estilizado: Divisor vertical com badge X */}
+            <div className="flex flex-col items-center justify-center h-10 py-0.5 gap-1 opacity-85 group-hover:opacity-100 transition-opacity">
+              <div className="w-[1px] flex-1 bg-gradient-to-b from-transparent via-slate-200 to-slate-300" />
               <div className="w-5 h-5 rounded-full bg-slate-100/90 border border-slate-200/90 flex items-center justify-center shadow-3xs group-hover:border-blue-300 group-hover:bg-blue-50 transition-all">
                 <X className="w-2.5 h-2.5 text-slate-400 group-hover:text-blue-600 stroke-[2.5] transition-colors" />
               </div>
-              <div className="flex-1 h-[1px] bg-gradient-to-l from-transparent via-slate-200 to-slate-300" />
+              <div className="w-[1px] flex-1 bg-gradient-to-t from-transparent via-slate-200 to-slate-300" />
             </div>
 
             <img
               src={sesiSaudeLogo}
               alt="SESI Saúde"
-              className="w-16 h-auto max-h-9 object-contain drop-shadow-2xs transition-transform duration-200 group-hover:scale-105"
+              className="h-9 w-auto object-contain drop-shadow-2xs transition-transform duration-200 group-hover:scale-105"
             />
           </div>
 

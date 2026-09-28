@@ -51,6 +51,9 @@ export interface CabecalhoPaginaProps {
     ultimaSincronizacao?: Date | null;
   };
 
+  /** Callback para forçar sincronização manual imediata com o Catraki */
+  aoSincronizarCatraki?: () => void;
+
   /** Botão de sincronização manual legado (opcional) */
   sincronizacao?: {
     aoSincronizar: () => void;
@@ -85,6 +88,7 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
   seletor,
   seletorSecundario,
   statusSincronizacaoCatraki,
+  aoSincronizarCatraki,
   sincronizacao,
   aoExportar,
   acaoPrimaria,
@@ -147,26 +151,52 @@ export const CabecalhoPagina: FC<CabecalhoPaginaProps> = ({
 
       {/* Indicador Discreto de Sincronização em Segundo Plano com o Catraki */}
       {statusSincronizacaoCatraki && (
-        <div
-          className="flex items-center justify-center select-none px-1 text-slate-400 hover:text-slate-600 transition-colors cursor-default"
-          title={
-            statusSincronizacaoCatraki.status === 'sincronizando'
-              ? 'Sincronizando termos de consentimento com o Catraki...'
-              : statusSincronizacaoCatraki.status === 'erro'
-              ? 'Catraki Offline'
-              : statusSincronizacaoCatraki.ultimaSincronizacao
-              ? `Sincronizado automaticamente com o Catraki às ${statusSincronizacaoCatraki.ultimaSincronizacao.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: FUSO_BRASILIA })}`
-              : 'Sincronizado com o Catraki'
-          }
-        >
-          {statusSincronizacaoCatraki.status === 'sincronizando' ? (
-            <LoaderCircle className="w-4 h-4 animate-spin text-blue-500" />
-          ) : statusSincronizacaoCatraki.status === 'erro' ? (
-            <WifiOff className="w-4 h-4 text-amber-500 opacity-80" />
-          ) : (
-            <Wifi className="w-4 h-4 text-emerald-500 hover:text-emerald-600 transition-colors" />
-          )}
-        </div>
+        aoSincronizarCatraki ? (
+          <button
+            type="button"
+            onClick={aoSincronizarCatraki}
+            disabled={statusSincronizacaoCatraki.status === 'sincronizando'}
+            className="flex items-center justify-center select-none px-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer disabled:cursor-wait"
+            title={
+              statusSincronizacaoCatraki.status === 'sincronizando'
+                ? 'Sincronizando termos de consentimento com o Catraki...'
+                : statusSincronizacaoCatraki.status === 'erro'
+                ? 'Catraki Offline (clique para tentar novamente)'
+                : statusSincronizacaoCatraki.ultimaSincronizacao
+                ? `Sincronizado automaticamente com o Catraki às ${statusSincronizacaoCatraki.ultimaSincronizacao.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: FUSO_BRASILIA })} (clique para sincronizar agora)`
+                : 'Clique para sincronizar com o Catraki'
+            }
+          >
+            {statusSincronizacaoCatraki.status === 'sincronizando' ? (
+              <LoaderCircle className="w-4 h-4 animate-spin text-blue-500" />
+            ) : statusSincronizacaoCatraki.status === 'erro' ? (
+              <WifiOff className="w-4 h-4 text-amber-500 opacity-80 hover:text-amber-600" />
+            ) : (
+              <Wifi className="w-4 h-4 text-emerald-500 hover:text-emerald-600 transition-colors" />
+            )}
+          </button>
+        ) : (
+          <div
+            className="flex items-center justify-center select-none px-1 text-slate-400 hover:text-slate-600 transition-colors cursor-default"
+            title={
+              statusSincronizacaoCatraki.status === 'sincronizando'
+                ? 'Sincronizando termos de consentimento com o Catraki...'
+                : statusSincronizacaoCatraki.status === 'erro'
+                ? 'Catraki Offline'
+                : statusSincronizacaoCatraki.ultimaSincronizacao
+                ? `Sincronizado automaticamente com o Catraki às ${statusSincronizacaoCatraki.ultimaSincronizacao.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: FUSO_BRASILIA })}`
+                : 'Sincronizado com o Catraki'
+            }
+          >
+            {statusSincronizacaoCatraki.status === 'sincronizando' ? (
+              <LoaderCircle className="w-4 h-4 animate-spin text-blue-500" />
+            ) : statusSincronizacaoCatraki.status === 'erro' ? (
+              <WifiOff className="w-4 h-4 text-amber-500 opacity-80" />
+            ) : (
+              <Wifi className="w-4 h-4 text-emerald-500 hover:text-emerald-600 transition-colors" />
+            )}
+          </div>
+        )
       )}
 
       {/* Botão Sincronizar Catraki (Manual Legado) */}

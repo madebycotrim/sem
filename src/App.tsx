@@ -639,6 +639,23 @@ export function App() {
   };
 
   // Sincronização Automática em Segundo Plano com a API Catraki
+  const [gatilhoSincronizarCatraki, setGatilhoSincronizarCatraki] = useState(0);
+
+  const forcarSincronizacaoCatraki = useCallback(() => {
+    setStatusSincronizacaoCatraki((prev) => ({ ...prev, status: 'sincronizando' }));
+    setGatilhoSincronizarCatraki((v) => v + 1);
+  }, []);
+
+  const chaveCpfsPacientes = useMemo(
+    () =>
+      pacientes
+        .map((p) => sanitizarCpf(p.cpf))
+        .filter((cpf) => cpf.length === 11)
+        .sort()
+        .join(','),
+    [pacientes]
+  );
+
   useEffect(() => {
     let montado = true;
 
@@ -739,7 +756,7 @@ export function App() {
       montado = false;
       clearInterval(intervalo);
     };
-  }, [pacientes.length]);
+  }, [chaveCpfsPacientes, gatilhoSincronizarCatraki]);
 
   const handleExcluirPaciente = async (paciente: ItemPaciente) => {
     try {
@@ -1052,6 +1069,7 @@ export function App() {
                 aoClicar: () => setModalNovoPacienteAberto(true),
               } : undefined}
               statusSincronizacaoCatraki={statusSincronizacaoCatraki}
+              aoSincronizarCatraki={forcarSincronizacaoCatraki}
               fixo={true}
             />
 
