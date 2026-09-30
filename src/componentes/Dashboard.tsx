@@ -341,9 +341,14 @@ export const Dashboard: FC<DashboardProps> = ({
                       {atendimento.profissionalNome ? ` · ${atendimento.profissionalNome}` : ''}
                     </p>
                   </div>
-                  <span className="shrink-0 text-[10px] font-semibold text-slate-500">
-                    {formatarHoraBrasilia(atendimento.criadoEm)}
-                  </span>
+                  <div className="shrink-0 flex flex-col items-end text-right">
+                    <span className="text-[11px] font-bold text-slate-700 font-mono leading-tight">
+                      {formatarHoraBrasilia(atendimento.criadoEm)}
+                    </span>
+                    <span className="text-[10px] font-medium text-slate-400 font-mono leading-tight mt-0.5">
+                      {formatarDataBrasilia(atendimento.criadoEm)}
+                    </span>
+                  </div>
                 </div>
               )) : (
                 <div className="flex min-h-[138px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 text-center">
