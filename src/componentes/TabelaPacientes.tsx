@@ -45,6 +45,11 @@ export function calcularIdade(dataNascimento: string): number {
     ano = parseInt(partes[0], 10);
     mes = parseInt(partes[1], 10) - 1;
     dia = parseInt(partes[2], 10);
+  } else if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(dataNascimento)) {
+    const partes = dataNascimento.substring(0, 10).split('/');
+    dia = parseInt(partes[0], 10);
+    mes = parseInt(partes[1], 10) - 1;
+    ano = parseInt(partes[2], 10);
   } else {
     const d = new Date(dataNascimento);
     if (isNaN(d.getTime())) return 0;

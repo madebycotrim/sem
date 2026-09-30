@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { ItemPaciente } from './TabelaPacientes.tsx';
-import { formatarSubtituloPaciente } from './TabelaPacientes.tsx';
+import { formatarSubtituloPaciente, calcularIdade } from './TabelaPacientes.tsx';
+import { formatarDataBrasilia } from '../../compartilhado/index.ts';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { formatarCpf } from '../servicos/apiCpf.ts';
 import { formatarTelefone } from '../utilitarios/mascaras.ts';
-import { BookOpen, Building2, Phone } from 'lucide-react';
+import { BookOpen, Building2, Calendar, Phone } from 'lucide-react';
 
 interface CardHoverPacienteProps {
   paciente: ItemPaciente;
@@ -30,6 +31,13 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
 
   const turma = paciente.turma || 'Não informada';
   const telefone = paciente.telefone ? formatarTelefone(paciente.telefone) : 'Não informado';
+  const idade = calcularIdade(paciente.dataNascimento);
+  let dataNascimentoTexto = 'Não informada';
+  if (paciente.dataNascimento && paciente.dataNascimento.trim()) {
+    const dataFormatada = formatarDataBrasilia(paciente.dataNascimento);
+    const dataExibicao = dataFormatada && dataFormatada !== '--/--/----' ? dataFormatada : paciente.dataNascimento;
+    dataNascimentoTexto = idade > 0 ? `${dataExibicao} (${idade} anos)` : dataExibicao;
+  }
 
   const atualizarPosicao = () => {
     const card = cardRef.current;
@@ -149,6 +157,19 @@ export const CardHoverPaciente: React.FC<CardHoverPacienteProps> = ({
 
             {/* ─── 2. Grade de Informações Detalhadas ───────────────────────── */}
             <div className="py-3 grid grid-cols-1 gap-2 text-xs">
+              {/* Data de Nascimento */}
+              <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50/80 border border-slate-100/90">
+                <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                  <Calendar className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Data de Nascimento</span>
+                  <span className="text-[11.5px] font-semibold text-slate-800 truncate">
+                    {dataNascimentoTexto}
+                  </span>
+                </div>
+              </div>
+
               {/* Série e Turma */}
               <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50/80 border border-slate-100/90">
                 <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">

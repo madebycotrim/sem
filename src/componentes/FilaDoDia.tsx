@@ -34,6 +34,10 @@ export interface ItemFila {
   pacienteNome: string;
   cpf?: string;
   idade: number;
+  dataNascimento?: string;
+  telefone?: string;
+  turma?: string;
+  sexo?: string;
   escolaNome: string;
   especialidade: Especialidade;
   status: StatusPresenca;
@@ -715,12 +719,21 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                             p.nome === item.pacienteNome
                         );
                         const pacienteCompleto: ItemPaciente = (pacienteObj && 'termoConsentimentoStatus' in pacienteObj)
-                          ? (pacienteObj as ItemPaciente)
+                          ? {
+                              ...(pacienteObj as ItemPaciente),
+                              dataNascimento: (pacienteObj as any).dataNascimento || item.dataNascimento || '',
+                              telefone: (pacienteObj as any).telefone || item.telefone,
+                              turma: (pacienteObj as any).turma || item.turma,
+                              sexo: (pacienteObj as any).sexo || item.sexo,
+                            }
                           : {
                               id: item.pacienteId || pacienteObj?.id || item.id,
                               nome: item.pacienteNome,
                               cpf: item.cpf,
-                              dataNascimento: (pacienteObj as any)?.dataNascimento || '',
+                              dataNascimento: item.dataNascimento || (pacienteObj as any)?.dataNascimento || '',
+                              telefone: item.telefone || (pacienteObj as any)?.telefone,
+                              turma: item.turma || (pacienteObj as any)?.turma,
+                              sexo: item.sexo || (pacienteObj as any)?.sexo,
                               escolaNome: item.escolaNome || 'Não informada',
                               termoConsentimentoStatus: 'PENDENTE',
                               atendimentosCount: 1,

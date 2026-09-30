@@ -3,7 +3,7 @@ import { CircleAlert, CircleCheck, Info, LoaderCircle, LockKeyhole } from 'lucid
 import { ProvedorPermissoes } from './contextos/ContextoPermissoes.tsx';
 import { Sidebar, type SecaoMenu } from './componentes/Sidebar.tsx';
 import { CabecalhoPagina } from './componentes/CabecalhoPagina.tsx';
-import { TabelaPacientes, type ItemPaciente } from './componentes/TabelaPacientes.tsx';
+import { TabelaPacientes, type ItemPaciente, calcularIdade } from './componentes/TabelaPacientes.tsx';
 import { ModalNovoPaciente, type FormNovoPaciente } from './componentes/ModalNovoPaciente.tsx';
 import { FilaDoDia, type ItemFila } from './componentes/FilaDoDia.tsx';
 import type { ItemProfissionalTriagem } from './componentes/ModalTriagem.tsx';
@@ -423,6 +423,10 @@ export function App() {
             pacienteId: String(d.pacienteId),
             pacienteNome: String(d.pacienteNome || 'Paciente'),
             pacienteCpf: d.pacienteCpf ? String(d.pacienteCpf) : undefined,
+            pacienteDataNascimento: d.pacienteDataNascimento ? String(d.pacienteDataNascimento) : undefined,
+            pacienteTelefone: d.pacienteTelefone ? String(d.pacienteTelefone) : undefined,
+            pacienteTurma: d.pacienteTurma ? String(d.pacienteTurma) : undefined,
+            pacienteSexo: d.pacienteSexo ? String(d.pacienteSexo) : undefined,
             especialidade: d.especialidade as ItemAtendimentoLista['especialidade'],
             escolaNome: String(d.escolaNome || d.escolaLocal || 'Não informada'),
             profissionalNome: String(d.profissionalNome || d.profissional || 'Profissional de Saúde'),
@@ -465,18 +469,6 @@ export function App() {
   useEffect(() => {
     if (!autenticado || carregandoAtendimentos) return;
 
-    const calcularIdade = (dataNascimento?: string) => {
-      if (!dataNascimento) return 0;
-      const nascimento = new Date(dataNascimento);
-      const hoje = new Date();
-      let idade = hoje.getFullYear() - nascimento.getFullYear();
-      const aniversarioAindaNaoOcorreu =
-        hoje.getMonth() < nascimento.getMonth() ||
-        (hoje.getMonth() === nascimento.getMonth() && hoje.getDate() < nascimento.getDate());
-      if (aniversarioAindaNaoOcorreu) idade -= 1;
-      return Math.max(0, idade);
-    };
-
     const resolverStatusFila = (status?: string | TipoStatusAtendimento | null): ItemFila['status'] => {
       const s = String(status || '').toUpperCase().trim();
       if (s.includes('CANCEL') || s.includes('DESIST') || s.includes('FALT') || s.includes('AUSENT')) {
@@ -495,9 +487,15 @@ export function App() {
     };
 
     const filaPersistida: ItemFila[] = atendimentos.map((atendimento) => {
-      const paciente = pacientes.find((item) => item.id === atendimento.pacienteId);
+      const paciente = pacientes.find(
+        (item) =>
+          item.id === atendimento.pacienteId ||
+          (item.cpf && atendimento.pacienteCpf && item.cpf.replace(/\D/g, '') === atendimento.pacienteCpf.replace(/\D/g, '')) ||
+          (item.nome && atendimento.pacienteNome && item.nome.trim().toLowerCase() === atendimento.pacienteNome.trim().toLowerCase())
+      );
       const escola = escolasGlobais.find((item) => item.id === atendimento.escolaId);
       const profissional = profissionais.find((item) => item.id === atendimento.profissionalId);
+      const dataNasc = paciente?.dataNascimento || atendimento.pacienteDataNascimento;
       return {
         id: atendimento.id,
         atendimentoId: atendimento.id,
@@ -505,8 +503,12 @@ export function App() {
         escolaId: atendimento.escolaId || escola?.id,
         profissionalId: atendimento.profissionalId || profissional?.id,
         pacienteNome: atendimento.pacienteNome,
-        cpf: paciente?.cpf,
-        idade: calcularIdade(paciente?.dataNascimento),
+        cpf: paciente?.cpf || atendimento.pacienteCpf,
+        idade: calcularIdade(dataNasc || ''),
+        dataNascimento: dataNasc,
+        telefone: paciente?.telefone || atendimento.pacienteTelefone,
+        turma: paciente?.turma || atendimento.pacienteTurma,
+        sexo: paciente?.sexo || atendimento.pacienteSexo,
         escolaNome: atendimento.escolaNome || escola?.nome || 'Não informada',
         especialidade: atendimento.especialidade,
         status: resolverStatusFila(atendimento.status),
@@ -1153,7 +1155,7 @@ export function App() {
                 escolas={escolasGlobais}
                 profissionais={profissionais}
                 aoVerHistoricoPaciente={(p) => {
-                  const pacienteCompleto = pacientes.find((item) => item.id === p.id || item.nome === p.nome) || p;
+                  const pacienteCompleto = pacientes.find((item) => item.id === p.id || (item.cpf && p.cpf && item.cpf.replace(/\D/g, '') === p.cpf.replace(/\D/g, '')) || item.nome === p.nome) || p;
                   setPacienteHistoricoDrawer(pacienteCompleto);
                 }}
               />

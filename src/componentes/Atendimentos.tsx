@@ -36,6 +36,10 @@ export interface ItemAtendimentoLista {
   profissionalId?: string;
   pacienteNome: string;
   pacienteCpf?: string;
+  pacienteDataNascimento?: string;
+  pacienteTelefone?: string;
+  pacienteTurma?: string;
+  pacienteSexo?: string;
   especialidade: Especialidade;
   escolaNome: string;
   profissionalNome: string;
@@ -946,13 +950,23 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                   const pacienteEncontrado = pacientes.find(
                     (p) =>
                       (item.pacienteId && p.id === item.pacienteId) ||
+                      (item.pacienteCpf && p.cpf && item.pacienteCpf.replace(/\D/g, '') === p.cpf.replace(/\D/g, '')) ||
                       (p.nome && item.pacienteNome && p.nome.trim().toLowerCase() === item.pacienteNome.trim().toLowerCase())
                   );
-                  const pacienteCompleto: ItemPaciente = pacienteEncontrado || {
+                  const pacienteCompleto: ItemPaciente = pacienteEncontrado ? {
+                    ...pacienteEncontrado,
+                    dataNascimento: pacienteEncontrado.dataNascimento || item.pacienteDataNascimento || '',
+                    telefone: pacienteEncontrado.telefone || item.pacienteTelefone,
+                    turma: pacienteEncontrado.turma || item.pacienteTurma,
+                    sexo: pacienteEncontrado.sexo || item.pacienteSexo,
+                  } : {
                     id: item.pacienteId || item.id,
                     nome: item.pacienteNome,
                     cpf: item.pacienteCpf,
-                    dataNascimento: '',
+                    dataNascimento: item.pacienteDataNascimento || '',
+                    telefone: item.pacienteTelefone,
+                    turma: item.pacienteTurma,
+                    sexo: item.pacienteSexo,
                     escolaNome: item.escolaNome || 'Não informada',
                     termoConsentimentoStatus: 'PENDENTE',
                     atendimentosCount: 1,

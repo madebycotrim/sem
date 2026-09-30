@@ -930,6 +930,9 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
     listaAtendimentos.map(async (a) => {
       let pacienteNome = 'Paciente Desconhecido';
       let pacienteCpf = 'Não informado';
+      let pacienteDataNascimento: string | null = null;
+      let pacienteTelefone: string | null = null;
+      let pacienteSexo: string | null = null;
       const pacienteTurma = a.paciente?.turma ?? 'Não informada';
       if (a.paciente) {
         try {
@@ -945,6 +948,15 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
           if (pii.cpf) {
             pacienteCpf = mascararCpf(pii.cpf);
           }
+          if (pii.dataNascimento) {
+            pacienteDataNascimento = pii.dataNascimento;
+          }
+          if (pii.telefone) {
+            pacienteTelefone = pii.telefone;
+          }
+          if (pii.sexo) {
+            pacienteSexo = pii.sexo;
+          }
         } catch {
           pacienteNome = '[ERRO DE DESCRIPTOGRAFIA]';
         }
@@ -958,6 +970,9 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
         pacienteNome,
         pacienteCpf,
         pacienteTurma,
+        pacienteDataNascimento,
+        pacienteTelefone,
+        pacienteSexo,
         especialidade: a.especialidade,
         status: a.status,
         entradaFilaEm: a.entradaFilaEm ?? a.criadoEm,

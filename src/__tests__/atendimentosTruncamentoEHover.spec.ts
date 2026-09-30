@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { ItemAtendimentoLista } from '../componentes/Atendimentos.tsx';
 import type { ItemPaciente } from '../componentes/TabelaPacientes.tsx';
-import { formatarSubtituloPaciente, censurarCpf } from '../componentes/TabelaPacientes.tsx';
+import { formatarSubtituloPaciente, censurarCpf, calcularIdade } from '../componentes/TabelaPacientes.tsx';
 import { formatarConselhoERegistro } from '../componentes/FilaDoDia.tsx';
 
 describe('Atendimentos - Truncamento de Nome Profissional e Hover Card de Paciente', () => {
@@ -64,6 +64,51 @@ describe('Atendimentos - Truncamento de Nome Profissional e Hover Card de Pacien
     expect(fallback.nome).toBe('MATEUS RECALDE DA FONSECA COTRIM');
     expect(fallback.termoConsentimentoStatus).toBe('PENDENTE');
     expect(formatarSubtituloPaciente(fallback)).toBe('Estudante');
+  });
+
+  it('deve propagar pacienteDataNascimento para o CardHoverPaciente quando o paciente não estiver no cache global', () => {
+    const atendimentoComNascimento: ItemAtendimentoLista = {
+      ...atendimentoMock,
+      pacienteDataNascimento: '2008-04-25',
+      pacienteSexo: 'FEMININO',
+      pacienteTurma: '9º ANO A',
+    };
+
+    const listaVazia: ItemPaciente[] = [];
+    const pacienteEncontrado = listaVazia.find((p) => p.id === atendimentoComNascimento.pacienteId);
+
+    const fallback: ItemPaciente = pacienteEncontrado ? {
+      ...pacienteEncontrado,
+      dataNascimento: pacienteEncontrado.dataNascimento || atendimentoComNascimento.pacienteDataNascimento || '',
+      telefone: pacienteEncontrado.telefone || atendimentoComNascimento.pacienteTelefone,
+      turma: pacienteEncontrado.turma || atendimentoComNascimento.pacienteTurma,
+      sexo: pacienteEncontrado.sexo || atendimentoComNascimento.pacienteSexo,
+    } : {
+      id: atendimentoComNascimento.pacienteId || atendimentoComNascimento.id,
+      nome: atendimentoComNascimento.pacienteNome,
+      cpf: atendimentoComNascimento.pacienteCpf,
+      dataNascimento: atendimentoComNascimento.pacienteDataNascimento || '',
+      telefone: atendimentoComNascimento.pacienteTelefone,
+      turma: atendimentoComNascimento.pacienteTurma,
+      sexo: atendimentoComNascimento.pacienteSexo,
+      escolaNome: atendimentoComNascimento.escolaNome || 'Não informada',
+      termoConsentimentoStatus: 'PENDENTE',
+      atendimentosCount: 1,
+      criadoEm: atendimentoComNascimento.criadoEm || new Date().toISOString(),
+    };
+
+    expect(fallback.dataNascimento).toBe('2008-04-25');
+    expect(fallback.turma).toBe('9º ANO A');
+    expect(fallback.sexo).toBe('FEMININO');
+    expect(formatarSubtituloPaciente(fallback)).toContain('Feminino');
+  });
+
+  it('deve calcular a idade corretamente tanto para datas ISO quanto no formato brasileiro DD/MM/AAAA', () => {
+    const idadeIso = calcularIdade('2010-04-12');
+    const idadeBr = calcularIdade('12/04/2010');
+
+    expect(idadeIso).toBeGreaterThan(0);
+    expect(idadeBr).toBe(idadeIso);
   });
 
   it('deve preservar o nome completo do profissional no atributo title para permitir truncamento visual seguro', () => {
