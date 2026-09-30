@@ -5,9 +5,15 @@ import {
   mapearStatusAtendimento,
   extrairNomeCanonicoProfissional,
   inserirEmSubLotesSeguros,
-  identificarStatusPermitidoImportacao,
+  processarLoteSchema,
 } from '../../functions/rotas/v1/importacao.rotas.ts';
-import { Especialidade, StatusAtendimento } from '../../compartilhado/index.ts';
+import {
+  Especialidade,
+  StatusAtendimento,
+  identificarStatusPermitidoImportacao,
+  canonizarNomeEscola,
+  encontrarEscolaPorNome,
+} from '../../compartilhado/index.ts';
 
 describe('Importação Inteligente de Planilhas de Consultas', () => {
   describe('Normalização de Datas', () => {
@@ -468,6 +474,178 @@ describe('Importação Inteligente de Planilhas de Consultas', () => {
       for (const chamada of chamadasInsert) {
         expect(chamada.parametrosCount).toBeLessThan(100);
       }
+    });
+  });
+
+  describe('Validação do Tamanho do Lote (Chunk Size)', () => {
+    const criarItemMock = (indice: number) => ({
+      linhaOriginal: indice,
+      pacienteNome: `Aluno Teste ${indice}`,
+      especialidade: 'Oftalmologia',
+      profissionalNome: 'Dra. Ana Silveira',
+      situacao: 'Concluído',
+      instituicaoNome: 'Escola Modelo DF',
+    });
+
+    it('deve aceitar lotes com 250, 500, 750 e 1000 itens', () => {
+      const tamanhos = [250, 500, 750, 1000];
+
+      for (const tam of tamanhos) {
+        const itens = Array.from({ length: tam }, (_, idx) => criarItemMock(idx + 1));
+        const resultado = processarLoteSchema.safeParse({
+          importacaoId: `sessao_${tam}`,
+          itens,
+        });
+
+        expect(resultado.success).toBe(true);
+        if (resultado.success) {
+          expect(resultado.data.itens).toHaveLength(tam);
+        }
+      }
+    });
+
+    it('deve rejeitar lotes acima de 1000 itens', () => {
+      const itens = Array.from({ length: 1001 }, (_, idx) => criarItemMock(idx + 1));
+      const resultado = processarLoteSchema.safeParse({
+        importacaoId: 'sessao_acima_limite',
+        itens,
+      });
+
+      expect(resultado.success).toBe(false);
+    });
+
+    it('deve aceitar e validar a opção de desativar a garantia de unicidade por especialidade', () => {
+      const itens = [criarItemMock(1), criarItemMock(2)];
+
+      // 1. Padrão deve ser garantirUnicidadeEspecialidade: true
+      const resultadoPadrao = processarLoteSchema.safeParse({
+        importacaoId: 'sessao_padrao',
+        itens,
+      });
+      expect(resultadoPadrao.success).toBe(true);
+      if (resultadoPadrao.success) {
+        expect(resultadoPadrao.data.opcoes.garantirUnicidadeEspecialidade).toBe(true);
+      }
+
+      // 2. Opção explicitamente desativada
+      const resultadoDesativada = processarLoteSchema.safeParse({
+        importacaoId: 'sessao_sem_unicidade',
+        itens,
+        opcoes: {
+          garantirUnicidadeEspecialidade: false,
+        },
+      });
+      expect(resultadoDesativada.success).toBe(true);
+      if (resultadoDesativada.success) {
+        expect(resultadoDesativada.data.opcoes.garantirUnicidadeEspecialidade).toBe(false);
+      }
+    });
+
+    it('deve aceitar e preservar o campo dataAtendimento para definir a data em que a consulta foi realizada', () => {
+      const itensComData = [
+        {
+          ...criarItemMock(1),
+          dataAtendimento: '20/09/2026',
+        },
+        {
+          ...criarItemMock(2),
+          dataAtendimento: '2026-09-21',
+        },
+      ];
+
+      const resultado = processarLoteSchema.safeParse({
+        importacaoId: 'sessao_com_data_consulta',
+        itens: itensComData,
+      });
+
+      expect(resultado.success).toBe(true);
+      if (resultado.success) {
+        expect(resultado.data.itens[0].dataAtendimento).toBe('20/09/2026');
+        expect(normalizarDataIso(resultado.data.itens[0].dataAtendimento)).toBe('2026-09-20');
+        expect(resultado.data.itens[1].dataAtendimento).toBe('2026-09-21');
+        expect(normalizarDataIso(resultado.data.itens[1].dataAtendimento)).toBe('2026-09-21');
+      }
+    });
+
+    it('deve aceitar e validar a opção autoCriarEscolas e mapeamentoEscolas', () => {
+      const itens = [criarItemMock(1)];
+      const resultado = processarLoteSchema.safeParse({
+        importacaoId: 'sessao_auto_escolas',
+        itens,
+        opcoes: {
+          autoCriarEscolas: true,
+          mapeamentoEscolas: {
+            'ESCOLA NOVA': 'esc-id-custom',
+          },
+        },
+      });
+
+      expect(resultado.success).toBe(true);
+      if (resultado.success) {
+        expect(resultado.data.opcoes.autoCriarEscolas).toBe(true);
+        expect(resultado.data.opcoes.mapeamentoEscolas).toEqual({
+          'ESCOLA NOVA': 'esc-id-custom',
+        });
+      }
+    });
+
+    it('deve ter autoCriarEscolas como false por padrão e mapeamentoEscolas vazio', () => {
+      const itens = [criarItemMock(1)];
+      const resultado = processarLoteSchema.safeParse({
+        importacaoId: 'sessao_padrao_escolas',
+        itens,
+      });
+
+      expect(resultado.success).toBe(true);
+      if (resultado.success) {
+        expect(resultado.data.opcoes.autoCriarEscolas).toBe(false);
+        expect(resultado.data.opcoes.mapeamentoEscolas).toEqual({});
+      }
+    });
+  });
+
+  describe('Resolução Canônica e Mapeamento Inteligente de Escolas', () => {
+    const escolasCadastradas = [
+      { id: 'esc-1', nome: 'ESCOLA CLASSE 01 DE CEILANDIA' },
+      { id: 'esc-2', nome: 'CENTRO DE ENSINO FUNDAMENTAL 02 DE TAGUATINGA' },
+      { id: 'esc-3', nome: 'CENTRO EDUCACIONAL 03 DO GUARÁ' },
+      { id: 'esc-4', nome: 'CENTRO DE ENSINO MEDIO 01 DO PLANO PILOTO' },
+    ];
+
+    it('deve expandir siglas comuns (EC -> Escola Classe, CEF -> Centro de Ensino Fundamental)', () => {
+      expect(canonizarNomeEscola('EC 01 CEILANDIA')).toBe('escola classe 1 ceilandia');
+      expect(canonizarNomeEscola('CEF 02 TAGUATINGA')).toBe('centro ensino fundamental 2 taguatinga');
+      expect(canonizarNomeEscola('CED 03 GUARA')).toBe('centro educacional 3 guara');
+      expect(canonizarNomeEscola('CEM 01 PLANO PILOTO')).toBe('centro ensino medio 1 plano piloto');
+    });
+
+    it('deve localizar escolas cadastradas a partir de nomes com siglas ou pontuações', () => {
+      const encontradaEC = encontrarEscolaPorNome('EC 01 DE CEILÂNDIA', escolasCadastradas);
+      expect(encontradaEC).not.toBeNull();
+      expect(encontradaEC?.id).toBe('esc-1');
+
+      const encontradaCEF = encontrarEscolaPorNome('CEF 02 - Taguatinga', escolasCadastradas);
+      expect(encontradaCEF).not.toBeNull();
+      expect(encontradaCEF?.id).toBe('esc-2');
+    });
+
+    it('deve priorizar mapeamento manual (De-Para) explícito quando fornecido', () => {
+      const mapeamentoManual = {
+        'INSTITUICAO DESCONHECIDA': 'esc-3',
+      };
+      const resolvida = encontrarEscolaPorNome(
+        'INSTITUICAO DESCONHECIDA',
+        escolasCadastradas,
+        mapeamentoManual
+      );
+      expect(resolvida).not.toBeNull();
+      expect(resolvida?.id).toBe('esc-3');
+      expect(resolvida?.nome).toBe('CENTRO EDUCACIONAL 03 DO GUARÁ');
+    });
+
+    it('deve retornar null se a escola não existir e não houver mapeamento', () => {
+      const resolvida = encontrarEscolaPorNome('ESCOLA INEXISTENTE XYZ', escolasCadastradas);
+      expect(resolvida).toBeNull();
     });
   });
 });

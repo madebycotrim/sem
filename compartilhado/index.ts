@@ -58,3 +58,9 @@ export {
   obterDataIsoBrasilia,
 } from './datas.js';
 
+// ─── Inteligência de Instituições e Escolas ─────────────────────────────────
+export {
+  canonizarNomeEscola,
+  encontrarEscolaPorNome,
+} from './escolas.js';
+

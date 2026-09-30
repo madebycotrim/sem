@@ -20,11 +20,9 @@ import { registrarAuditoria } from '../../middlewares/auditoria.js';
 import {
   Especialidade,
   StatusAtendimento,
-  STATUS_PERMITIDOS_IMPORTACAO,
   identificarStatusPermitidoImportacao,
+  encontrarEscolaPorNome,
 } from '../../../compartilhado/index.js';
-
-export { identificarStatusPermitidoImportacao, STATUS_PERMITIDOS_IMPORTACAO };
 import type { Bindings } from '../../config/env.js';
 import { sanitizarTexto } from '../../infraestrutura/sanitizacao.js';
 
@@ -217,15 +215,18 @@ const itemImportacaoSchema = z.object({
   dataAtendimento: z.string().nullable().optional(),
 });
 
-const processarLoteSchema = z.object({
+export const processarLoteSchema = z.object({
   importacaoId: z.string().min(1).default(() => `imp_${Date.now()}`),
-  itens: z.array(itemImportacaoSchema).min(1).max(250),
+  itens: z.array(itemImportacaoSchema).min(1).max(1000),
   opcoes: z
     .object({
       criarProfissionalSeNaoExistir: z.boolean().default(true),
       turmaPadrao: z.string().default('Geral'),
       statusPadrao: z.string().default('CONCLUIDO'),
       abortarNoPrimeiroErro: z.boolean().default(true),
+      garantirUnicidadeEspecialidade: z.boolean().default(true),
+      autoCriarEscolas: z.boolean().default(false),
+      mapeamentoEscolas: z.record(z.string()).optional().default({}),
     })
     .optional()
     .default({}),
@@ -332,6 +333,9 @@ rotasImportacao.post(
     // Controle em memória para impedir mais de uma consulta na mesma especialidade para o mesmo paciente
     const consultasProcessadasSessao = new Set<string>();
 
+    // Mapa em memória para deduplicar e reaproveitar pacientes sem CPF na mesma sessão (Nome + Nascimento + Escola)
+    const mapaPacientesSemCpfSessao = new Map<string, string>();
+
     // 3. Pré-cálculo em lote de hashes CPF e busca única de pacientes pré-existentes
     const mapaCpfParaHash = new Map<string, string>();
     const cpfsValidos = itens
@@ -340,12 +344,15 @@ rotasImportacao.post(
 
     const cpfsUnicos = Array.from(new Set(cpfsValidos));
     if (cpfsUnicos.length > 0) {
-      const hashesGerados = await Promise.all(
-        cpfsUnicos.map((cpf) => gerarBlindIndex(cpf, kekHex))
-      );
-      cpfsUnicos.forEach((cpf, idx) => {
-        mapaCpfParaHash.set(cpf, hashesGerados[idx]);
-      });
+      for (let i = 0; i < cpfsUnicos.length; i += 50) {
+        const chunkCpfs = cpfsUnicos.slice(i, i + 50);
+        const hashesGerados = await Promise.all(
+          chunkCpfs.map((cpf) => gerarBlindIndex(cpf, kekHex))
+        );
+        chunkCpfs.forEach((cpf, idx) => {
+          mapaCpfParaHash.set(cpf, hashesGerados[idx]);
+        });
+      }
     }
 
     const mapaPacientesPorHash = new Map<string, string>();
@@ -414,26 +421,41 @@ rotasImportacao.post(
       status: StatusAtendimento;
       usuarioId: string;
       resumo: string;
+      criadoEm?: string;
+      entradaFilaEm?: string;
     }> = [];
 
     for (const item of itens) {
       totalProcessados++;
       try {
-        // ── A. Vinculação com a Instituição ─────────────────────────────────
-        const nomeInstituicaoNorm = normalizarTexto(item.instituicaoNome);
-        let escola = mapaEscolasPorNomeNorm.get(nomeInstituicaoNorm);
+        // ── A. Vinculação Inteligente com a Instituição ─────────────────────
+        let escola = encontrarEscolaPorNome(
+          item.instituicaoNome,
+          todasEscolas,
+          opcoes.mapeamentoEscolas
+        );
 
-        if (!escola) {
-          // Tenta correspondência aproximada (se o nome informado contiver ou estiver contido no nome da escola)
-          for (const [normEscola, esc] of mapaEscolasPorNomeNorm.entries()) {
-            if (
-              normEscola.includes(nomeInstituicaoNorm) ||
-              nomeInstituicaoNorm.includes(normEscola)
-            ) {
-              escola = esc;
-              break;
-            }
-          }
+        if (!escola && opcoes.autoCriarEscolas) {
+          const novaEscolaId = crypto.randomUUID();
+          const novaEscolaObj = {
+            id: novaEscolaId,
+            nome: item.instituicaoNome.trim(),
+            endereco: 'Endereço a definir',
+            cidade: 'Brasília',
+            uf: 'DF',
+            cnpj: null,
+            telefone: null,
+            email: null,
+            diretoriaRegional: null,
+            alunosMatriculados: 0,
+            unidadesMoveis: 0,
+            statusOperacao: 'PROGRAMADA' as const,
+            ativo: true,
+            criadoEm: new Date().toISOString(),
+          };
+          await db.insert(escolasLocais).values(novaEscolaObj);
+          todasEscolas.push(novaEscolaObj);
+          escola = novaEscolaObj;
         }
 
         if (!escola) {
@@ -441,7 +463,7 @@ rotasImportacao.post(
           falhas.push({
             linha: item.linhaOriginal,
             erro: msgErro,
-            detalhe: 'Certifique-se de que a escola está cadastrada no módulo de Escolas.',
+            detalhe: 'Certifique-se de que a escola está cadastrada ou ative a opção de auto-cadastro de instituições.',
           });
 
           if (opcoes.abortarNoPrimeiroErro) {
@@ -536,6 +558,15 @@ rotasImportacao.post(
             pacienteId = idExistente;
             pacientesReaproveitados++;
           }
+        } else {
+          // Aluno sem CPF: resolução por chave composta (Nome + Data Nascimento + Escola)
+          const dataNascNorm = normalizarDataIso(item.dataNascimento) || 'sem_data';
+          const chaveAlunoSemCpf = `${normalizarTexto(item.pacienteNome)}:${dataNascNorm}:${escola.id}`;
+          const idExistenteSemCpf = mapaPacientesSemCpfSessao.get(chaveAlunoSemCpf);
+          if (idExistenteSemCpf) {
+            pacienteId = idExistenteSemCpf;
+            pacientesReaproveitados++;
+          }
         }
 
         if (!pacienteId) {
@@ -586,6 +617,10 @@ rotasImportacao.post(
           pacienteId = novoPacienteId;
           if (cpfHash) {
             mapaPacientesPorHash.set(cpfHash, novoPacienteId);
+          } else {
+            const dataNascNorm = dataNascimentoIso || 'sem_data';
+            const chaveAlunoSemCpf = `${normalizarTexto(item.pacienteNome)}:${dataNascNorm}:${escola.id}`;
+            mapaPacientesSemCpfSessao.set(chaveAlunoSemCpf, novoPacienteId);
           }
           pacientesCriados++;
           pacientesCriadosIds.push(novoPacienteId);
@@ -627,43 +662,48 @@ rotasImportacao.post(
 
         const statusEnum = statusPermitido;
 
-        // Regra Inegociável: Não permitir mais de uma consulta para o mesmo paciente/CPF na mesma especialidade
+        const dataAtendimentoIso = normalizarDataIso(item.dataAtendimento);
+        const dataCriacao = dataAtendimentoIso
+          ? `${dataAtendimentoIso}T09:00:00-03:00`
+          : new Date().toISOString();
+
+        // Regra de Unicidade por Especialidade (Ativa por padrão; pode ser desativada pelo usuário)
         const chavePacienteEspecialidade = `${pacienteId}:${especialidadeEnum}`;
 
-        // 1. Checagem em memória na sessão atual do lote (evita duplicações dentro da própria planilha)
-        if (consultasProcessadasSessao.has(chavePacienteEspecialidade)) {
-          falhas.push({
-            linha: item.linhaOriginal,
-            erro: `Consulta duplicada na planilha ignorada: o paciente já possui uma consulta registrada na especialidade "${especialidadeEnum}". Cada CPF/aluno só pode ter 1 consulta por especialidade.`,
-            detalhe: item.pacienteNome ? `Paciente: ${item.pacienteNome}` : undefined,
-          });
-          continue;
-        }
+        if (opcoes.garantirUnicidadeEspecialidade) {
+          // 1. Checagem em memória na sessão atual do lote (evita duplicações dentro da própria planilha)
+          if (consultasProcessadasSessao.has(chavePacienteEspecialidade)) {
+            falhas.push({
+              linha: item.linhaOriginal,
+              erro: `Consulta duplicada na planilha ignorada: o paciente já possui uma consulta registrada na especialidade "${especialidadeEnum}". Cada CPF/aluno só pode ter 1 consulta por especialidade.`,
+              detalhe: item.pacienteNome ? `Paciente: ${item.pacienteNome}` : undefined,
+            });
+            continue;
+          }
 
-        // Marca como processada na sessão
-        consultasProcessadasSessao.add(chavePacienteEspecialidade);
+          // Marca como processada na sessão
+          consultasProcessadasSessao.add(chavePacienteEspecialidade);
 
-        // 2. Se a consulta já existe no banco de dados para este paciente nesta especialidade:
-        // ATUALIZA o status e o profissional (ex.: de Concluído para Cancelado ou vice-versa) em vez de descartar e deixar o status desatualizado
-        const atendimentoExistente = mapaAtendimentosExistentesBanco.get(chavePacienteEspecialidade);
-        if (atendimentoExistente) {
-          atendimentosParaAtualizar.push({
-            id: atendimentoExistente.id,
-            status: statusEnum,
-            usuarioId: profissional.id,
-            resumo: `Atendimento atualizado via planilha. Situação: ${statusEnum === StatusAtendimento.CANCELADO ? 'Cancelado' : 'Concluído'} (original: ${item.situacao || '-'}). Profissional: ${item.profissionalNome}.`,
-          });
-          atendimentosCriados++;
-          continue;
+          // 2. Se a consulta já existe no banco de dados para este paciente nesta especialidade:
+          // ATUALIZA o status, profissional e data da consulta em vez de descartar
+          const atendimentoExistente = mapaAtendimentosExistentesBanco.get(chavePacienteEspecialidade);
+          if (atendimentoExistente) {
+            atendimentosParaAtualizar.push({
+              id: atendimentoExistente.id,
+              status: statusEnum,
+              usuarioId: profissional.id,
+              resumo: `Atendimento atualizado via planilha. Situação: ${statusEnum === StatusAtendimento.CANCELADO ? 'Cancelado' : 'Concluído'} (original: ${item.situacao || '-'}). Profissional: ${item.profissionalNome}.`,
+              criadoEm: dataCriacao,
+              entradaFilaEm: dataCriacao,
+            });
+            atendimentosCriados++;
+            continue;
+          }
         }
 
         const atendimentoId = crypto.randomUUID();
         // Prefixo de sessão que garante identificação unívoca para cancelamento atômico
         const chaveIdempotencia = `sess:${importacaoId}:${item.linhaOriginal}:${atendimentoId}`;
-        const dataAtendimentoIso = normalizarDataIso(item.dataAtendimento);
-        const dataCriacao = dataAtendimentoIso
-          ? `${dataAtendimentoIso}T09:00:00-03:00`
-          : new Date().toISOString();
 
         novosAtendimentosParaInserir.push({
           id: atendimentoId,
@@ -674,6 +714,7 @@ rotasImportacao.post(
           status: statusEnum,
           resumo: `Atendimento importado via planilha. Situação: ${statusEnum === StatusAtendimento.CANCELADO ? 'Cancelado' : 'Concluído'} (original: ${item.situacao || '-'}). Profissional: ${item.profissionalNome}.`,
           chaveIdempotencia,
+          entradaFilaEm: dataCriacao,
           criadoEm: dataCriacao,
           atualizadoEm: dataCriacao,
         });
@@ -746,6 +787,8 @@ rotasImportacao.post(
               status: atAtualizar.status,
               usuarioId: atAtualizar.usuarioId,
               resumo: atAtualizar.resumo,
+              ...(atAtualizar.criadoEm ? { criadoEm: atAtualizar.criadoEm } : {}),
+              ...(atAtualizar.entradaFilaEm ? { entradaFilaEm: atAtualizar.entradaFilaEm } : {}),
               atualizadoEm: new Date().toISOString(),
             })
             .where(eq(atendimentos.id, atAtualizar.id));

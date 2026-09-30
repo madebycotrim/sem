@@ -133,4 +133,44 @@ describe('Regra de Integridade: ID Único e Máximo de 1 Consulta por Especialid
     const ids = new Set(consultasInseridas.map((c) => c.id));
     expect(ids.size).toBe(3);
   });
+
+  it('deve permitir importar todas as consultas quando a garantia de unicidade estiver desativada', () => {
+    const linhasPlanilha = [
+      { linha: 2, cpf: '12345678901', aluno: 'João Silva', especialidade: Especialidade.OFTALMOLOGIA },
+      { linha: 3, cpf: '12345678901', aluno: 'João Silva', especialidade: Especialidade.ODONTOLOGIA },
+      { linha: 4, cpf: '12345678901', aluno: 'João Silva', especialidade: Especialidade.OFTALMOLOGIA }, // Repetida, mas permitida!
+      { linha: 5, cpf: '98765432100', aluno: 'Maria Santos', especialidade: Especialidade.OFTALMOLOGIA },
+    ];
+
+    const garantirUnicidadeEspecialidade = false;
+    const consultasProcessadasSessao = new Set<string>();
+    const consultasInseridas: Array<{ id: string; cpf: string; especialidade: string }> = [];
+    const falhasDuplicidade: number[] = [];
+
+    for (const item of linhasPlanilha) {
+      const chaveUnica = `${item.cpf}:${item.especialidade}`;
+
+      if (garantirUnicidadeEspecialidade) {
+        if (consultasProcessadasSessao.has(chaveUnica)) {
+          falhasDuplicidade.push(item.linha);
+          continue;
+        }
+        consultasProcessadasSessao.add(chaveUnica);
+      }
+
+      consultasInseridas.push({
+        id: crypto.randomUUID(),
+        cpf: item.cpf,
+        especialidade: item.especialidade,
+      });
+    }
+
+    // Nenhuma duplicidade descartada
+    expect(falhasDuplicidade).toHaveLength(0);
+    // Todas as 4 consultas foram inseridas
+    expect(consultasInseridas).toHaveLength(4);
+
+    const ids = new Set(consultasInseridas.map((c) => c.id));
+    expect(ids.size).toBe(4);
+  });
 });

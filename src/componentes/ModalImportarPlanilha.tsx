@@ -15,6 +15,9 @@ import {
   Sparkles,
   Stethoscope,
   ShieldCheck,
+  ShieldAlert,
+  Calendar,
+  FileDown,
 } from 'lucide-react';
 import { utils, read, writeFile } from 'xlsx';
 import { requisicaoApi } from '../servicos/api.ts';
@@ -22,9 +25,9 @@ import { Botao } from './Botao.tsx';
 import { formatarCpf } from '../utilitarios/mascaras.ts';
 import {
   formatarHoraBrasilia,
-  obterDataIsoBrasilia,
   StatusAtendimento,
   identificarStatusPermitidoImportacao,
+  encontrarEscolaPorNome,
 } from '../../compartilhado/index.ts';
 
 export interface ModalImportarPlanilhaProps {
@@ -60,11 +63,13 @@ interface ResumoDiagnostico {
   alunosUnicosEstimados: number;
   especialidadesContagem: Record<string, number>;
   linhasValidas: LinhaNormalizada[];
-  linhasInvalidas: Array<{ linha: number; motivo: string }>;
-  linhasIgnoradasStatus: Array<{ linha: number; situacao: string }>;
+  linhasInvalidas: Array<{ linha: number; motivo: string; dados?: Record<string, unknown> }>;
+  linhasIgnoradasStatus: Array<{ linha: number; situacao: string; dados?: Record<string, unknown> }>;
   totalConcluidos: number;
   totalCancelados: number;
   duplicidadesEspecialidadeDetectadas: number;
+  periodoDatas?: { inicio: string; fim: string } | null;
+  totalComDataConsulta: number;
 }
 
 type EtapaImportacao = 'upload' | 'preview' | 'importing' | 'completed';
@@ -81,7 +86,11 @@ function formatarDataPlanilha(valor: unknown): string | null {
   if (!valor) return null;
 
   if (valor instanceof Date && !isNaN(valor.getTime())) {
-    return obterDataIsoBrasilia(valor);
+    // Usar componentes UTC da data do Excel para evitar deslocamento de fuso (UTC-3)
+    const ano = valor.getUTCFullYear();
+    const mes = String(valor.getUTCMonth() + 1).padStart(2, '0');
+    const dia = String(valor.getUTCDate()).padStart(2, '0');
+    return `${ano}-${mes}-${dia}`;
   }
 
   if (typeof valor === 'number') {
@@ -89,13 +98,21 @@ function formatarDataPlanilha(valor: unknown): string | null {
     const milissegundosPorDia = 86400 * 1000;
     const dataCalculada = new Date((valor - 25569) * milissegundosPorDia);
     if (!isNaN(dataCalculada.getTime())) {
-      return obterDataIsoBrasilia(dataCalculada);
+      const ano = dataCalculada.getUTCFullYear();
+      const mes = String(dataCalculada.getUTCMonth() + 1).padStart(2, '0');
+      const dia = String(dataCalculada.getUTCDate()).padStart(2, '0');
+      return `${ano}-${mes}-${dia}`;
     }
   }
 
   const str = String(valor).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
     return str;
+  }
+
+  const matchIso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (matchIso) {
+    return `${matchIso[1]}-${matchIso[2]}-${matchIso[3]}`;
   }
 
   const matchBr = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
@@ -107,6 +124,151 @@ function formatarDataPlanilha(valor: unknown): string | null {
   }
 
   return str.slice(0, 10);
+}
+
+/** Converte data ISO AAAA-MM-DD em formato brasileiro DD/MM/AAAA */
+function formatarIsoParaBr(iso: string): string {
+  const partes = iso.split('-');
+  if (partes.length === 3) {
+    return `${partes[2]}/${partes[1]}/${partes[0]}`;
+  }
+  return iso;
+}
+
+/**
+ * Analisa as linhas brutas da planilha e computa o diagnóstico prévio inteligente
+ */
+function gerarDiagnostico(
+  linhasJson: LinhaPlanilhaBruta[],
+  mapaChaves: Record<string, string>,
+  escolasSistema: Array<{ id: string; nome: string }>,
+  mapeamentoEscolasManuais: Record<string, string>,
+  autoCriarEscolas: boolean
+): ResumoDiagnostico {
+  const linhasValidas: LinhaNormalizada[] = [];
+  const linhasInvalidas: Array<{ linha: number; motivo: string; dados?: Record<string, unknown> }> = [];
+  const linhasIgnoradasStatus: Array<{ linha: number; situacao: string; dados?: Record<string, unknown> }> = [];
+  const escolasIdentificadasSet = new Set<string>();
+  const escolasNaoEncontradasSet = new Set<string>();
+  const profissionaisSet = new Set<string>();
+  const alunosSet = new Set<string>();
+  const consultasCpfEspecialidadeSet = new Set<string>();
+  const datasAtendimentoValidas: string[] = [];
+  let duplicidadesEspecialidadeCount = 0;
+  let totalConcluidosCount = 0;
+  let totalCanceladosCount = 0;
+  const especialidadesContagem: Record<string, number> = {};
+
+  linhasJson.forEach((linha, idx) => {
+    const linhaNum = idx + 2; // Cabeçalho está na linha 1
+    const pacienteNome = String(linha[mapaChaves['paciente']] || '').trim();
+    const instituicaoNome = String(linha[mapaChaves['instituicao']] || '').trim();
+    const especialidade = String(linha[mapaChaves['especialidade']] || 'Oftalmologia').trim();
+    const profissionalNome = String(linha[mapaChaves['profissional']] || 'Profissional Geral').trim();
+    const situacaoBruta = String(linha[mapaChaves['situacao']] || '').trim();
+    const pacienteCpf = String(linha[mapaChaves['cpf']] || '').trim() || null;
+    const dataNascimento = formatarDataPlanilha(linha[mapaChaves['dataNascimento']]);
+    const dataAtendimento = formatarDataPlanilha(linha[mapaChaves['dataAtendimento']]);
+    const pacienteTelefone = String(linha[mapaChaves['telefone']] || '').trim() || null;
+
+    if (!pacienteNome) {
+      linhasInvalidas.push({ linha: linhaNum, motivo: 'Nome do paciente em branco', dados: linha });
+      return;
+    }
+    if (!instituicaoNome) {
+      linhasInvalidas.push({ linha: linhaNum, motivo: 'Nome da instituição em branco', dados: linha });
+      return;
+    }
+
+    // Validação estrita da regra de negócio: apenas status Concluído e Cancelados são permitidos para subida
+    const statusIdentificado = identificarStatusPermitidoImportacao(situacaoBruta);
+    if (!statusIdentificado) {
+      linhasIgnoradasStatus.push({
+        linha: linhaNum,
+        situacao: situacaoBruta || '(não informada)',
+        dados: linha,
+      });
+      return;
+    }
+
+    if (statusIdentificado === StatusAtendimento.CONCLUIDO) {
+      totalConcluidosCount++;
+    } else if (statusIdentificado === StatusAtendimento.CANCELADO) {
+      totalCanceladosCount++;
+    }
+
+    // Mapeamento canônico inteligente com suporte a siglas (EC, CEF, etc.) e De-Para manual
+    const escolaEncontrada = encontrarEscolaPorNome(
+      instituicaoNome,
+      escolasSistema,
+      mapeamentoEscolasManuais
+    );
+    const escolaValida = !!escolaEncontrada || autoCriarEscolas;
+
+    if (escolaEncontrada) {
+      escolasIdentificadasSet.add(instituicaoNome);
+    } else {
+      escolasNaoEncontradasSet.add(instituicaoNome);
+    }
+
+    if (dataAtendimento) {
+      datasAtendimentoValidas.push(dataAtendimento);
+    }
+
+    if (profissionalNome) profissionaisSet.add(profissionalNome);
+    const chaveAluno = pacienteCpf ? `cpf:${pacienteCpf.replace(/\D/g, '')}` : `nome:${pacienteNome.toLowerCase()}`;
+    alunosSet.add(chaveAluno);
+
+    // Detecção de duplicidade de especialidade para o mesmo CPF/aluno
+    const chaveCpfEspecialidade = `${chaveAluno}:${normalizarTexto(especialidade)}`;
+    if (consultasCpfEspecialidadeSet.has(chaveCpfEspecialidade)) {
+      duplicidadesEspecialidadeCount++;
+    } else {
+      consultasCpfEspecialidadeSet.add(chaveCpfEspecialidade);
+    }
+
+    especialidadesContagem[especialidade] = (especialidadesContagem[especialidade] || 0) + 1;
+
+    linhasValidas.push({
+      linhaOriginal: linhaNum,
+      pacienteNome,
+      pacienteCpf,
+      dataNascimento,
+      pacienteTelefone,
+      especialidade,
+      profissionalNome,
+      situacao: statusIdentificado === StatusAtendimento.CANCELADO ? 'Cancelado' : 'Concluído',
+      status: statusIdentificado,
+      instituicaoNome,
+      dataAtendimento,
+      escolaEncontrada: escolaValida,
+    });
+  });
+
+  const datasOrdenadas = Array.from(new Set(datasAtendimentoValidas)).sort();
+
+  return {
+    totalLinhas: linhasJson.length,
+    escolasIdentificadas: Array.from(escolasIdentificadasSet),
+    escolasNaoEncontradas: Array.from(escolasNaoEncontradasSet),
+    profissionaisIdentificados: Array.from(profissionaisSet),
+    alunosUnicosEstimados: alunosSet.size,
+    especialidadesContagem,
+    linhasValidas,
+    linhasInvalidas,
+    linhasIgnoradasStatus,
+    totalConcluidos: totalConcluidosCount,
+    totalCancelados: totalCanceladosCount,
+    duplicidadesEspecialidadeDetectadas: duplicidadesEspecialidadeCount,
+    periodoDatas:
+      datasOrdenadas.length > 0
+        ? {
+            inicio: formatarIsoParaBr(datasOrdenadas[0]),
+            fim: formatarIsoParaBr(datasOrdenadas[datasOrdenadas.length - 1]),
+          }
+        : null,
+    totalComDataConsulta: datasAtendimentoValidas.length,
+  };
 }
 
 export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
@@ -128,7 +290,14 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
   // Opções de configuração
   const [tamanhoLote, setTamanhoLote] = useState(10);
   const [autoCriarProfissionais, setAutoCriarProfissionais] = useState(true);
+  const [autoCriarEscolas, setAutoCriarEscolas] = useState(false);
+  const [mapeamentoEscolasManuais, setMapeamentoEscolasManuais] = useState<Record<string, string>>({});
+  const [garantirUnicidadeEspecialidade, setGarantirUnicidadeEspecialidade] = useState(true);
   const turmaPadrao = 'Geral';
+
+  // Refs para dados brutos da planilha
+  const linhasJsonBrutasRef = useRef<LinhaPlanilhaBruta[]>([]);
+  const mapaChavesRef = useRef<Record<string, string>>({});
 
   // Estado da execução em lote
   const [loteAtual, setLoteAtual] = useState(0);
@@ -194,6 +363,10 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       pausadoRef.current = false;
       setLogs([]);
       setDetalhesFalhas([]);
+      setMapeamentoEscolasManuais({});
+      setAutoCriarEscolas(false);
+      linhasJsonBrutasRef.current = [];
+      mapaChavesRef.current = {};
     }
   }, [aberto]);
 
@@ -207,6 +380,78 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
   };
 
   /**
+   * Recalcula o diagnóstico prévio quando o usuário altera o mapeamento de escolas ou ativa auto-criação
+   */
+  const reexecutarDiagnostico = (
+    novoMapeamento: Record<string, string>,
+    permitirAutoCriar: boolean
+  ) => {
+    if (linhasJsonBrutasRef.current.length === 0 || Object.keys(mapaChavesRef.current).length === 0) return;
+    const novoDiag = gerarDiagnostico(
+      linhasJsonBrutasRef.current,
+      mapaChavesRef.current,
+      escolasSistema,
+      novoMapeamento,
+      permitirAutoCriar
+    );
+    setDiagnostico(novoDiag);
+  };
+
+  /**
+   * Mapeia uma escola não identificada para uma escola cadastrada do sistema
+   */
+  const atualizarMapeamentoEscola = (escolaPlanilha: string, escolaId: string) => {
+    const novoMapa = { ...mapeamentoEscolasManuais };
+    if (escolaId) {
+      novoMapa[escolaPlanilha] = escolaId;
+    } else {
+      delete novoMapa[escolaPlanilha];
+    }
+    setMapeamentoEscolasManuais(novoMapa);
+    reexecutarDiagnostico(novoMapa, autoCriarEscolas);
+  };
+
+  /**
+   * Alterna a opção de auto-provisionar instituições não cadastradas
+   */
+  const alternarAutoCriarEscolas = (valor: boolean) => {
+    setAutoCriarEscolas(valor);
+    reexecutarDiagnostico(mapeamentoEscolasManuais, valor);
+  };
+
+  /**
+   * Exporta em planilha Excel (.xlsx) todas as linhas descartadas ou com status desconsiderado, incluindo o motivo
+   */
+  const baixarLinhasNaoImportadas = () => {
+    if (!diagnostico) return;
+    const todasDescartadas = [
+      ...diagnostico.linhasInvalidas.map((l) => ({
+        'Linha Planilha': l.linha,
+        'Classificação': 'Inválida',
+        'Motivo': l.motivo,
+        ...(l.dados || {}),
+      })),
+      ...diagnostico.linhasIgnoradasStatus.map((l) => ({
+        'Linha Planilha': l.linha,
+        'Classificação': 'Status Desconsiderado',
+        'Motivo': `Situação "${l.situacao}" não elegível (apenas Concluído ou Cancelado são importados)`,
+        ...(l.dados || {}),
+      })),
+    ];
+
+    if (todasDescartadas.length === 0) {
+      alert('Nenhuma linha foi descartada nesta planilha.');
+      return;
+    }
+
+    const ws = utils.json_to_sheet(todasDescartadas);
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, 'Descartadas');
+    const nomeLimpo = nomeArquivo.replace(/\.[^/.]+$/, '') || 'planilha';
+    writeFile(wb, `linhas_descartadas_${nomeLimpo}.xlsx`);
+  };
+
+  /**
    * Baixa uma planilha modelo com as colunas oficiais exigidas
    */
   const baixarPlanilhaModelo = () => {
@@ -214,6 +459,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       'Paciente',
       'Patient Cpf',
       'Data de nascimento',
+      'Data da consulta',
       'Patient Phone',
       'Especialidade',
       'Profissional',
@@ -225,6 +471,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       'Lucas Gabriel da Silva',
       '123.456.789-01',
       '15/03/2012',
+      '20/09/2026',
       '(61) 98765-4321',
       'Oftalmologia',
       'Dr. Roberto Mendes',
@@ -236,6 +483,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       'Ana Beatriz Oliveira',
       '987.654.321-02',
       '22/07/2011',
+      '21/09/2026',
       '(61) 99123-4567',
       'Odontologia',
       'Dra. Juliana Ferreira',
@@ -249,6 +497,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       { wch: 28 }, // Paciente
       { wch: 16 }, // CPF
       { wch: 18 }, // Nascimento
+      { wch: 18 }, // Data da consulta
       { wch: 18 }, // Phone
       { wch: 18 }, // Especialidade
       { wch: 24 }, // Profissional
@@ -285,7 +534,23 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       // Mapa de normalização de chaves de colunas
       const mapaChaves: Record<string, string> = {};
       const primeiraLinha = linhasJson[0];
-      for (const chaveOriginal of Object.keys(primeiraLinha)) {
+      const todasColunas = Object.keys(primeiraLinha);
+
+      // Prioridade máxima para "Data da consulta" / "Data da Consulta"
+      for (const chaveOriginal of todasColunas) {
+        const norm = normalizarTexto(chaveOriginal);
+        if (
+          norm === 'data da consulta' ||
+          norm === 'data consulta' ||
+          norm.includes('data da consulta') ||
+          norm.includes('data consulta')
+        ) {
+          mapaChaves['dataAtendimento'] = chaveOriginal;
+          break;
+        }
+      }
+
+      for (const chaveOriginal of todasColunas) {
         const norm = normalizarTexto(chaveOriginal);
         if (norm === 'paciente' || norm.includes('nome do paciente') || norm === 'aluno') {
           mapaChaves['paciente'] = chaveOriginal;
@@ -311,7 +576,12 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
           mapaChaves['situacao'] = chaveOriginal;
         } else if (norm.includes('institu') || norm.includes('escola') || norm.includes('polo')) {
           mapaChaves['instituicao'] = chaveOriginal;
-        } else if (norm.includes('data') && (norm.includes('atend') || norm.includes('consult') || norm.includes('agend') || norm === 'data')) {
+        } else if (
+          !mapaChaves['dataAtendimento'] &&
+          !norm.includes('nasc') &&
+          norm.includes('data') &&
+          (norm.includes('atend') || norm.includes('consult') || norm.includes('realiz') || norm.includes('agend') || norm === 'data')
+        ) {
           mapaChaves['dataAtendimento'] = chaveOriginal;
         }
       }
@@ -325,113 +595,18 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
         return;
       }
 
-      // Cache das escolas cadastradas no sistema para checagem rápida
-      const escolasNormSet = new Set(escolasSistema.map((e) => normalizarTexto(e.nome)));
+      linhasJsonBrutasRef.current = linhasJson;
+      mapaChavesRef.current = mapaChaves;
 
-      const linhasValidas: LinhaNormalizada[] = [];
-      const linhasInvalidas: Array<{ linha: number; motivo: string }> = [];
-      const linhasIgnoradasStatus: Array<{ linha: number; situacao: string }> = [];
-      const escolasIdentificadasSet = new Set<string>();
-      const escolasNaoEncontradasSet = new Set<string>();
-      const profissionaisSet = new Set<string>();
-      const alunosSet = new Set<string>();
-      const consultasCpfEspecialidadeSet = new Set<string>();
-      let duplicidadesEspecialidadeCount = 0;
-      let totalConcluidosCount = 0;
-      let totalCanceladosCount = 0;
-      const especialidadesContagem: Record<string, number> = {};
+      const diag = gerarDiagnostico(
+        linhasJson,
+        mapaChaves,
+        escolasSistema,
+        mapeamentoEscolasManuais,
+        autoCriarEscolas
+      );
 
-      linhasJson.forEach((linha, idx) => {
-        const linhaNum = idx + 2; // Cabeçalho está na linha 1
-        const pacienteNome = String(linha[mapaChaves['paciente']] || '').trim();
-        const instituicaoNome = String(linha[mapaChaves['instituicao']] || '').trim();
-        const especialidade = String(linha[mapaChaves['especialidade']] || 'Oftalmologia').trim();
-        const profissionalNome = String(linha[mapaChaves['profissional']] || 'Profissional Geral').trim();
-        const situacaoBruta = String(linha[mapaChaves['situacao']] || '').trim();
-        const pacienteCpf = String(linha[mapaChaves['cpf']] || '').trim() || null;
-        const dataNascimento = formatarDataPlanilha(linha[mapaChaves['dataNascimento']]);
-        const dataAtendimento = formatarDataPlanilha(linha[mapaChaves['dataAtendimento']]);
-        const pacienteTelefone = String(linha[mapaChaves['telefone']] || '').trim() || null;
-
-        if (!pacienteNome) {
-          linhasInvalidas.push({ linha: linhaNum, motivo: 'Nome do paciente em branco' });
-          return;
-        }
-        if (!instituicaoNome) {
-          linhasInvalidas.push({ linha: linhaNum, motivo: 'Nome da instituição em branco' });
-          return;
-        }
-
-        // Validação estrita da regra de negócio: apenas status Concluído e Cancelados são permitidos para subida
-        const statusIdentificado = identificarStatusPermitidoImportacao(situacaoBruta);
-        if (!statusIdentificado) {
-          linhasIgnoradasStatus.push({
-            linha: linhaNum,
-            situacao: situacaoBruta || '(não informada)',
-          });
-          return;
-        }
-
-        if (statusIdentificado === StatusAtendimento.CONCLUIDO) {
-          totalConcluidosCount++;
-        } else if (statusIdentificado === StatusAtendimento.CANCELADO) {
-          totalCanceladosCount++;
-        }
-
-        const instNorm = normalizarTexto(instituicaoNome);
-        const escolaExiste = escolasNormSet.has(instNorm);
-
-        if (escolaExiste) {
-          escolasIdentificadasSet.add(instituicaoNome);
-        } else {
-          escolasNaoEncontradasSet.add(instituicaoNome);
-        }
-
-        if (profissionalNome) profissionaisSet.add(profissionalNome);
-        const chaveAluno = pacienteCpf ? `cpf:${pacienteCpf.replace(/\D/g, '')}` : `nome:${pacienteNome.toLowerCase()}`;
-        alunosSet.add(chaveAluno);
-
-        // Detecção de duplicidade de especialidade para o mesmo CPF/aluno
-        const chaveCpfEspecialidade = `${chaveAluno}:${normalizarTexto(especialidade)}`;
-        if (consultasCpfEspecialidadeSet.has(chaveCpfEspecialidade)) {
-          duplicidadesEspecialidadeCount++;
-        } else {
-          consultasCpfEspecialidadeSet.add(chaveCpfEspecialidade);
-        }
-
-        especialidadesContagem[especialidade] = (especialidadesContagem[especialidade] || 0) + 1;
-
-        linhasValidas.push({
-          linhaOriginal: linhaNum,
-          pacienteNome,
-          pacienteCpf,
-          dataNascimento,
-          pacienteTelefone,
-          especialidade,
-          profissionalNome,
-          situacao: statusIdentificado === StatusAtendimento.CANCELADO ? 'Cancelado' : 'Concluído',
-          status: statusIdentificado,
-          instituicaoNome,
-          dataAtendimento,
-          escolaEncontrada: escolaExiste,
-        });
-      });
-
-      setDiagnostico({
-        totalLinhas: linhasJson.length,
-        escolasIdentificadas: Array.from(escolasIdentificadasSet),
-        escolasNaoEncontradas: Array.from(escolasNaoEncontradasSet),
-        profissionaisIdentificados: Array.from(profissionaisSet),
-        alunosUnicosEstimados: alunosSet.size,
-        especialidadesContagem,
-        linhasValidas,
-        linhasInvalidas,
-        linhasIgnoradasStatus,
-        totalConcluidos: totalConcluidosCount,
-        totalCancelados: totalCanceladosCount,
-        duplicidadesEspecialidadeDetectadas: duplicidadesEspecialidadeCount,
-      });
-
+      setDiagnostico(diag);
       setEtapa('preview');
     } catch (err: any) {
       console.error('Erro ao processar planilha:', err);
@@ -655,6 +830,9 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                 criarProfissionalSeNaoExistir: autoCriarProfissionais,
                 turmaPadrao,
                 abortarNoPrimeiroErro: true,
+                garantirUnicidadeEspecialidade,
+                autoCriarEscolas,
+                mapeamentoEscolas: mapeamentoEscolasManuais,
               },
             },
             tentativasMaximas: 1,
@@ -980,15 +1158,19 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                   <div className="text-[10px] text-purple-700 mt-0.5">cadastros LGPD seguros</div>
                 </div>
 
-                <div className={`p-3.5 rounded-xl border ${diagnostico.escolasNaoEncontradas.length > 0 ? 'bg-amber-50/60 border-amber-200' : 'bg-emerald-50/60 border-emerald-200'}`}>
-                  <div className={`text-[10px] font-black uppercase ${diagnostico.escolasNaoEncontradas.length > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                <div className={`p-3.5 rounded-xl border ${diagnostico.escolasNaoEncontradas.length > 0 && !autoCriarEscolas ? 'bg-amber-50/60 border-amber-200' : 'bg-emerald-50/60 border-emerald-200'}`}>
+                  <div className={`text-[10px] font-black uppercase ${diagnostico.escolasNaoEncontradas.length > 0 && !autoCriarEscolas ? 'text-amber-700' : 'text-emerald-700'}`}>
                     Escolas Mapeadas
                   </div>
-                  <div className={`text-xl font-black mt-1 ${diagnostico.escolasNaoEncontradas.length > 0 ? 'text-amber-950' : 'text-emerald-950'}`}>
+                  <div className={`text-xl font-black mt-1 ${diagnostico.escolasNaoEncontradas.length > 0 && !autoCriarEscolas ? 'text-amber-950' : 'text-emerald-950'}`}>
                     {diagnostico.escolasIdentificadas.length}
                   </div>
                   <div className="text-[10px] text-slate-600 mt-0.5">
-                    {diagnostico.escolasNaoEncontradas.length === 0 ? '100% encontradas' : `${diagnostico.escolasNaoEncontradas.length} não cadastradas`}
+                    {diagnostico.escolasNaoEncontradas.length === 0
+                      ? '100% encontradas'
+                      : autoCriarEscolas
+                        ? `${diagnostico.escolasNaoEncontradas.length} serão auto-criadas`
+                        : `${diagnostico.escolasNaoEncontradas.length} não cadastradas`}
                   </div>
                 </div>
 
@@ -1005,20 +1187,53 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                 </div>
               </div>
 
-              {/* Alerta de Linhas Ignoradas por Status (Apenas Concluído e Cancelado) */}
-              {diagnostico.linhasIgnoradasStatus.length > 0 && (
-                <div className="p-3 bg-blue-50/70 border border-blue-200/90 rounded-xl flex items-start gap-3">
-                  <div className="p-1 bg-blue-100 text-blue-700 rounded-lg shrink-0 mt-0.5">
-                    <CheckCircle2 className="w-4 h-4" />
+              {/* Badge de Período das Consultas Identificado */}
+              {diagnostico.periodoDatas && (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-blue-50/70 border border-blue-200/90 rounded-xl">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-blue-100 text-blue-700 rounded-lg shrink-0">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-blue-950 flex flex-wrap items-center gap-1.5">
+                        <span>Período das Consultas Identificado:</span>
+                        <span className="font-mono text-blue-900 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs font-semibold">
+                          {diagnostico.periodoDatas.inicio} até {diagnostico.periodoDatas.fim}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-blue-700 mt-0.5">
+                        {diagnostico.totalComDataConsulta.toLocaleString('pt-BR')} consultas possuem a data de atendimento mapeada da planilha e serão salvas com a data real.
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs text-blue-950 space-y-1">
-                    <p className="font-bold">
-                      Filtro de Situação Ativo: {diagnostico.linhasValidas.length} consulta(s) apta(s) para carga ({diagnostico.totalConcluidos} Concluídas e {diagnostico.totalCancelados} Canceladas).
-                    </p>
-                    <p className="text-[11px] text-blue-800 leading-relaxed">
-                      {diagnostico.linhasIgnoradasStatus.length} linha(s) com outros status (ex: Agendado, Faltou ou não preenchido) foram desconsideradas automaticamente, respeitando a regra de subir apenas consultas <strong>Concluídas</strong> e <strong>Canceladas</strong>.
-                    </p>
+                </div>
+              )}
+
+              {/* Alerta de Linhas Desconsideradas e Botão de Exportação */}
+              {(diagnostico.linhasIgnoradasStatus.length > 0 || diagnostico.linhasInvalidas.length > 0) && (
+                <div className="p-3 bg-blue-50/70 border border-blue-200/90 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-1 bg-blue-100 text-blue-700 rounded-lg shrink-0 mt-0.5">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                    <div className="text-xs text-blue-950 space-y-1">
+                      <p className="font-bold">
+                        Filtro de Situação Ativo: {diagnostico.linhasValidas.length} consulta(s) apta(s) para carga ({diagnostico.totalConcluidos} Concluídas e {diagnostico.totalCancelados} Canceladas).
+                      </p>
+                      <p className="text-[11px] text-blue-800 leading-relaxed">
+                        {diagnostico.linhasIgnoradasStatus.length + diagnostico.linhasInvalidas.length} linha(s) com outros status ou campos em branco foram desconsideradas automaticamente, respeitando a regra de subir apenas consultas <strong>Concluídas</strong> e <strong>Canceladas</strong>.
+                      </p>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={baixarLinhasNaoImportadas}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-all shadow-2xs shrink-0 cursor-pointer self-start sm:self-center"
+                    title="Exportar linhas descartadas com o motivo em formato Excel"
+                  >
+                    <FileDown className="w-3.5 h-3.5 text-blue-600" />
+                    Exportar {diagnostico.linhasIgnoradasStatus.length + diagnostico.linhasInvalidas.length} Descartadas (.xlsx)
+                  </button>
                 </div>
               )}
 
@@ -1037,34 +1252,140 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                 </div>
               )}
 
-              {/* Alerta de Escolas Não Encontradas (se houver) */}
+              {/* De-Para Interativo de Instituições / Escolas Não Encontradas */}
               {diagnostico.escolasNaoEncontradas.length > 0 && (
-                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="text-xs text-amber-900 space-y-1">
-                    <p className="font-bold">Atenção: Algumas instituições da planilha não foram encontradas no sistema:</p>
-                    <p className="text-[11px] text-amber-800">
-                      {diagnostico.escolasNaoEncontradas.join(', ')}
-                    </p>
-                    <p className="text-[10px] text-amber-700">
-                      As consultas dessas escolas serão sinalizadas como erro para evitar inconsistência cadastral.
-                    </p>
+                <div className="p-4 bg-amber-50/80 border border-amber-300 rounded-xl space-y-3">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold text-amber-950">
+                          Instituições Não Encontradas no Cadastro ({diagnostico.escolasNaoEncontradas.length})
+                        </p>
+                        <p className="text-[11px] text-amber-800 leading-relaxed mt-0.5">
+                          As instituições abaixo constam na planilha mas não foram identificadas no cadastro. Você pode vinculá-las a uma escola existente ou marcar para auto-cadastro.
+                        </p>
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-amber-300 shadow-2xs shrink-0 self-start sm:self-center">
+                      <input
+                        type="checkbox"
+                        checked={autoCriarEscolas}
+                        onChange={(e) => alternarAutoCriarEscolas(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <span className="text-xs font-bold text-slate-800">
+                        Auto-criar escolas não encontradas
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Tabela De-Para */}
+                  <div className="overflow-x-auto rounded-lg border border-amber-200 bg-white max-h-48 overflow-y-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-amber-100/70 text-[10px] font-black uppercase text-amber-900 border-b border-amber-200 sticky top-0">
+                        <tr>
+                          <th className="p-2.5">Instituição na Planilha</th>
+                          <th className="p-2.5">Status</th>
+                          <th className="p-2.5">Vincular a uma Escola Cadastrada (De-Para)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-amber-100">
+                        {diagnostico.escolasNaoEncontradas.map((nomeEscola) => {
+                          const mapeadaId = mapeamentoEscolasManuais[nomeEscola] || '';
+                          return (
+                            <tr key={nomeEscola} className="hover:bg-amber-50/40">
+                              <td className="p-2.5 font-semibold text-slate-800">{nomeEscola}</td>
+                              <td className="p-2.5">
+                                {mapeadaId ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                    <CheckCircle2 className="w-3 h-3" /> Mapeada
+                                  </span>
+                                ) : autoCriarEscolas ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                    <Sparkles className="w-3 h-3" /> Será Auto-criada
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                                    Pendente
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-2.5">
+                                <select
+                                  value={mapeadaId}
+                                  onChange={(e) => atualizarMapeamentoEscola(nomeEscola, e.target.value)}
+                                  className="w-full text-xs font-medium bg-white border border-slate-300 rounded-lg p-1.5 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                >
+                                  <option value="">-- Selecione para vincular a uma escola cadastrada --</option>
+                                  {escolasSistema.map((esc) => (
+                                    <option key={esc.id} value={esc.id}>
+                                      {esc.nome}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
 
               {/* Alerta de Unicidade por Especialidade (se houver duplicidades na planilha) */}
               {diagnostico.duplicidadesEspecialidadeDetectadas > 0 && (
-                <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl flex items-start gap-3">
-                  <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                  <div className="text-xs text-blue-950 space-y-1">
-                    <p className="font-bold">
-                      Garantia de Unicidade: {diagnostico.duplicidadesEspecialidadeDetectadas} linha(s) repetida(s) da mesma especialidade para o mesmo aluno detectada(s).
-                    </p>
-                    <p className="text-[11px] text-blue-800 leading-relaxed">
-                      Cada CPF/aluno só terá 1 consulta cadastrada por especialidade. O sistema evitará automaticamente conflitos ou consultas duplicadas no banco de dados.
-                    </p>
+                <div
+                  className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+                    garantirUnicidadeEspecialidade
+                      ? 'bg-blue-50/80 border-blue-200 text-blue-950'
+                      : 'bg-amber-50/80 border-amber-200 text-amber-950'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {garantirUnicidadeEspecialidade ? (
+                      <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    )}
+                    <div className="text-xs space-y-1">
+                      <p className="font-bold flex items-center gap-2">
+                        {garantirUnicidadeEspecialidade
+                          ? `Garantia de Unicidade: ${diagnostico.duplicidadesEspecialidadeDetectadas} linha(s) repetida(s) da mesma especialidade para o mesmo aluno detectada(s).`
+                          : `Garantia de Unicidade Desativada (${diagnostico.duplicidadesEspecialidadeDetectadas} linha(s) repetida(s) detectada(s)).`}
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                            garantirUnicidadeEspecialidade
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-amber-200 text-amber-900'
+                          }`}
+                        >
+                          {garantirUnicidadeEspecialidade ? 'Ativa' : 'Desativada'}
+                        </span>
+                      </p>
+                      <p
+                        className={`text-[11px] leading-relaxed ${
+                          garantirUnicidadeEspecialidade ? 'text-blue-800' : 'text-amber-800'
+                        }`}
+                      >
+                        {garantirUnicidadeEspecialidade
+                          ? 'Cada CPF/aluno só terá 1 consulta cadastrada por especialidade. O sistema evitará automaticamente conflitos ou consultas duplicadas no banco de dados.'
+                          : 'Todas as consultas da mesma especialidade para o mesmo aluno serão importadas normalmente sem descarte ou mesclagem.'}
+                      </p>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setGarantirUnicidadeEspecialidade(!garantirUnicidadeEspecialidade)}
+                    className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer shadow-2xs self-start sm:self-center ${
+                      garantirUnicidadeEspecialidade
+                        ? 'bg-white hover:bg-rose-50 border-blue-300 text-blue-700 hover:text-rose-700 hover:border-rose-300'
+                        : 'bg-white hover:bg-blue-50 border-amber-300 text-amber-800 hover:text-blue-700 hover:border-blue-300'
+                    }`}
+                  >
+                    {garantirUnicidadeEspecialidade ? 'Desativar Unicidade' : 'Ativar Unicidade'}
+                  </button>
                 </div>
               )}
 
@@ -1091,6 +1412,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                         <th className="p-2.5">Aluno</th>
                         <th className="p-2.5">CPF</th>
                         <th className="p-2.5">Nascimento</th>
+                        <th className="p-2.5">Data da Consulta</th>
                         <th className="p-2.5">Especialidade</th>
                         <th className="p-2.5">Profissional</th>
                         <th className="p-2.5">Situação</th>
@@ -1106,6 +1428,17 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                             {linha.pacienteCpf ? formatarCpf(linha.pacienteCpf) : <span className="text-slate-400 italic">Sem CPF</span>}
                           </td>
                           <td className="p-2.5 text-slate-600">{linha.dataNascimento || '-'}</td>
+                          <td className="p-2.5">
+                            {linha.dataAtendimento ? (
+                              <span className="font-semibold text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                {linha.dataAtendimento.includes('-')
+                                  ? linha.dataAtendimento.split('-').reverse().join('/')
+                                  : linha.dataAtendimento}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic">Data atual</span>
+                            )}
+                          </td>
                           <td className="p-2.5">
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 uppercase">
                               {linha.especialidade}
@@ -1159,14 +1492,18 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                     <option value={20}>20 linhas por lote (Padrão)</option>
                     <option value={30}>30 linhas por lote (Rápido)</option>
                     <option value={50}>50 linhas por lote (Alta Performance)</option>
-                    <option value={100}>100 linhas por lote (Carga Máxima)</option>
+                    <option value={100}>100 linhas por lote (Acelerado)</option>
+                    <option value={250}>250 linhas por lote (Turbo)</option>
+                    <option value={500}>500 linhas por lote (Super Turbo)</option>
+                    <option value={750}>750 linhas por lote (Ultra)</option>
+                    <option value={1000}>1000 linhas por lote (Carga Máxima)</option>
                   </select>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    Escolha a velocidade da carga. Lotes de 50 ou 100 linhas aceleram o processamento em planilhas volumosas.
+                    Escolha a velocidade da carga. Lotes maiores (100 a 1000 linhas) aceleram expressivamente o processamento em planilhas volumosas.
                   </p>
                 </div>
 
-                <div className="pt-2 border-t border-slate-200">
+                <div className="pt-2 border-t border-slate-200 space-y-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -1176,6 +1513,30 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                     />
                     <span className="text-xs text-slate-700 font-medium">
                       Auto-provisionar profissionais de saúde que ainda não existam no sistema para manter 100% das consultas vinculadas
+                    </span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={autoCriarEscolas}
+                      onChange={(e) => alternarAutoCriarEscolas(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                    />
+                    <span className="text-xs text-slate-700 font-medium">
+                      Auto-provisionar instituições de ensino que ainda não existam no sistema para não bloquear a importação
+                    </span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={garantirUnicidadeEspecialidade}
+                      onChange={(e) => setGarantirUnicidadeEspecialidade(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                    />
+                    <span className="text-xs text-slate-700 font-medium">
+                      Garantia de Unicidade: limitar a 1 consulta por especialidade para cada aluno (desmarque para importar todas as consultas repetidas)
                     </span>
                   </label>
                 </div>

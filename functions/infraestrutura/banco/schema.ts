@@ -116,7 +116,7 @@ export const atendimentos = sqliteTable('atendimentos', {
   criadoEm: text('criado_em').default(sql`CURRENT_TIMESTAMP`),
   atualizadoEm: text('atualizado_em').default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
-  uniqueIndex('atendimentos_paciente_especialidade_key')
+  index('idx_atendimentos_paciente_especialidade')
     .on(table.pacienteId, table.especialidade),
   index('idx_atendimentos_paciente').on(table.pacienteId),
   index('idx_atendimentos_escola_data').on(table.escolaLocalId, table.criadoEm),
