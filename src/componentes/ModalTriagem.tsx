@@ -258,12 +258,21 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
   const opcoesPaciente: OpcaoSelectCustom[] = listaPacientes.map((p) => ({
     valor: p.id,
     rotulo: p.nome,
-    subtexto: `CPF: ${mascararCpf(p.cpf)}`,
-    badge: p.escolaNome ? (
-      <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md uppercase">
-        {p.escolaNome}
-      </span>
-    ) : undefined,
+    textoBusca: `${p.nome} ${p.cpf || ''} ${p.escolaNome || ''}`,
+    subtexto: (
+      <div className="flex flex-col mt-0.5">
+        <span className="text-[11px] font-mono text-slate-500 font-medium">
+          CPF: {mascararCpf(p.cpf)}
+        </span>
+        {p.escolaNome && (
+          <div className="mt-1 flex items-center">
+            <span className="text-[9.5px] font-semibold text-slate-600 bg-slate-100/95 border border-slate-200/80 px-2 py-0.5 rounded-md uppercase tracking-tight truncate max-w-full">
+              {p.escolaNome}
+            </span>
+          </div>
+        )}
+      </div>
+    ),
   }));
 
   const opcoesInstituicao: OpcaoSelectCustom[] = listaInstituicoes.map((i) => ({

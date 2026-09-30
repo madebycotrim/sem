@@ -235,7 +235,7 @@ export const Modal: FC<ModalProps> = ({
         aria-modal="true"
         onClick={tentarFechar}
       >
-        <div className="min-h-full flex items-center justify-center p-4">
+        <div className="min-h-full flex items-start justify-center p-4 pt-6 sm:pt-10 pb-12">
           <div
             ref={containerRef}
             className={`w-full ${larguraClasse} bg-white rounded-[28px] shadow-[0_28px_80px_rgba(15,23,42,0.18)] border border-slate-200/80 flex flex-col animate-slide-up relative overflow-visible ${className}`}
@@ -440,7 +440,7 @@ import type { LucideIcon } from 'lucide-react';
 export interface OpcaoSelectCustom {
   valor: string;
   rotulo: string;
-  subtexto?: string;
+  subtexto?: string | ReactNode;
   textoBusca?: string;
   icone?: LucideIcon | ReactNode;
   corFundoIcone?: string;
@@ -475,7 +475,7 @@ export const ModalSelectCustom: FC<ModalSelectCustomProps> = ({
   rodapePopover,
   disabled = false,
   className = '',
-  posicaoPopover = 'baixo',
+  posicaoPopover = 'auto',
   abreParaCima,
 }) => {
   const opcoesFiltro: OpcaoFiltroItem[] = opcoes.map((o) => ({

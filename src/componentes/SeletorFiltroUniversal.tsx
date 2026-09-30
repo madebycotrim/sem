@@ -59,7 +59,7 @@ export interface OpcaoFiltroItem {
   icone?: LucideIcon | ReactNode;
   corIcone?: string;
   corFundoIcone?: string;
-  subtexto?: string;
+  subtexto?: string | ReactNode;
   textoBusca?: string;
   grupo?: string;
   badge?: string | ReactNode;
@@ -307,7 +307,8 @@ export const SeletorFiltroUniversal = forwardRef<
     if (!termoBusca.trim()) return listaOpcoesNormalizada;
     const termo = termoBusca.toLowerCase().trim();
     return listaOpcoesNormalizada.filter((item) => {
-      const texto = `${item.nome ?? ''} ${item.rotulo ?? ''} ${item.subtexto ?? ''} ${item.textoBusca ?? ''} ${item.id ?? ''}`.toLowerCase();
+      const subtextoStr = typeof item.subtexto === 'string' ? item.subtexto : '';
+      const texto = `${item.nome ?? ''} ${item.rotulo ?? ''} ${subtextoStr} ${item.textoBusca ?? ''} ${item.id ?? ''}`.toLowerCase();
       return texto.includes(termo);
     });
   }, [listaOpcoesNormalizada, termoBusca]);
@@ -327,14 +328,18 @@ export const SeletorFiltroUniversal = forwardRef<
     const atualizarPosicao = () => {
       if (!botaoRef.current) return;
       const rect = botaoRef.current.getBoundingClientRect();
-      const altEstimada = Math.min(opcoesFiltradas.length * 52 + (pesquisavelEfetivo ? 56 : 12) + (rodapePopover ? 44 : 0), 380);
+      const altEstimada = Math.min(opcoesFiltradas.length * 68 + (pesquisavelEfetivo ? 56 : 12) + (rodapePopover ? 44 : 0), 320);
       
+      const espacoAbaixo = window.innerHeight - rect.bottom - 16;
+      const espacoAcima = rect.top - 16;
+
       let abrirParaCima = false;
       if (posicaoPopover === 'cima') {
         abrirParaCima = true;
-      } else if (posicaoPopover === 'auto') {
-        const espacoAbaixo = window.innerHeight - rect.bottom;
-        abrirParaCima = espacoAbaixo < altEstimada + 12 && rect.top > altEstimada + 12;
+      } else if (posicaoPopover === 'auto' || posicaoPopover === 'baixo') {
+        if (espacoAbaixo < Math.min(altEstimada, 220) && espacoAcima > espacoAbaixo) {
+          abrirParaCima = true;
+        }
       }
 
       // Largura confortável para leitura completa de nomes longos (como escolas e instituições)
@@ -348,8 +353,12 @@ export const SeletorFiltroUniversal = forwardRef<
       const maxLeft = Math.max(12, window.innerWidth - larguraFinal - 12);
       const leftFinal = Math.max(12, Math.min(rect.left, maxLeft));
 
+      const topFinal = abrirParaCima
+        ? Math.max(12, rect.top - altEstimada - 6)
+        : Math.min(rect.bottom + 6, window.innerHeight - 80);
+
       setPosicaoMenu({
-        top: abrirParaCima ? rect.top - altEstimada - 6 : rect.bottom + 6,
+        top: topFinal,
         left: leftFinal,
         width: larguraFinal,
         abrirParaCima,
@@ -587,9 +596,9 @@ export const SeletorFiltroUniversal = forwardRef<
               width: larguraDropdown ? larguraDropdown : `${posicaoMenu.width}px`,
               minWidth: `${posicaoMenu.width}px`,
               maxWidth: 'min(96vw, 560px)',
-              zIndex: 100000,
+              zIndex: 1000002,
             }}
-            className="fixed z-[100000] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_40px_-12px_rgba(15,23,42,0.18)] ring-1 ring-black/5 animate-dropdown"
+            className="fixed z-[1000002] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_40px_-12px_rgba(15,23,42,0.18)] ring-1 ring-black/5 animate-dropdown"
           >
             {/* Cabeçalho de Pesquisa Interna */}
             {pesquisavelEfetivo && (
@@ -615,8 +624,8 @@ export const SeletorFiltroUniversal = forwardRef<
               </div>
             )}
 
-            {/* Lista de opções dimensionada pelo conteúdo */}
-            <div className="p-1.5 max-h-[340px] overflow-y-auto">
+            {/* Lista de opções dimensionada para exibir 4 registros por vez */}
+            <div className="p-1.5 max-h-[268px] overflow-y-auto">
               {opcoesFiltradas.length === 0 ? (
                 <div className="px-4 py-6 text-center text-[13px] text-slate-400">
                   Nenhuma opção encontrada
@@ -654,9 +663,13 @@ export const SeletorFiltroUniversal = forwardRef<
                             {textoPrincipal}
                           </span>
                           {item.subtexto && (
-                            <span className="text-[11px] font-normal text-slate-500 whitespace-normal break-words leading-tight mt-0.5">
-                              {item.subtexto}
-                            </span>
+                            typeof item.subtexto === 'string' ? (
+                              <span className="text-[11px] font-normal text-slate-500 whitespace-normal break-words leading-tight mt-0.5">
+                                {item.subtexto}
+                              </span>
+                            ) : (
+                              item.subtexto
+                            )
                           )}
                           {item.desabilitado && (
                             <span className="text-[10px] font-semibold text-rose-500 mt-0.5">
