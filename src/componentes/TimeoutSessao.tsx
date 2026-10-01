@@ -106,11 +106,18 @@ export function TimeoutSessao({
     ultimaAtividadeRef.current = agora;
     salvarTimestampAtividadeStorage(agora);
 
-    // Verificador periódico (a cada 500ms) resistente a throttling de abas
+    // Verificador periódico resistente a throttling de abas
+    let ultimoStorageCheck = 0;
+    let cachedStorageTime = 0;
+
     const checarInatividade = () => {
       const tempoAtual = Date.now();
-      const storageTime = obterTimestampAtividadeStorage();
-      const ultimaAtividade = Math.max(ultimaAtividadeRef.current, storageTime);
+      // Otimização: evita ler localStorage a cada tick síncrono; usa cache atualizado periodicamente ou pelo evento de storage
+      if (tempoAtual - ultimoStorageCheck > 3000) {
+        ultimoStorageCheck = tempoAtual;
+        cachedStorageTime = obterTimestampAtividadeStorage();
+      }
+      const ultimaAtividade = Math.max(ultimaAtividadeRef.current, cachedStorageTime);
       ultimaAtividadeRef.current = ultimaAtividade;
 
       const tempoInativo = tempoAtual - ultimaAtividade;
@@ -125,9 +132,13 @@ export function TimeoutSessao({
       // 2. Faltam 30 segundos ou menos: exibir popup com contagem
       if (tempoInativo >= tempoInatividadeAvisoMs) {
         const segs = Math.max(1, Math.min(tempoAvisoSegundos, Math.ceil(tempoRestanteMs / 1000)));
-        avisoAtivoRef.current = true;
-        setSegundosRestantes(segs);
-        setMostrarAviso(true);
+        if (!avisoAtivoRef.current) {
+          avisoAtivoRef.current = true;
+          setSegundosRestantes(segs);
+          setMostrarAviso(true);
+        } else {
+          setSegundosRestantes((prev) => (prev !== segs ? segs : prev));
+        }
       } else {
         // 3. Houve atividade recente (ex: em outra aba)
         if (avisoAtivoRef.current) {
@@ -137,12 +148,18 @@ export function TimeoutSessao({
       }
     };
 
-    const intervaloTicker = window.setInterval(checarInatividade, 500);
+    const intervaloTicker = window.setInterval(checarInatividade, 1000);
 
-    // Evento de foco ou visibilidade da aba: recalcula imediatamente
+    // Evento de foco ou visibilidade da aba: executa fora do handler síncrono para não travar a UI
+    let visibilidadeFrameId: number | null = null;
     const handleVisibilidade = () => {
       if (document.visibilityState === 'visible') {
-        checarInatividade();
+        if (visibilidadeFrameId !== null) window.cancelAnimationFrame(visibilidadeFrameId);
+        visibilidadeFrameId = window.requestAnimationFrame(() => {
+          visibilidadeFrameId = null;
+          ultimoStorageCheck = 0; // Força revalidação pontual
+          checarInatividade();
+        });
       }
     };
 
@@ -154,11 +171,14 @@ export function TimeoutSessao({
       if (evento.key === CHAVE_STORAGE_ATIVIDADE && evento.newValue) {
         const novoTimestamp = Number(evento.newValue);
         if (!Number.isNaN(novoTimestamp)) {
+          cachedStorageTime = novoTimestamp;
           ultimaAtividadeRef.current = Math.max(ultimaAtividadeRef.current, novoTimestamp);
           // Se o aviso estiver aberto e outra aba interagiu, cancela o aviso
           if (Date.now() - ultimaAtividadeRef.current < tempoInatividadeAvisoMs) {
-            avisoAtivoRef.current = false;
-            setMostrarAviso(false);
+            if (avisoAtivoRef.current) {
+              avisoAtivoRef.current = false;
+              setMostrarAviso(false);
+            }
           }
         }
       } else if (evento.key === CHAVE_STORAGE_LOGOUT) {
@@ -178,10 +198,11 @@ export function TimeoutSessao({
       if (avisoAtivoRef.current) return;
 
       const agoraInteracao = Date.now();
-      // Throttle de 1500ms para evitar sobrecarga de eventos de mouse
-      if (agoraInteracao - ultimoRegistroEvento > 1500) {
+      // Throttle de 5000ms para evitar sobrecarga de eventos contínuos de mouse/scroll
+      if (agoraInteracao - ultimoRegistroEvento > 5000) {
         ultimoRegistroEvento = agoraInteracao;
         ultimaAtividadeRef.current = agoraInteracao;
+        cachedStorageTime = agoraInteracao;
         salvarTimestampAtividadeStorage(agoraInteracao);
       }
     };
@@ -192,6 +213,7 @@ export function TimeoutSessao({
 
     return () => {
       window.clearInterval(intervaloTicker);
+      if (visibilidadeFrameId !== null) window.cancelAnimationFrame(visibilidadeFrameId);
       document.removeEventListener('visibilitychange', handleVisibilidade);
       window.removeEventListener('focus', handleVisibilidade);
       window.removeEventListener('storage', handleStorage);

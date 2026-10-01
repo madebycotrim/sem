@@ -376,13 +376,23 @@ export const SeletorFiltroUniversal = forwardRef<
       });
     };
 
-    atualizarPosicao();
-    window.addEventListener('resize', atualizarPosicao);
-    window.addEventListener('scroll', atualizarPosicao, true);
+    let frameId: number | null = null;
+    const agendarAtualizacao = () => {
+      if (frameId !== null) return;
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        atualizarPosicao();
+      });
+    };
+
+    agendarAtualizacao();
+    window.addEventListener('resize', agendarAtualizacao, { passive: true });
+    window.addEventListener('scroll', agendarAtualizacao, { capture: true, passive: true });
 
     return () => {
-      window.removeEventListener('resize', atualizarPosicao);
-      window.removeEventListener('scroll', atualizarPosicao, true);
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      window.removeEventListener('resize', agendarAtualizacao);
+      window.removeEventListener('scroll', agendarAtualizacao, true);
     };
   }, [aberto, opcoesFiltradas.length, pesquisavelEfetivo, rodapePopover, posicaoPopover]);
 

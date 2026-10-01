@@ -58,16 +58,40 @@ const normalizarTexto = (valor?: string) =>
 
 const somenteDigitos = (valor?: string) => (valor || '').replace(/\D/g, '');
 
-const SECOES_VALIDAS: SecaoMenu[] = [
-  'pacientes',
-  'filaDia',
-  'consultas',
-  'dashboard',
-  'bi',
-  'escolas',
-  'relatorios',
-  'usuarios',
-];
+const MAPA_HASH_PARA_SECAO: Record<string, SecaoMenu> = {
+  '': 'dashboard',
+  'inicio': 'dashboard',
+  'home': 'dashboard',
+  'dashboard': 'bi',
+  'bi': 'bi',
+  'analitico': 'bi',
+  'painel-analitico': 'bi',
+  'pacientes': 'pacientes',
+  'fila': 'filaDia',
+  'filadia': 'filaDia',
+  'fila-do-dia': 'filaDia',
+  'atendimentos': 'consultas',
+  'consultas': 'consultas',
+  'escolas': 'escolas',
+  'relatorios': 'relatorios',
+  'usuarios': 'usuarios',
+};
+
+const MAPA_SECAO_PARA_HASH: Record<SecaoMenu, string> = {
+  dashboard: '', // Página Inicial: URL limpa e vazia (sem.catraki.com.br/)
+  bi: 'dashboard', // Página Dashboard: URL #dashboard
+  pacientes: 'pacientes',
+  filaDia: 'fila',
+  consultas: 'atendimentos',
+  escolas: 'escolas',
+  relatorios: 'relatorios',
+  usuarios: 'usuarios',
+};
+
+const obterSecaoPorHash = (hashCrua: string): SecaoMenu => {
+  const limpo = hashCrua.replace(/^#/, '').toLowerCase().trim();
+  return MAPA_HASH_PARA_SECAO[limpo] || 'dashboard';
+};
 
 const converterPacienteApi = (paciente: RespostaListaPacientes['dados'][number]): ItemPaciente => ({
   id: paciente.id,
@@ -84,11 +108,7 @@ const converterPacienteApi = (paciente: RespostaListaPacientes['dados'][number])
 });
 
 const obterSecaoInicial = (): SecaoMenu => {
-  const hash = window.location.hash.replace(/^#/, '') as SecaoMenu;
-  if (SECOES_VALIDAS.includes(hash)) {
-    return hash;
-  }
-  return 'dashboard';
+  return obterSecaoPorHash(window.location.hash);
 };
 
 export function App() {
@@ -254,25 +274,39 @@ export function App() {
   const navegarParaSecao = (secao: SecaoMenu) => {
     setSecaoAtiva(secao);
     setMostrarPacientesPendentes(false);
-    window.location.hash = secao;
+    const hashAlvo = MAPA_SECAO_PARA_HASH[secao];
+    if (!hashAlvo) {
+      if (window.location.hash) {
+        window.history.pushState(null, '', window.location.pathname + window.location.search);
+      }
+    } else {
+      const novaHash = `#${hashAlvo}`;
+      if (window.location.hash !== novaHash) {
+        window.location.hash = novaHash;
+      }
+    }
   };
 
   useEffect(() => {
-    const possuiSecaoExplicita = SECOES_VALIDAS.includes(
-      window.location.hash.replace(/^#/, '') as SecaoMenu
-    );
-    if (!possuiSecaoExplicita && window.location.hash) {
+    const hashAtual = window.location.hash.replace(/^#/, '').toLowerCase().trim();
+    if (hashAtual === 'inicio' || hashAtual === 'home' || (hashAtual && !MAPA_HASH_PARA_SECAO[hashAtual])) {
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
     }
-    const escutarHashChange = () => {
-      const hash = window.location.hash.replace(/^#/, '') as SecaoMenu;
-      if (SECOES_VALIDAS.includes(hash)) {
-        setSecaoAtiva(hash);
+
+    const escutarMudancaUrl = () => {
+      const secaoDetectada = obterSecaoPorHash(window.location.hash);
+      setSecaoAtiva(secaoDetectada);
+      if (secaoDetectada === 'dashboard' && window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
       }
     };
 
-    window.addEventListener('hashchange', escutarHashChange);
-    return () => window.removeEventListener('hashchange', escutarHashChange);
+    window.addEventListener('hashchange', escutarMudancaUrl);
+    window.addEventListener('popstate', escutarMudancaUrl);
+    return () => {
+      window.removeEventListener('hashchange', escutarMudancaUrl);
+      window.removeEventListener('popstate', escutarMudancaUrl);
+    };
   }, []);
 
   const [gatilhoRecarregar, setGatilhoRecarregar] = useState(0);
@@ -1174,10 +1208,10 @@ export function App() {
                 carregando={carregandoPacientes || carregandoAtendimentos}
                 aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}
                 aoNovoAtendimento={() => navegarParaSecao('filaDia')}
-                aoAbrirAtendimentos={() => setSecaoAtiva('consultas')}
+                aoAbrirAtendimentos={() => navegarParaSecao('consultas')}
                 aoAbrirFila={() => navegarParaSecao('filaDia')}
-                aoAbrirRelatorios={() => setSecaoAtiva('relatorios')}
-                aoAbrirBi={() => setSecaoAtiva('bi')}
+                aoAbrirRelatorios={() => navegarParaSecao('relatorios')}
+                aoAbrirBi={() => navegarParaSecao('bi')}
               />
             );
           }
@@ -1263,9 +1297,9 @@ export function App() {
             carregando={carregandoPacientes || carregandoAtendimentos}
             aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}
             aoNovoAtendimento={() => navegarParaSecao('filaDia')}
-            aoAbrirAtendimentos={() => setSecaoAtiva('consultas')}
-            aoAbrirRelatorios={() => setSecaoAtiva('relatorios')}
-            aoAbrirBi={() => setSecaoAtiva('bi')}
+            aoAbrirAtendimentos={() => navegarParaSecao('consultas')}
+            aoAbrirRelatorios={() => navegarParaSecao('relatorios')}
+            aoAbrirBi={() => navegarParaSecao('bi')}
           />;
         })()}
       </main>
