@@ -6,9 +6,10 @@ import { LockKeyhole, Check, CircleAlert, CheckCircle2, Eye, EyeOff } from 'luci
 interface ModalAlterarSenhaProps {
   aberto: boolean;
   aoFechar: () => void;
+  emailUsuario?: string;
 }
 
-export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar }) => {
+export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar, emailUsuario }) => {
   const [senhaAtual, setSenhaAtual] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
@@ -108,13 +109,25 @@ export const ModalAlterarSenha: FC<ModalAlterarSenhaProps> = ({ aberto, aoFechar
     >
       <form
         ref={formRef}
-        autoComplete="off"
-        onSubmit={(e) => e.preventDefault()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSalvar();
+        }}
         className="flex flex-col gap-6"
       >
-        {/* Campos dummy invisíveis para captura de autofill */}
-        <input type="text" name="username_dummy" aria-hidden="true" tabIndex={-1} style={{ display: 'none' }} readOnly />
-        <input type="password" name="password_dummy" aria-hidden="true" tabIndex={-1} style={{ display: 'none' }} readOnly />
+        {/* Identificador semântico de conta para gerenciadores de senha (Google Web Best Practices) */}
+        {emailUsuario && (
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            value={emailUsuario}
+            readOnly
+            hidden
+            tabIndex={-1}
+            aria-hidden="true"
+          />
+        )}
 
         {erro && (
           <div className="p-3.5 bg-rose-50 border border-rose-200/90 rounded-2xl flex items-center gap-2 text-xs font-semibold text-rose-700 animate-fade-in">

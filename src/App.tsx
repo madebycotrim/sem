@@ -1345,6 +1345,7 @@ export function App() {
       <ModalAlterarSenha
         aberto={modalAlterarSenhaAberto}
         aoFechar={() => setModalAlterarSenhaAberto(false)}
+        emailUsuario={usuarioLogado?.email}
       />
 
       <ConsoleBootstrap
