@@ -52,6 +52,7 @@ interface LinhaNormalizada {
   status?: StatusAtendimento;
   instituicaoNome: string;
   dataAtendimento?: string | null;
+  horarioAtendimento?: string | null;
   escolaEncontrada?: boolean;
 }
 
@@ -126,6 +127,41 @@ function formatarDataPlanilha(valor: unknown): string | null {
   return str.slice(0, 10);
 }
 
+
+/** Converte horários da planilha (strings "14:30", números decimais do Excel ou Dates) em "HH:mm" */
+function formatarHorarioPlanilha(valor: unknown): string | null {
+  if (valor === undefined || valor === null || valor === '') return null;
+
+  if (typeof valor === 'number') {
+    const fracao = valor < 1 ? valor : valor % 1;
+    const totalSegundos = Math.round(fracao * 86400);
+    const h = Math.floor(totalSegundos / 3600) % 24;
+    const m = Math.floor((totalSegundos % 3600) / 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
+  if (valor instanceof Date && !isNaN(valor.getTime())) {
+    const h = String(valor.getUTCHours()).padStart(2, '0');
+    const m = String(valor.getUTCMinutes()).padStart(2, '0');
+    if (h !== '00' || m !== '00') {
+      return `${h}:${m}`;
+    }
+    return null;
+  }
+
+  const str = String(valor).trim();
+  const match = str.match(/(\d{1,2}):(\d{2})/);
+  if (match) {
+    return `${match[1].padStart(2, '0')}:${match[2].padStart(2, '0')}`;
+  }
+  const matchH = str.match(/^(\d{1,2})h(?:(\d{2}))?/i);
+  if (matchH) {
+    return `${matchH[1].padStart(2, '0')}:${(matchH[2] || '00').padStart(2, '0')}`;
+  }
+
+  return null;
+}
+
 /** Converte data ISO AAAA-MM-DD em formato brasileiro DD/MM/AAAA */
 function formatarIsoParaBr(iso: string): string {
   const partes = iso.split('-');
@@ -169,6 +205,7 @@ function gerarDiagnostico(
     const pacienteCpf = String(linha[mapaChaves['cpf']] || '').trim() || null;
     const dataNascimento = formatarDataPlanilha(linha[mapaChaves['dataNascimento']]);
     const dataAtendimento = formatarDataPlanilha(linha[mapaChaves['dataAtendimento']]);
+    const horarioAtendimento = formatarHorarioPlanilha(linha[mapaChaves['horarioAtendimento']]) || (linha[mapaChaves['dataAtendimento']] instanceof Date ? formatarHorarioPlanilha(linha[mapaChaves['dataAtendimento']]) : null);
     const pacienteTelefone = String(linha[mapaChaves['telefone']] || '').trim() || null;
 
     if (!pacienteNome) {
@@ -241,6 +278,7 @@ function gerarDiagnostico(
       status: statusIdentificado,
       instituicaoNome,
       dataAtendimento,
+      horarioAtendimento,
       escolaEncontrada: escolaValida,
     });
   });
@@ -1413,6 +1451,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                         <th className="p-2.5">CPF</th>
                         <th className="p-2.5">Nascimento</th>
                         <th className="p-2.5">Data da Consulta</th>
+                        <th className="p-2.5">Horário da Consulta</th>
                         <th className="p-2.5">Especialidade</th>
                         <th className="p-2.5">Profissional</th>
                         <th className="p-2.5">Situação</th>

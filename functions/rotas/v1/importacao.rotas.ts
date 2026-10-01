@@ -213,6 +213,7 @@ const itemImportacaoSchema = z.object({
   status: z.string().optional(),
   instituicaoNome: z.string().min(1, 'Instituição é obrigatória'),
   dataAtendimento: z.string().nullable().optional(),
+  horarioAtendimento: z.string().nullable().optional(),
 });
 
 export const processarLoteSchema = z.object({
