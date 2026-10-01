@@ -141,10 +141,15 @@ function formatarHorarioPlanilha(valor: unknown): string | null {
   }
 
   if (valor instanceof Date && !isNaN(valor.getTime())) {
-    const h = String(valor.getUTCHours()).padStart(2, '0');
-    const m = String(valor.getUTCMinutes()).padStart(2, '0');
-    if (h !== '00' || m !== '00') {
-      return `${h}:${m}`;
+    const hUtc = String(valor.getUTCHours()).padStart(2, '0');
+    const mUtc = String(valor.getUTCMinutes()).padStart(2, '0');
+    if (hUtc !== '00' || mUtc !== '00') {
+      return `${hUtc}:${mUtc}`;
+    }
+    const hLocal = String(valor.getHours()).padStart(2, '0');
+    const mLocal = String(valor.getMinutes()).padStart(2, '0');
+    if (hLocal !== '00' || mLocal !== '00') {
+      return `${hLocal}:${mLocal}`;
     }
     return null;
   }
@@ -205,7 +210,14 @@ function gerarDiagnostico(
     const pacienteCpf = String(linha[mapaChaves['cpf']] || '').trim() || null;
     const dataNascimento = formatarDataPlanilha(linha[mapaChaves['dataNascimento']]);
     const dataAtendimento = formatarDataPlanilha(linha[mapaChaves['dataAtendimento']]);
-    const horarioAtendimento = formatarHorarioPlanilha(linha[mapaChaves['horarioAtendimento']]) || (linha[mapaChaves['dataAtendimento']] instanceof Date ? formatarHorarioPlanilha(linha[mapaChaves['dataAtendimento']]) : null);
+    const horarioAtendimento =
+      formatarHorarioPlanilha(linha[mapaChaves['horarioAtendimento']]) ||
+      (linha[mapaChaves['dataAtendimento']] instanceof Date
+        ? formatarHorarioPlanilha(linha[mapaChaves['dataAtendimento']])
+        : null) ||
+      (typeof linha[mapaChaves['dataAtendimento']] === 'string'
+        ? formatarHorarioPlanilha(linha[mapaChaves['dataAtendimento']])
+        : null);
     const pacienteTelefone = String(linha[mapaChaves['telefone']] || '').trim() || null;
 
     if (!pacienteNome) {
@@ -498,6 +510,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       'Patient Cpf',
       'Data de nascimento',
       'Data da consulta',
+      'Horário da Consulta',
       'Patient Phone',
       'Especialidade',
       'Profissional',
@@ -510,6 +523,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       '123.456.789-01',
       '15/03/2012',
       '20/09/2026',
+      '08:30',
       '(61) 98765-4321',
       'Oftalmologia',
       'Dr. Roberto Mendes',
@@ -522,6 +536,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       '987.654.321-02',
       '22/07/2011',
       '21/09/2026',
+      '14:00',
       '(61) 99123-4567',
       'Odontologia',
       'Dra. Juliana Ferreira',
@@ -536,6 +551,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
       { wch: 16 }, // CPF
       { wch: 18 }, // Nascimento
       { wch: 18 }, // Data da consulta
+      { wch: 20 }, // Horário da Consulta
       { wch: 18 }, // Phone
       { wch: 18 }, // Especialidade
       { wch: 24 }, // Profissional
@@ -588,6 +604,26 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
         }
       }
 
+      // Prioridade máxima para "Horário da consulta" / "Horário da Consulta" / "Horário" / "Hora"
+      for (const chaveOriginal of todasColunas) {
+        const norm = normalizarTexto(chaveOriginal);
+        if (
+          norm === 'horario da consulta' ||
+          norm === 'horario consulta' ||
+          norm === 'hora da consulta' ||
+          norm === 'hora consulta' ||
+          norm === 'horario do atendimento' ||
+          norm === 'horario atendimento' ||
+          norm === 'horario' ||
+          norm === 'hora' ||
+          norm.includes('horario da consulta') ||
+          norm.includes('hora da consulta')
+        ) {
+          mapaChaves['horarioAtendimento'] = chaveOriginal;
+          break;
+        }
+      }
+
       for (const chaveOriginal of todasColunas) {
         const norm = normalizarTexto(chaveOriginal);
         if (norm === 'paciente' || norm.includes('nome do paciente') || norm === 'aluno') {
@@ -621,6 +657,11 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
           (norm.includes('atend') || norm.includes('consult') || norm.includes('realiz') || norm.includes('agend') || norm === 'data')
         ) {
           mapaChaves['dataAtendimento'] = chaveOriginal;
+        } else if (
+          !mapaChaves['horarioAtendimento'] &&
+          (norm.includes('horari') || norm.includes('hora'))
+        ) {
+          mapaChaves['horarioAtendimento'] = chaveOriginal;
         }
       }
 
@@ -1450,8 +1491,7 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                         <th className="p-2.5">Aluno</th>
                         <th className="p-2.5">CPF</th>
                         <th className="p-2.5">Nascimento</th>
-                        <th className="p-2.5">Data da Consulta</th>
-                        <th className="p-2.5">Horário da Consulta</th>
+                        <th className="p-2.5">Horário / Data da Consulta</th>
                         <th className="p-2.5">Especialidade</th>
                         <th className="p-2.5">Profissional</th>
                         <th className="p-2.5">Situação</th>
@@ -1468,15 +1508,20 @@ export const ModalImportarPlanilha: FC<ModalImportarPlanilhaProps> = ({
                           </td>
                           <td className="p-2.5 text-slate-600">{linha.dataNascimento || '-'}</td>
                           <td className="p-2.5">
-                            {linha.dataAtendimento ? (
-                              <span className="font-semibold text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                                {linha.dataAtendimento.includes('-')
-                                  ? linha.dataAtendimento.split('-').reverse().join('/')
-                                  : linha.dataAtendimento}
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="font-mono font-extrabold text-xs text-slate-900 tracking-tight">
+                                {linha.horarioAtendimento || '--:--'}
                               </span>
-                            ) : (
-                              <span className="text-slate-400 italic">Data atual</span>
-                            )}
+                              {linha.dataAtendimento ? (
+                                <span className="font-semibold text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-[10.5px] font-mono leading-none">
+                                  {linha.dataAtendimento.includes('-')
+                                    ? linha.dataAtendimento.split('-').reverse().join('/')
+                                    : linha.dataAtendimento}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic text-[10px]">Data atual</span>
+                              )}
+                            </div>
                           </td>
                           <td className="p-2.5">
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 uppercase">

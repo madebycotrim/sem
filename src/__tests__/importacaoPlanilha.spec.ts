@@ -567,6 +567,32 @@ describe('Importação Inteligente de Planilhas de Consultas', () => {
       }
     });
 
+    it('deve aceitar e preservar o campo horarioAtendimento nas consultas importadas', () => {
+      const itensComHorario = [
+        {
+          ...criarItemMock(1),
+          dataAtendimento: '25/09/2026',
+          horarioAtendimento: '08:30',
+        },
+        {
+          ...criarItemMock(2),
+          dataAtendimento: '25/09/2026',
+          horarioAtendimento: '14:00',
+        },
+      ];
+
+      const resultado = processarLoteSchema.safeParse({
+        importacaoId: 'sessao_com_horario_consulta',
+        itens: itensComHorario,
+      });
+
+      expect(resultado.success).toBe(true);
+      if (resultado.success) {
+        expect(resultado.data.itens[0].horarioAtendimento).toBe('08:30');
+        expect(resultado.data.itens[1].horarioAtendimento).toBe('14:00');
+      }
+    });
+
     it('deve aceitar e validar a opção autoCriarEscolas e mapeamentoEscolas', () => {
       const itens = [criarItemMock(1)];
       const resultado = processarLoteSchema.safeParse({

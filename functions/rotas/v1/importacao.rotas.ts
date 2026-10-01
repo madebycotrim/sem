@@ -664,8 +664,12 @@ rotasImportacao.post(
         const statusEnum = statusPermitido;
 
         const dataAtendimentoIso = normalizarDataIso(item.dataAtendimento);
+        const horarioStr =
+          item.horarioAtendimento && /^\d{2}:\d{2}$/.test(item.horarioAtendimento)
+            ? `${item.horarioAtendimento}:00`
+            : '09:00:00';
         const dataCriacao = dataAtendimentoIso
-          ? `${dataAtendimentoIso}T09:00:00-03:00`
+          ? `${dataAtendimentoIso}T${horarioStr}-03:00`
           : new Date().toISOString();
 
         // Regra de Unicidade por Especialidade (Ativa por padrão; pode ser desativada pelo usuário)
