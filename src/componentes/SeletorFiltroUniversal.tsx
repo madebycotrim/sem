@@ -173,11 +173,13 @@ export const SeletorFiltroUniversal = forwardRef<
   const inputBuscaRef = useRef<HTMLInputElement>(null);
 
   const [posicaoMenu, setPosicaoMenu] = useState<{
-    top: number;
-    left: number;
-    width: number;
+    top?: number;
+    bottom?: number;
+    left?: number;
+    right?: number;
+    larguraBotao: number;
     abrirParaCima: boolean;
-  }>({ top: 0, left: 0, width: 0, abrirParaCima: false });
+  }>({ larguraBotao: 0, abrirParaCima: false });
 
   // Normalização de Opções conforme Categoria
   const listaOpcoesNormalizada = useMemo<OpcaoFiltroItem[]>(() => {
@@ -321,14 +323,14 @@ export const SeletorFiltroUniversal = forwardRef<
         ? false
         : listaOpcoesNormalizada.length > 6;
 
-  // Posicionamento do Portal (Sempre abaixo por padrão)
+  // Posicionamento do Portal (Adaptativo e inteligente)
   useLayoutEffect(() => {
     if (!aberto || !botaoRef.current) return undefined;
 
     const atualizarPosicao = () => {
       if (!botaoRef.current) return;
       const rect = botaoRef.current.getBoundingClientRect();
-      const altEstimada = Math.min(opcoesFiltradas.length * 68 + (pesquisavelEfetivo ? 56 : 12) + (rodapePopover ? 44 : 0), 320);
+      const altEstimada = Math.min(opcoesFiltradas.length * 48 + (pesquisavelEfetivo ? 56 : 12) + (rodapePopover ? 44 : 0), 320);
       
       const espacoAbaixo = window.innerHeight - rect.bottom - 16;
       const espacoAcima = rect.top - 16;
@@ -342,25 +344,34 @@ export const SeletorFiltroUniversal = forwardRef<
         }
       }
 
-      // Largura confortável para leitura completa de nomes longos (como escolas e instituições)
-      const larguraMinima = Math.max(rect.width, 420);
-      const larguraDesejada = larguraDropdown
-        ? (parseInt(larguraDropdown, 10) || larguraMinima)
-        : larguraMinima;
-      const larguraFinal = Math.min(larguraDesejada, Math.max(280, window.innerWidth - 24));
+      // Alinhamento horizontal adaptativo:
+      // Se o botão estiver na metade direita da tela, alinha pela direita do botão para não vazar da tela
+      const alinharPelaDireita = rect.left + rect.width / 2 > window.innerWidth / 2;
 
-      // Garante que o menu não extrapole as margens da tela
-      const maxLeft = Math.max(12, window.innerWidth - larguraFinal - 12);
-      const leftFinal = Math.max(12, Math.min(rect.left, maxLeft));
+      let left: number | undefined;
+      let right: number | undefined;
 
-      const topFinal = abrirParaCima
-        ? Math.max(12, rect.top - altEstimada - 6)
-        : Math.min(rect.bottom + 6, window.innerHeight - 80);
+      if (alinharPelaDireita) {
+        right = Math.max(12, window.innerWidth - rect.right);
+      } else {
+        left = Math.max(12, rect.left);
+      }
+
+      let top: number | undefined;
+      let bottom: number | undefined;
+
+      if (abrirParaCima) {
+        bottom = Math.max(12, window.innerHeight - rect.top + 6);
+      } else {
+        top = Math.min(rect.bottom + 6, window.innerHeight - 80);
+      }
 
       setPosicaoMenu({
-        top: topFinal,
-        left: leftFinal,
-        width: larguraFinal,
+        top,
+        bottom,
+        left,
+        right,
+        larguraBotao: rect.width,
         abrirParaCima,
       });
     };
@@ -586,16 +597,18 @@ export const SeletorFiltroUniversal = forwardRef<
 
       {/* Popover Dropdown em Portal */}
       {aberto &&
-        posicaoMenu.width > 0 &&
+        posicaoMenu.larguraBotao > 0 &&
         createPortal(
           <div
             ref={menuRef}
             style={{
-              top: posicaoMenu.top,
-              left: posicaoMenu.left,
-              width: larguraDropdown ? larguraDropdown : `${posicaoMenu.width}px`,
-              minWidth: `${posicaoMenu.width}px`,
-              maxWidth: 'min(96vw, 560px)',
+              top: posicaoMenu.top !== undefined ? `${posicaoMenu.top}px` : undefined,
+              bottom: posicaoMenu.bottom !== undefined ? `${posicaoMenu.bottom}px` : undefined,
+              left: posicaoMenu.left !== undefined ? `${posicaoMenu.left}px` : undefined,
+              right: posicaoMenu.right !== undefined ? `${posicaoMenu.right}px` : undefined,
+              width: larguraDropdown ? larguraDropdown : 'max-content',
+              minWidth: larguraDropdown ? larguraDropdown : `${Math.min(posicaoMenu.larguraBotao, window.innerWidth - 24)}px`,
+              maxWidth: 'min(calc(100vw - 24px), 480px)',
               zIndex: 1000002,
             }}
             className="fixed z-[1000002] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_40px_-12px_rgba(15,23,42,0.18)] ring-1 ring-black/5 animate-dropdown"
@@ -610,7 +623,7 @@ export const SeletorFiltroUniversal = forwardRef<
                   value={termoBusca}
                   onChange={(e) => setTermoBusca(e.target.value)}
                   placeholder={placeholderBusca}
-                  className="w-full bg-transparent text-[14px] font-normal text-slate-800 placeholder:text-slate-400 outline-none"
+                  className="w-full min-w-0 bg-transparent text-[14px] font-normal text-slate-800 placeholder:text-slate-400 outline-none"
                 />
                 {termoBusca && (
                   <button
@@ -624,10 +637,10 @@ export const SeletorFiltroUniversal = forwardRef<
               </div>
             )}
 
-            {/* Lista de opções dimensionada para exibir 4 registros por vez */}
+            {/* Lista de opções com tamanho adaptativo ao conteúdo */}
             <div className="p-1.5 max-h-[268px] overflow-y-auto">
               {opcoesFiltradas.length === 0 ? (
-                <div className="px-4 py-6 text-center text-[13px] text-slate-400">
+                <div className="px-4 py-6 text-center text-[13px] text-slate-400 whitespace-nowrap">
                   Nenhuma opção encontrada
                 </div>
               ) : (
@@ -635,6 +648,7 @@ export const SeletorFiltroUniversal = forwardRef<
                   const idItem = item.id ?? item.valor ?? '';
                   const selecionado = idItem === valorSel;
                   const textoPrincipal = item.nome || item.rotulo || '';
+                  const iconeRenderizado = renderizarIcone(item, 'h-4 w-4', true);
 
                   return (
                     <button
@@ -643,7 +657,7 @@ export const SeletorFiltroUniversal = forwardRef<
                       disabled={item.desabilitado}
                       onClick={() => selecionarOpcao(idItem)}
                       title={textoPrincipal}
-                      className={`flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-150 ${
+                      className={`flex w-full ${item.subtexto ? 'items-start' : 'items-center'} justify-between gap-3 rounded-xl px-3 py-2 text-left transition-all duration-150 ${
                         item.desabilitado
                           ? 'cursor-not-allowed bg-slate-50 text-slate-400 opacity-70'
                           : selecionado
@@ -651,20 +665,22 @@ export const SeletorFiltroUniversal = forwardRef<
                           : 'text-slate-700 hover:bg-slate-50'
                       }`}
                     >
-                      <div className="flex items-start gap-3 min-w-0 flex-1">
-                        <div className="mt-0.5 shrink-0">
-                          {renderizarIcone(item, 'h-4 w-4', true)}
-                        </div>
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        {iconeRenderizado ? (
+                          <div className="shrink-0">
+                            {iconeRenderizado}
+                          </div>
+                        ) : null}
                         <div className="flex flex-col min-w-0 flex-1 text-left">
                           <span
                             title={textoPrincipal}
-                            className="text-[13px] font-medium text-slate-800 whitespace-normal break-words leading-snug"
+                            className="text-[13px] font-medium text-slate-800 whitespace-nowrap leading-snug"
                           >
                             {textoPrincipal}
                           </span>
                           {item.subtexto && (
                             typeof item.subtexto === 'string' ? (
-                              <span className="text-[11px] font-normal text-slate-500 whitespace-normal break-words leading-tight mt-0.5">
+                              <span className="text-[11px] font-normal text-slate-500 whitespace-nowrap leading-tight mt-0.5">
                                 {item.subtexto}
                               </span>
                             ) : (
@@ -672,17 +688,17 @@ export const SeletorFiltroUniversal = forwardRef<
                             )
                           )}
                           {item.desabilitado && (
-                            <span className="text-[10px] font-semibold text-rose-500 mt-0.5">
+                            <span className="text-[10px] font-semibold text-rose-500 mt-0.5 whitespace-nowrap">
                               Já realizada
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                      <div className="flex items-center gap-2 shrink-0">
                         {item.badge && (
                           typeof item.badge === 'string' ? (
-                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md uppercase">
+                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md uppercase whitespace-nowrap">
                               {item.badge}
                             </span>
                           ) : (

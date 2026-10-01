@@ -13,7 +13,6 @@ import {
   Ear,
   Eye,
   Filter,
-  Flame,
   Layers,
   MapPin,
   PieChart,
@@ -326,11 +325,15 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
   }, [dataInicio, dataFim]);
 
   const rankingProfissionais = useMemo(() => {
-    return Object.entries(atendimentosFiltrados.reduce<Record<string, number>>((resultado, atendimento) => {
-      const nome = atendimento.profissionalNome || 'Profissional não informado';
-      resultado[nome] = (resultado[nome] || 0) + 1;
-      return resultado;
-    }, {})).sort(([, totalA], [, totalB]) => totalB - totalA).slice(0, 6);
+    return Object.entries(
+      atendimentosFiltrados.reduce<Record<string, number>>((resultado, atendimento) => {
+        const nome = atendimento.profissionalNome?.trim() || 'Profissional não informado';
+        resultado[nome] = (resultado[nome] || 0) + 1;
+        return resultado;
+      }, {})
+    )
+      .filter(([, total]) => total >= 1)
+      .sort(([, totalA], [, totalB]) => totalB - totalA);
   }, [atendimentosFiltrados]);
 
   const rankingUnidades = useMemo(() => {
@@ -341,39 +344,6 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
     }, {})).sort(([, totalA], [, totalB]) => totalB - totalA);
   }, [atendimentosFiltrados]);
 
-  const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-  const consultasPorDia = useMemo(() => {
-    return diasSemana.map((dia, indice) => ({
-      dia,
-      total: atendimentosFiltrados.filter((atendimento) => {
-        const d = parseDataBrasilia(atendimento.criadoEm);
-        return d ? d.getDay() === indice : false;
-      }).length,
-    }));
-  }, [atendimentosFiltrados]);
-
-  const diaDePico = useMemo(() => {
-    return atendimentosFiltrados.length
-      ? consultasPorDia.reduce((pico, item) => (item.total > pico.total ? item : pico), consultasPorDia[0])
-      : null;
-  }, [atendimentosFiltrados, consultasPorDia]);
-
-  const horas = useMemo(() => {
-    return Array.from({ length: 11 }, (_, indice) => indice + 8).map((hora) => ({
-      hora: `${String(hora).padStart(2, '0')}h`,
-      total: atendimentosFiltrados.filter((atendimento) => {
-        const d = parseDataBrasilia(atendimento.criadoEm);
-        return d ? d.getHours() === hora : false;
-      }).length,
-    }));
-  }, [atendimentosFiltrados]);
-
-  const maiorHora = Math.max(...horas.map((item) => item.total), 1);
-  const horaDePico = useMemo(() => {
-    return atendimentosFiltrados.length
-      ? horas.reduce((pico, item) => (item.total > pico.total ? item : pico), horas[0])
-      : null;
-  }, [atendimentosFiltrados, horas]);
 
   const contagemStatus = useMemo(() => {
     return Object.keys(STATUS_ATENDIMENTO_LABELS).map((status) => ({
@@ -592,7 +562,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
             Dashboard de Inteligência Clínica Aguardando Dados
           </h2>
           <p className="mt-2 text-sm text-slate-500 max-w-xl mx-auto leading-relaxed">
-            O Business Intelligence (BI) consolida indicadores clínicos, taxa de conversão assistencial, curva horária e produtividade por especialidade em tempo real. Importe uma planilha de consultas ou inicie atendimentos na Fila do Dia para visualizar as projeções.
+            O Business Intelligence (BI) consolida indicadores clínicos, taxa de conversão assistencial e produtividade por especialidade em tempo real. Importe uma planilha de consultas ou inicie atendimentos na Fila do Dia para visualizar as projeções.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             {aoImportarPlanilha && (
@@ -1180,72 +1150,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
             />
           </div>
 
-          {/* Curva Horária de Atendimento e Saturação */}
-          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/30 p-5 sm:p-6 shadow-2xs">
-            <div className="mb-4 flex items-center justify-between border-b border-slate-200/70 pb-3.5">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white shadow-xs">
-                  <Flame className="h-4 w-4 text-amber-300" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#0b2545]">Curva Horária & Saturação Diurna</h3>
-                  <p className="text-[11px] text-slate-400">Distribuição dos atendimentos por faixa horária ao longo do expediente</p>
-                </div>
-              </div>
-              <span className="rounded-xl bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 border border-amber-200">
-                {horaDePico ? `Horário de Pico: ${horaDePico.hora}` : 'Sem dados'}
-              </span>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-              <div className="rounded-xl border border-blue-100 bg-white p-3.5 shadow-2xs">
-                <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-800">Dia de Pico</span>
-                <p className="mt-1 text-xl font-black text-[#0b2545]">{diaDePico?.dia || '-'}</p>
-                <p className="text-[10px] text-blue-600 font-medium">maior frequência na semana</p>
-              </div>
-              <div className="rounded-xl border border-emerald-100 bg-white p-3.5 shadow-2xs">
-                <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-emerald-800">Média Diária</span>
-                <p className="mt-1 text-xl font-black text-[#0b2545]">
-                  {consultasPorDia.length ? (atendimentosFiltrados.length / consultasPorDia.length).toFixed(1) : '0'}
-                </p>
-                <p className="text-[10px] text-emerald-600 font-medium">consultas por dia de ação</p>
-              </div>
-              <div className="rounded-xl border border-amber-100 bg-white p-3.5 shadow-2xs">
-                <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-amber-800">Pico Horário</span>
-                <p className="mt-1 text-xl font-black text-[#0b2545]">{horaDePico ? horaDePico.hora : '-'}</p>
-                <p className="text-[10px] text-amber-600 font-medium">{horaDePico ? `${horaDePico.total} atendimentos` : 'sem dados'}</p>
-              </div>
-            </div>
-
-            {atendimentosFiltrados.length ? (
-              <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs">
-                <div className="flex h-14 items-end gap-1.5 pt-2">
-                  {horas.map((item) => (
-                    <div
-                      key={item.hora}
-                      className="flex-1 rounded-t-md bg-gradient-to-t from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 transition-colors cursor-pointer group relative"
-                      style={{ height: `${Math.max((item.total / maiorHora) * 100, item.total ? 14 : 4)}%` }}
-                    >
-                      <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] font-bold text-amber-900 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                        {item.total}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-2.5 flex justify-between text-[10px] font-bold text-slate-400 border-t border-slate-100 pt-1.5">
-                  {horas.map((item) => (
-                    <span key={item.hora}>{item.hora}</span>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-6 px-4 rounded-xl border border-dashed border-slate-200 bg-white/70 text-center">
-                <Flame className="h-6 w-6 text-slate-300 mb-1.5" />
-                <p className="text-xs font-bold text-slate-600">Nenhuma consulta registrada nas faixas de horário do período</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">As métricas horárias serão projetadas após o registro de atendimentos</p>
-              </div>
-            )}
-          </div>
 
           {/* Ranking de Profissionais + Distribuição por Unidade */}
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -1261,8 +1166,13 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
                     <p className="text-[11px] text-slate-400">Profissionais com maior número de registros no período</p>
                   </div>
                 </div>
+                {rankingProfissionais.length > 0 && (
+                  <span className="rounded-xl bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-800 border border-blue-200">
+                    {rankingProfissionais.length} {rankingProfissionais.length === 1 ? 'profissional' : 'profissionais'}
+                  </span>
+                )}
               </div>
-              <div className="space-y-3.5">
+              <div className="space-y-3.5 max-h-[580px] overflow-y-auto pr-1">
                 {rankingProfissionais.length ? (
                   rankingProfissionais.map(([nome, total], indice) => {
                     let badgeEstilo = 'bg-slate-100 text-slate-600 border-slate-200';
@@ -1280,7 +1190,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
                             <span className="truncate uppercase">{nome}</span>
                           </span>
                           <span className="font-extrabold text-[#0b2545] shrink-0 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 text-xs">
-                            {total} consultas
+                            {total} {total === 1 ? 'consulta' : 'consultas'}
                           </span>
                         </div>
                         <div className="h-2 overflow-hidden rounded-full bg-slate-100">
@@ -1314,8 +1224,13 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
                     <p className="text-[11px] text-slate-400">Escolas e polos educacionais atendidos</p>
                   </div>
                 </div>
+                {rankingUnidades.length > 0 && (
+                  <span className="rounded-xl bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 border border-emerald-200">
+                    {rankingUnidades.length} {rankingUnidades.length === 1 ? 'unidade' : 'unidades'}
+                  </span>
+                )}
               </div>
-              <div className="space-y-3.5">
+              <div className="space-y-3.5 max-h-[580px] overflow-y-auto pr-1">
                 {rankingUnidades.length ? (
                   rankingUnidades.map(([nome, total]) => (
                     <div key={nome} className="rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs">
@@ -1325,7 +1240,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
                           <span className="truncate">{nome}</span>
                         </span>
                         <span className="font-extrabold text-emerald-950 shrink-0 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 text-xs">
-                          {total} atendimentos
+                          {total} {total === 1 ? 'atendimento' : 'atendimentos'}
                         </span>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-slate-100">
