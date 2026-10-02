@@ -264,4 +264,155 @@ describe('Rotas de Autenticação (Cloudflare Pages Functions + D1 PT-BR)', () =
     const body = (await res.json()) as any;
     expect(body.codigo).toBe('SENHA_LEGACY_CPU_EXCEDIDO');
   });
+
+  describe('Políticas de Expiração de Senha Temporária', () => {
+    it('deve bloquear login com senha temporária que já expirou', async () => {
+      const senhaHash = await gerarHashSenha('Temp@123456');
+
+      const mockDb = {
+        query: {
+          usuarios: {
+            findFirst: vi.fn().mockResolvedValue({
+              id: 'user-expired',
+              email: 'expirado@saude.dev',
+              senhaHash,
+              nomeCompleto: 'Usuário Expirado',
+              perfil: 'PROFISSIONAL_SAUDE',
+              ativo: true,
+              senhaTemporaria: true,
+              senhaTemporariaExpiraEm: new Date(Date.now() - 3600 * 1000).toISOString(), // expirou há 1 hora
+            }),
+          },
+        },
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([{ total: 0 }]),
+          }),
+        }),
+      };
+
+      const res = await app.request('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'expirado@saude.dev',
+          senha: 'Temp@123456',
+        }),
+      }, {
+        JWT_SECRET: mockJwtSecret,
+        KEK_HEX: mockKekHex,
+        CORS_ORIGINS: 'http://localhost:5173',
+        DB: mockDb,
+      });
+
+      expect(res.status).toBe(403);
+      const body = (await res.json()) as any;
+      expect(body.codigo).toBe('SENHA_TEMPORARIA_EXPIRADA');
+      expect(body.erro).toContain('A senha temporária expirou');
+    });
+
+    it('deve permitir login com senha temporária dentro do prazo de validade e exigir troca de senha', async () => {
+      const senhaHash = await gerarHashSenha('Temp@123456');
+
+      const mockDb = {
+        query: {
+          usuarios: {
+            findFirst: vi.fn().mockResolvedValue({
+              id: 'user-valid-temp',
+              email: 'valido@saude.dev',
+              senhaHash,
+              nomeCompleto: 'Usuário Válido',
+              perfil: 'PROFISSIONAL_SAUDE',
+              ativo: true,
+              senhaTemporaria: true,
+              senhaTemporariaExpiraEm: new Date(Date.now() + 24 * 3600 * 1000).toISOString(), // expira em 24h
+            }),
+          },
+        },
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([{ total: 0 }]),
+          }),
+        }),
+        insert: vi.fn().mockReturnValue({
+          values: vi.fn().mockResolvedValue({ changes: 1 }),
+        }),
+        update: vi.fn().mockReturnValue({
+          set: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue({}),
+          }),
+        }),
+      };
+
+      const res = await app.request('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'valido@saude.dev',
+          senha: 'Temp@123456',
+        }),
+      }, {
+        JWT_SECRET: mockJwtSecret,
+        KEK_HEX: mockKekHex,
+        CORS_ORIGINS: 'http://localhost:5173',
+        DB: mockDb,
+      });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.trocaSenhaObrigatoria).toBe(true);
+    });
+
+    it('deve permitir login com senha temporária configurada para NÃO EXPIRAR (senhaTemporariaExpiraEm: null)', async () => {
+      const senhaHash = await gerarHashSenha('Temp@123456');
+
+      const mockDb = {
+        query: {
+          usuarios: {
+            findFirst: vi.fn().mockResolvedValue({
+              id: 'user-never-expires',
+              email: 'semexpiracao@saude.dev',
+              senhaHash,
+              nomeCompleto: 'Usuário Sem Expiração',
+              perfil: 'PROFISSIONAL_SAUDE',
+              ativo: true,
+              senhaTemporaria: true,
+              senhaTemporariaExpiraEm: null, // configurado para não expirar por tempo
+            }),
+          },
+        },
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([{ total: 0 }]),
+          }),
+        }),
+        insert: vi.fn().mockReturnValue({
+          values: vi.fn().mockResolvedValue({ changes: 1 }),
+        }),
+        update: vi.fn().mockReturnValue({
+          set: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue({}),
+          }),
+        }),
+      };
+
+      const res = await app.request('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'semexpiracao@saude.dev',
+          senha: 'Temp@123456',
+        }),
+      }, {
+        JWT_SECRET: mockJwtSecret,
+        KEK_HEX: mockKekHex,
+        CORS_ORIGINS: 'http://localhost:5173',
+        DB: mockDb,
+      });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.trocaSenhaObrigatoria).toBe(true);
+    });
+  });
 });

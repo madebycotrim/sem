@@ -69,6 +69,7 @@ const criarUsuarioSchema = z.object({
   conselhoProfissional: z.string().nullable().optional().or(z.literal('')),
   registroProfissional: z.string().nullable().optional().or(z.literal('')),
   especialidade: z.string().nullable().optional().or(z.literal('')),
+  expiracaoHoras: z.number().int().min(0).max(8760).nullable().optional(),
 });
 
 // ─── Criar/Convidar Usuário ──────────────────────────────────────────────────
@@ -100,6 +101,11 @@ rotasUsuarios.post(
 
     const senhaHash = await gerarHashSenha(dados.senha);
 
+    const horasCriacao = dados.expiracaoHoras !== undefined ? dados.expiracaoHoras : 24;
+    const senhaTemporariaExpiraEm = horasCriacao && horasCriacao > 0
+      ? new Date(Date.now() + horasCriacao * 60 * 60 * 1000).toISOString()
+      : null;
+
     const [novoUsuario] = await db.insert(usuarios).values({
       email: dados.email.toLowerCase().trim(),
       nomeCompleto: sanitizarTexto(dados.nomeCompleto.toUpperCase()),
@@ -109,7 +115,7 @@ rotasUsuarios.post(
       especialidade: sanitizarTextoOpcional(dados.especialidade || null),
       senhaHash,
       senhaTemporaria: true,
-      senhaTemporariaExpiraEm: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      senhaTemporariaExpiraEm,
       ativo: true,
     }).returning();
 
@@ -223,6 +229,7 @@ const redefinirSenhaSchema = z.object({
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d\s]).{8,}$/,
       'A nova senha deve conter pelo menos 1 maiúscula, 1 minúscula, 1 número e 1 caractere especial'
     ),
+  expiracaoHoras: z.number().int().min(0).max(8760).nullable().optional(),
 });
 
 rotasUsuarios.post(
@@ -236,7 +243,7 @@ rotasUsuarios.post(
   }),
   async (c) => {
     const id = c.req.param('id');
-    const { novaSenha } = c.req.valid('json');
+    const { novaSenha, expiracaoHoras } = c.req.valid('json');
     const db = getDb(c.env.DB);
     const usuarioLogado = c.get('usuario');
 
@@ -247,12 +254,19 @@ rotasUsuarios.post(
 
     const senhaHash = await gerarHashSenha(novaSenha);
 
+    // Se expiracaoHoras for null ou 0, senha temporária não expira por tempo (válida até o 1º acesso)
+    // Se omitido (undefined), mantém o padrão de 24 horas
+    const horas = expiracaoHoras !== undefined ? expiracaoHoras : 24;
+    const senhaTemporariaExpiraEm = horas && horas > 0
+      ? new Date(Date.now() + horas * 60 * 60 * 1000).toISOString()
+      : null;
+
     await db
       .update(usuarios)
       .set({
         senhaHash,
         senhaTemporaria: true,
-        senhaTemporariaExpiraEm: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        senhaTemporariaExpiraEm,
         atualizadoEm: new Date().toISOString(),
       })
       .where(eq(usuarios.id, id));

@@ -1,6 +1,6 @@
 import { useState, type FC, useEffect } from 'react';
 import { Modal, BotaoModal, ModalSecao } from './Modal.tsx';
-import { Check, Copy, KeyRound, RefreshCw, ShieldAlert, CircleAlert, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { Check, Copy, KeyRound, RefreshCw, ShieldAlert, CircleAlert, CheckCircle2, Eye, EyeOff, Clock, Infinity } from 'lucide-react';
 import { obterEstiloAvatarGoogle } from '../utilitarios/avatarCor.ts';
 import { PERFIL_ACESSO_LABELS } from '../../compartilhado/index.ts';
 import { requisicaoApi } from '../servicos/api.ts';
@@ -25,6 +25,19 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
   const [erro, setErro] = useState<string | null>(null);
   const [giros, setGiros] = useState(0);
   const [mostrarSenha, setMostrarSenha] = useState(true);
+  const [prazoHoras, setPrazoHoras] = useState<number | null>(24);
+
+  const formatarPrevisaoExpiracao = (horas: number | null) => {
+    if (horas === null || horas === 0) {
+      return 'Válida até o 1º acesso';
+    }
+    const data = new Date(Date.now() + horas * 60 * 60 * 1000);
+    const dia = String(data.getDate()).padStart(2, '0');
+    const mes = String(data.getMonth() + 1).padStart(2, '0');
+    const hora = String(data.getHours()).padStart(2, '0');
+    const min = String(data.getMinutes()).padStart(2, '0');
+    return `até ${dia}/${mes} às ${hora}:${min}`;
+  };
 
   const gerarSenha = (animar = true) => {
     const pass = gerarSenhaTemporariaSegura(10);
@@ -43,6 +56,7 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
       setSalvo(false);
       setErro(null);
       setMostrarSenha(true);
+      setPrazoHoras(24);
     }
   }, [aberto]);
 
@@ -76,7 +90,10 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
       setErro(null);
       await requisicaoApi(`/usuarios/${usuario.id}/redefinir-senha`, {
         metodo: 'POST',
-        corpo: { novaSenha: senhaGerada.trim() },
+        corpo: {
+          novaSenha: senhaGerada.trim(),
+          expiracaoHoras: prazoHoras,
+        },
       });
       setSalvo(true);
     } catch (err) {
@@ -177,6 +194,22 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
                   {copiado ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   {copiado ? 'Copiado!' : 'Copiar Senha'}
                 </button>
+              </div>
+
+              <div className="w-full bg-white border border-emerald-200/90 rounded-xl p-3 flex items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-1.5 text-xs text-emerald-900 font-bold">
+                  {prazoHoras === null || prazoHoras === 0 ? (
+                    <Infinity className="w-4 h-4 text-emerald-700 shrink-0" />
+                  ) : (
+                    <Clock className="w-4 h-4 text-emerald-700 shrink-0" />
+                  )}
+                  <span>Validade da Senha:</span>
+                </div>
+                <span className="text-xs font-bold text-emerald-950">
+                  {prazoHoras === null || prazoHoras === 0
+                    ? 'Válida até o 1º acesso (sem expiração prévia)'
+                    : `${prazoHoras >= 168 ? '7 dias' : `${prazoHoras} horas`} (${formatarPrevisaoExpiracao(prazoHoras)})`}
+                </span>
               </div>
             </div>
 
@@ -375,6 +408,67 @@ export const ModalRedefinirSenhaUsuario: FC<ModalRedefinirSenhaProps> = ({
                       </span>
                     </p>
                   )}
+                </div>
+
+                {/* ─── Opção de Expiração da Senha Provisória ─── */}
+                <div className="pt-3 mt-2 border-t border-slate-100 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Prazo de Expiração</span>
+                    </label>
+                    <span className="text-[11px] font-semibold text-slate-400">
+                      {prazoHoras === null || prazoHoras === 0 ? 'Válida até o 1º acesso' : `Expira em ${prazoHoras >= 168 ? '7 dias' : `${prazoHoras}h`}`}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { id: 24, label: '24 horas', desc: 'Padrão recomendado' },
+                      { id: 48, label: '48 horas', desc: '2 dias corridos' },
+                      { id: 168, label: '7 dias', desc: 'Próxima escala' },
+                      { id: 0, label: 'Não expirar', desc: 'Até o 1º login' },
+                    ].map((opcao) => {
+                      const selecionado = prazoHoras === opcao.id || (opcao.id === 0 && prazoHoras === null);
+                      return (
+                        <button
+                          key={opcao.id}
+                          type="button"
+                          onClick={() => setPrazoHoras(opcao.id === 0 ? null : opcao.id)}
+                          className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all cursor-pointer ${
+                            selecionado
+                              ? 'border-blue-500 bg-blue-50/80 text-blue-900 shadow-2xs ring-2 ring-blue-100'
+                              : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          <span className={`text-xs font-bold ${selecionado ? 'text-blue-700' : 'text-slate-800'}`}>
+                            {opcao.label}
+                          </span>
+                          <span className={`text-[10px] mt-0.5 leading-tight ${selecionado ? 'text-blue-600 font-semibold' : 'text-slate-400'}`}>
+                            {opcao.desc}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="text-[11px] text-slate-500 flex items-start gap-1.5 px-0.5 pt-0.5">
+                    {prazoHoras === null || prazoHoras === 0 ? (
+                      <>
+                        <Infinity className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+                        <span>
+                          A credencial provisória <strong>não expirará por tempo</strong>. Ela permanecerá ativa até que o profissional acesse o sistema pela 1ª vez e cadastre sua senha definitiva.
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+                        <span>
+                          O usuário terá até <strong>{prazoHoras >= 168 ? '7 dias' : `${prazoHoras} horas`}</strong> ({formatarPrevisaoExpiracao(prazoHoras)}) para realizar o primeiro acesso.
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </ModalSecao>

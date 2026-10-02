@@ -7,6 +7,10 @@ import {
   ESPECIALIDADE_LABELS,
 } from '../../compartilhado/index.js';
 import { utils } from 'xlsx';
+import {
+  gerarTituloRelatorioAdaptavel,
+  sanitizarNomeArquivoRelatorio,
+} from '../utilitarios/tituloRelatorio.ts';
 
 describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () => {
   describe('Validação do Schema de Filtro (filtroAtendimentoSchema)', () => {
@@ -445,6 +449,110 @@ describe('Relatórios Inteligentes e Funcionais - Validações e Métricas', () 
       expect(textoAnalitico).toContain('100%');
     });
   });
+
+  describe('Título Adaptável do Relatório para Exportação Excel e Visualização', () => {
+    it('deve gerar título padrão institucional quando nenhum filtro estiver ativo', () => {
+      const titulo = gerarTituloRelatorioAdaptavel({});
+      expect(titulo).toBe('Relatório Geral de Atendimentos — Saúde na Escola');
+    });
+
+    it('deve adaptar o título quando houver filtro de especialidade', () => {
+      const titulo = gerarTituloRelatorioAdaptavel({
+        especialidadeNome: 'Odontologia',
+      });
+      expect(titulo).toBe('Relatório de Atendimentos em Odontologia');
+    });
+
+    it('deve adaptar o título quando houver filtro de unidade escolar', () => {
+      const titulo = gerarTituloRelatorioAdaptavel({
+        escolaNome: 'CEF 01 de Brasília',
+      });
+      expect(titulo).toBe('Relatório de Atendimentos — CEF 01 de Brasília');
+    });
+
+    it('deve adaptar o título combinando especialidade e escola', () => {
+      const titulo = gerarTituloRelatorioAdaptavel({
+        especialidadeNome: 'Oftalmologia',
+        escolaNome: 'Escola Classe 04',
+      });
+      expect(titulo).toBe('Relatório de Oftalmologia — Escola Classe 04');
+    });
+
+    it('deve adaptar o título combinando especialidade, profissional e escola', () => {
+      const titulo = gerarTituloRelatorioAdaptavel({
+        especialidadeNome: 'Odontologia',
+        profissionalNome: 'Dra. Camila Santos',
+        escolaNome: 'CEMEIT de Taguatinga',
+      });
+      expect(titulo).toBe('Relatório de Odontologia — Dra. Camila Santos — CEMEIT de Taguatinga');
+    });
+
+    it('deve incluir qualificador de status no título adaptável quando presente', () => {
+      const tituloComStatus = gerarTituloRelatorioAdaptavel({
+        especialidadeNome: 'Audiometria',
+        escolaNome: 'CEF 02 de Sobradinho',
+        statusNome: 'Concluído',
+      });
+      expect(tituloComStatus).toBe('Relatório de Audiometria — CEF 02 de Sobradinho (Concluído)');
+
+      const tituloApenasStatus = gerarTituloRelatorioAdaptavel({
+        statusNome: 'Faltas',
+      });
+      expect(tituloApenasStatus).toBe('Relatório de Atendimentos (Faltas)');
+    });
+
+    it('deve priorizar título personalizado editado manualmente pelo usuário', () => {
+      const tituloCustomizado = 'Consolidado Estratégico 3º Trimestre — Coordenação';
+      const titulo = gerarTituloRelatorioAdaptavel({
+        especialidadeNome: 'Odontologia',
+        escolaNome: 'Escola Classe 04',
+        tituloPersonalizado: tituloCustomizado,
+      });
+      expect(titulo).toBe(tituloCustomizado);
+    });
+
+    it('deve ignorar título personalizado vazio ou com espaços em branco e recorrer ao automático', () => {
+      const titulo = gerarTituloRelatorioAdaptavel({
+        especialidadeNome: 'Psicologia',
+        tituloPersonalizado: '   ',
+      });
+      expect(titulo).toBe('Relatório de Atendimentos em Psicologia');
+    });
+
+    it('deve sanitizar corretamente o nome do arquivo .xlsx gerado', () => {
+      const nomeArquivo = sanitizarNomeArquivoRelatorio(
+        'Relatório de Odontologia — Escola Classe 04 (Concluído)',
+        '2026-09-01',
+        '2026-09-30'
+      );
+      expect(nomeArquivo).toBe('relatorio_de_odontologia_escola_classe_04_concluido_2026-09-01_2026-09-30.xlsx');
+
+      const nomeArquivoSemDatas = sanitizarNomeArquivoRelatorio(
+        'Relatório Geral de Atendimentos'
+      );
+      expect(nomeArquivoSemDatas).toBe('relatorio_geral_de_atendimentos_inicio_fim.xlsx');
+    });
+
+    it('deve incluir o título adaptável na Linha 2 da aba Dashboard na exportação para o Excel', () => {
+      const tituloAdaptavel = 'Relatório de Odontologia — Escola Classe 04';
+      const tituloPlanilhaUpper = tituloAdaptavel.toUpperCase();
+
+      const linhasDashboard = [
+        ['PROGRAMA SAÚDE NA ESCOLA (SEM) — SECRETARIA MUNICIPAL DE EDUCAÇÃO E SAÚDE'],
+        [tituloPlanilhaUpper],
+        ['Período Analisado:', '01/09/2026 a 30/09/2026', '', 'Data de Emissão:', '02/10/2026 10:00:00'],
+        ['Filtros Aplicados:', 'Escola: Escola Classe 04 | Especialidade: Odontologia'],
+      ];
+
+      const planilha = utils.book_new();
+      const abaDashboard = utils.aoa_to_sheet(linhasDashboard);
+      utils.book_append_sheet(planilha, abaDashboard, 'Dashboard');
+
+      expect(abaDashboard['A1'].v).toBe('PROGRAMA SAÚDE NA ESCOLA (SEM) — SECRETARIA MUNICIPAL DE EDUCAÇÃO E SAÚDE');
+      expect(abaDashboard['A2'].v).toBe('RELATÓRIO DE ODONTOLOGIA — ESCOLA CLASSE 04');
+    });
+  });
 });
+
 
 

@@ -119,7 +119,7 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
       return c.json({ erro: 'Credenciais inválidas.' }, 401);
     }
 
-    if (usuario.senhaTemporaria && (!usuario.senhaTemporariaExpiraEm || new Date(usuario.senhaTemporariaExpiraEm) < new Date())) {
+    if (usuario.senhaTemporaria && usuario.senhaTemporariaExpiraEm && new Date(usuario.senhaTemporariaExpiraEm) < new Date()) {
       return c.json({ erro: 'A senha temporária expirou. Solicite uma nova senha.', codigo: 'SENHA_TEMPORARIA_EXPIRADA' }, 403);
     }
 

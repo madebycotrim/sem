@@ -23,10 +23,16 @@ import {
   ShieldCheck,
   Users,
   FileSpreadsheet,
+  Pencil,
+  Check,
 } from 'lucide-react';
 import { utils, writeFile } from 'xlsx';
 import { ModalImportarPlanilha } from './ModalImportarPlanilha.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
+import {
+  gerarTituloRelatorioAdaptavel,
+  sanitizarNomeArquivoRelatorio,
+} from '../utilitarios/tituloRelatorio.ts';
 import {
   ESPECIALIDADE_LABELS,
   STATUS_ATENDIMENTO_LABELS,
@@ -174,12 +180,19 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   const [exportando, setExportando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
+  // Título adaptável e personalização pelo usuário
+  const [tituloPersonalizado, setTituloPersonalizado] = useState<string | null>(null);
+  const [editandoTitulo, setEditandoTitulo] = useState(false);
+  const [inputTitulo, setInputTitulo] = useState('');
+
   const ocultarRelatorioPorAlteracaoFiltro = () => {
     setRelatorioGerado(false);
     setDados(DADOS_RELATORIO_INICIAIS);
     setDadosTabela([]);
     setSinteseExecutivaIa(null);
     setGerandoSinteseIa(false);
+    setTituloPersonalizado(null);
+    setEditandoTitulo(false);
   };
 
   // Carregar escolas se vier vazio por prop
@@ -567,6 +580,48 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     return alertas;
   }, [totalGeral, dados.porEspecialidade, dados.porEscola, picoGrafico, mediaGrafico]);
 
+  // Nomes e rótulos dos filtros para composição do título adaptável
+  const nomeEscolaFiltro = useMemo(() => {
+    if (!escolaFiltro) return null;
+    return escolasLocais.find((e) => e.id === escolaFiltro)?.nome ?? escolaFiltro;
+  }, [escolaFiltro, escolasLocais]);
+
+  const nomeEspecialidadeFiltro = useMemo(() => {
+    if (!especialidadeFiltro) return null;
+    return ESPECIALIDADE_LABELS[especialidadeFiltro as Especialidade] ?? especialidadeFiltro;
+  }, [especialidadeFiltro]);
+
+  const nomeProfissionalFiltro = useMemo(() => {
+    if (!profissionalFiltro) return null;
+    return profissionaisDisponiveis.find((p) => p.id === profissionalFiltro)?.nome ?? profissionalFiltro;
+  }, [profissionalFiltro, profissionaisDisponiveis]);
+
+  const nomeStatusFiltro = useMemo(() => {
+    if (!statusFiltro) return null;
+    return STATUS_ATENDIMENTO_LABELS[statusFiltro as StatusAtendimento] ?? statusFiltro;
+  }, [statusFiltro]);
+
+  // Título adaptável dinâmico ou personalizado
+  const tituloAdaptavel = useMemo(() => {
+    return gerarTituloRelatorioAdaptavel({
+      escolaNome: nomeEscolaFiltro,
+      especialidadeNome: nomeEspecialidadeFiltro,
+      profissionalNome: nomeProfissionalFiltro,
+      statusNome: nomeStatusFiltro,
+      dataInicio,
+      dataFim,
+      tituloPersonalizado,
+    });
+  }, [
+    nomeEscolaFiltro,
+    nomeEspecialidadeFiltro,
+    nomeProfissionalFiltro,
+    nomeStatusFiltro,
+    dataInicio,
+    dataFim,
+    tituloPersonalizado,
+  ]);
+
   // Síntese Executiva estritamente por Inteligência Artificial (zero texto fixo/hardcoded prévio)
   const sinteseExecutiva = sinteseExecutivaIa;
 
@@ -753,9 +808,11 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       ].filter(Boolean).join(' | ') || 'Nenhum filtro aplicado (Todos os dados)';
 
       // ─── PÁGINA 1: DASHBOARD EXECUTIVO (ANÁLISE COMPLETA) ─────
+      const tituloPlanilhaUpper = tituloAdaptavel.toUpperCase();
+
       const linhasDashboard: (string | number)[][] = [
         ['PROGRAMA SAÚDE NA ESCOLA (SEM) — SECRETARIA MUNICIPAL DE EDUCAÇÃO E SAÚDE'],
-        ['DASHBOARD EXECUTIVO DE INTELIGÊNCIA OPERACIONAL E CLÍNICA'],
+        [tituloPlanilhaUpper],
         [
           'Período Analisado:',
           `${dataInicio ? formatarDataBrasileira(dataInicio) : 'Início'} a ${dataFim ? formatarDataBrasileira(dataFim) : 'Atual'}`,
@@ -918,7 +975,8 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
       utils.book_append_sheet(planilha, abaDashboard, 'Dashboard');
       utils.book_append_sheet(planilha, abaDadosBrutos, 'Dados Brutos');
 
-      writeFile(planilha, `relatorio_saude_itinerante_${dataInicio || 'inicio'}_${dataFim || 'fim'}.xlsx`);
+      const nomeArquivoExcel = sanitizarNomeArquivoRelatorio(tituloAdaptavel, dataInicio, dataFim);
+      writeFile(planilha, nomeArquivoExcel);
     } catch (erroApi) {
       setErro(erroApi instanceof Error ? erroApi.message : 'Não foi possível gerar a planilha.');
     } finally {
@@ -1128,6 +1186,8 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                     setDataInicio('');
                     setDataFim('');
                     setPeriodoSelecionado(null);
+                    setTituloPersonalizado(null);
+                    setEditandoTitulo(false);
                     ocultarRelatorioPorAlteracaoFiltro();
                     setErro(null);
                   }}
@@ -1249,10 +1309,87 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                 </span>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-2 mt-0.5">
-              <h3 className="text-base font-extrabold tracking-tight text-slate-800">
-                {sinteseExecutiva?.titulo || 'Resumo das Ações de Saúde nas Escolas'}
-              </h3>
+            <div className="flex flex-wrap items-center gap-2.5 mt-0.5 min-w-0">
+              {editandoTitulo ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (inputTitulo.trim()) {
+                      setTituloPersonalizado(inputTitulo.trim());
+                    }
+                    setEditandoTitulo(false);
+                  }}
+                  className="flex items-center gap-1.5 flex-wrap"
+                >
+                  <input
+                    type="text"
+                    value={inputTitulo}
+                    onChange={(e) => setInputTitulo(e.target.value)}
+                    className="text-base font-extrabold text-slate-800 bg-white border border-blue-400 rounded-xl px-3 py-1 outline-none ring-2 ring-blue-100 shadow-xs min-w-[280px] max-w-lg"
+                    placeholder="Digite o título do relatório..."
+                    maxLength={120}
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition cursor-pointer shadow-xs"
+                    title="Salvar título personalizado"
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditandoTitulo(false)}
+                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 transition cursor-pointer"
+                    title="Cancelar edição"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                  {tituloPersonalizado && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTituloPersonalizado(null);
+                        setEditandoTitulo(false);
+                      }}
+                      className="flex h-8 px-2.5 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-600 hover:text-blue-700 hover:bg-blue-50 transition cursor-pointer"
+                      title="Restaurar título automático"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Restaurar automático
+                    </button>
+                  )}
+                </form>
+              ) : (
+                <div className="flex items-center gap-2 group flex-wrap">
+                  <h3 className="text-base font-extrabold tracking-tight text-slate-800">
+                    {tituloAdaptavel}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInputTitulo(tituloAdaptavel);
+                      setEditandoTitulo(true);
+                    }}
+                    title="Personalizar título do relatório"
+                    className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer"
+                    aria-label="Editar título"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  {tituloPersonalizado && (
+                    <button
+                      type="button"
+                      onClick={() => setTituloPersonalizado(null)}
+                      title="Restaurar título automático baseado nos filtros"
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md transition cursor-pointer"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Título personalizado • Restaurar
+                    </button>
+                  )}
+                </div>
+              )}
               <span className="inline-flex items-center gap-1 text-xs text-slate-400 font-medium">
                 <Calendar className="h-3 w-3" />
                 {dataInicio ? formatarDataBrasileira(dataInicio) : 'Início'} — {dataFim ? formatarDataBrasileira(dataFim) : 'Atual'}
@@ -1961,7 +2098,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
               <div className="border-b-2 border-slate-800 pb-4 text-center">
                 <div className="text-[13px] font-black uppercase tracking-[0.16em] text-slate-700">Governo Municipal • Secretaria de Educação e Saúde</div>
                 <div className="text-xl font-black uppercase tracking-tight text-slate-900 mt-1">Programa Saúde Itinerante na Escola (SEM)</div>
-                <div className="text-xs font-bold uppercase tracking-wider text-blue-800 mt-0.5">Relatório Oficial de Gestão e Atendimento Clínico</div>
+                <div className="text-xs font-bold uppercase tracking-wider text-blue-800 mt-0.5">{tituloAdaptavel}</div>
                 <div className="text-[10px] text-slate-500 mt-2">
                   Emissão: {formatarDataEHoraBrasilia(new Date())} • Período: {dataInicio ? formatarDataBrasileira(dataInicio) : 'Início'} a {dataFim ? formatarDataBrasileira(dataFim) : 'Atual'}
                 </div>

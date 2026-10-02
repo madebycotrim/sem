@@ -26,6 +26,10 @@ import {
 } from 'lucide-react';
 import { utils, writeFile } from 'xlsx';
 import {
+  gerarTituloRelatorioAdaptavel,
+  sanitizarNomeArquivoRelatorio,
+} from '../utilitarios/tituloRelatorio.ts';
+import {
   ESPECIALIDADE_LABELS,
   STATUS_ATENDIMENTO_LABELS,
   StatusAtendimento,
@@ -477,8 +481,22 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
 
   // ─── Exportação Executiva em Excel ─────────────────────────────────
   const handleExportarExcel = () => {
+    const nomeEscola = escola ? (escolas.find((e) => e.id === escola)?.nome ?? escola) : null;
+    const nomeEsp = especialidade ? (ESPECIALIDADE_LABELS[especialidade as Especialidade] ?? especialidade) : null;
+    const nomeProf = profissional ? (profissionaisSaude.find((p) => p.id === profissional)?.nome ?? profissional) : null;
+    const nomeStatus = statusFiltro ? (STATUS_ATENDIMENTO_LABELS[statusFiltro as StatusAtendimento] ?? statusFiltro) : null;
+
+    const tituloRelatorio = gerarTituloRelatorioAdaptavel({
+      escolaNome: nomeEscola,
+      especialidadeNome: nomeEsp,
+      profissionalNome: nomeProf,
+      statusNome: nomeStatus,
+      dataInicio,
+      dataFim,
+    });
+
     const dadosGerais = [
-      ['RELATÓRIO GERENCIAL DE INTELIGÊNCIA CLÍNICA & BI — CATRAKI & SESI SAÚDE'],
+      [`DASHBOARD ANALÍTICO DE BI — ${tituloRelatorio.toUpperCase()}`],
       ['Gerado em', formatarDataEHoraBrasilia(new Date())],
       ['Período Analisado', periodoLabel],
       [''],
@@ -523,7 +541,8 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
     utils.book_append_sheet(wb, utils.aoa_to_sheet(dadosEsp), 'Especialidades');
     utils.book_append_sheet(wb, utils.aoa_to_sheet(dadosProf), 'Profissionais');
     utils.book_append_sheet(wb, utils.aoa_to_sheet(dadosUnid), 'Unidades');
-    writeFile(wb, `relatorio_bi_catraki_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const nomeArquivo = sanitizarNomeArquivoRelatorio(`bi_${tituloRelatorio}`, dataInicio, dataFim);
+    writeFile(wb, nomeArquivo);
   };
 
   if (carregando || (carregandoAnalitico && todosAtendimentos.length === 0)) {

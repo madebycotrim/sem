@@ -713,9 +713,25 @@ rotasAtendimento.post('/relatorio/sintese-ia', zValidator('json', sinteseIaSchem
     const pontoEscola = `Unidade em Destaque: "${topEscola}" concentrou ${topEscolaTotal} atendimento(s) (${topEscolaPct}% da demanda).`;
     const pontoStatus = `Situação Operacional: Taxa de conclusão de ${taxaConclusao}% (${totalConcluidos} concluído(s), ${totalFaltas} falta(s), ${totalCancelados} cancelamento(s)).`;
 
+    // Determinação do título adaptável aos filtros
+    let tituloLocal = 'Relatório Geral de Atendimentos';
+    const espFiltro = dados.filtrosAtivos?.especialidade;
+    const escFiltro = dados.filtrosAtivos?.escola;
+    const profFiltro = dados.filtrosAtivos?.profissional;
+
+    if (espFiltro && escFiltro) {
+      tituloLocal = `Relatório de ${espFiltro} — ${escFiltro}`;
+    } else if (espFiltro) {
+      tituloLocal = `Relatório de Atendimentos em ${espFiltro}`;
+    } else if (escFiltro) {
+      tituloLocal = `Relatório de Atendimentos — ${escFiltro}`;
+    } else if (profFiltro) {
+      tituloLocal = `Relatório de Atendimentos — ${profFiltro}`;
+    }
+
     return {
       origem: 'ALGORITMO_LOCAL' as const,
-      titulo: 'Relatório Analítico de Atendimentos Filtrados',
+      titulo: tituloLocal,
       resumo: `${paragrafo1}\n\n${paragrafo2}\n\n${paragrafo3}\n\n${paragrafo4}`,
       pontos: [pontoVolume, pontoEspecialidade, pontoEscola, pontoStatus],
       recomendacao: `Manter dimensionamento logístico com prioridade para ${topEspNome} na unidade "${topEscola}", com controle de confirmação para assegurar a manutenção da taxa de conclusão em ${taxaConclusao}%.`,
