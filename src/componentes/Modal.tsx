@@ -235,15 +235,15 @@ export const Modal: FC<ModalProps> = ({
         aria-modal="true"
         onClick={tentarFechar}
       >
-        <div className="min-h-full flex items-start justify-center p-4 pt-6 sm:pt-10 pb-12">
+        <div className="min-h-full flex items-center justify-center p-3 sm:p-4 py-4 sm:py-6">
           <div
             ref={containerRef}
-            className={`w-full ${larguraClasse} bg-white rounded-[28px] shadow-[0_28px_80px_rgba(15,23,42,0.18)] border border-slate-200/80 flex flex-col animate-slide-up relative overflow-visible ${className}`}
+            className={`w-full ${larguraClasse} max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] bg-white rounded-[28px] shadow-[0_28px_80px_rgba(15,23,42,0.18)] border border-slate-200/80 flex flex-col animate-slide-up relative overflow-hidden ${className}`}
             onClick={(evento) => evento.stopPropagation()}
           >
           {/* ─── 1. Cabeçalho do Modal ────────────────────────────────────── */}
           {(titulo || subtitulo) && (
-            <div className="flex items-start justify-between px-6 py-5 border-b border-slate-200/80 bg-gradient-to-r from-slate-50 via-slate-50 to-white shrink-0 relative z-10 rounded-t-[28px]">
+            <div className="flex items-start justify-between px-6 py-4.5 border-b border-slate-200/80 bg-gradient-to-r from-slate-50 via-slate-50 to-white shrink-0 relative z-10 rounded-t-[28px]">
               <div className="flex items-center gap-3.5">
                 {icone && (
                   <div className="w-10 h-10 rounded-2xl bg-blue-100/80 border border-blue-200 text-blue-600 flex items-center justify-center shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
@@ -276,14 +276,14 @@ export const Modal: FC<ModalProps> = ({
             </div>
           )}
 
-          {/* ─── 2. Corpo Conteúdo ───────────────────────────────── */}
-          <div className={`relative z-20 ${contentClassName}`}>
+          {/* ─── 2. Corpo Conteúdo (Scroll Interno Suave) ─────────────────── */}
+          <div className={`relative z-20 flex-1 min-h-0 overflow-y-auto overscroll-contain ${contentClassName}`}>
             {children}
           </div>
 
-          {/* ─── 3. Rodapé com Ações ou Confirmação Discreta Inline (Altura Fixa h-18) ─── */}
+          {/* ─── 3. Rodapé com Ações ou Confirmação Discreta Inline (Altura Otimizada h-16) ─── */}
           {confirmandoDescarte ? (
-            <div className="h-18 px-6 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-3 rounded-b-3xl shrink-0 animate-fade-in font-sans relative z-10">
+            <div className="min-h-16 px-6 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-3 rounded-b-3xl shrink-0 animate-fade-in font-sans relative z-10">
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
                 <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
                 <span>Descartar os dados preenchidos e fechar?</span>
@@ -308,7 +308,7 @@ export const Modal: FC<ModalProps> = ({
             </div>
           ) : (
             rodape && (
-              <div className="h-18 px-6 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-3 rounded-b-3xl shrink-0 relative z-10">
+              <div className="min-h-16 px-6 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-3 rounded-b-3xl shrink-0 relative z-10">
                 {rodape}
               </div>
             )
