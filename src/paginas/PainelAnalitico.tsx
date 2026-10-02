@@ -40,6 +40,7 @@ import {
   parseDataBrasilia,
 } from '../../compartilhado/index.ts';
 import { CabecalhoPagina } from '../componentes/CabecalhoPagina.tsx';
+import { usePermissoes } from '../contextos/ContextoPermissoes.tsx';
 import { EspecialidadeBadge } from '../componentes/EspecialidadeVisual.tsx';
 import { SeletorFiltroUniversal } from '../componentes/Modal.tsx';
 import { GraficoPizzaDonut } from '../componentes/graficos/GraficoPizzaDonut.tsx';
@@ -118,6 +119,15 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
   aoNavegarFila,
   aoImportarPlanilha,
 }) => {
+  const permissoesContexto = (() => {
+    try {
+      return usePermissoes();
+    } catch {
+      return null;
+    }
+  })();
+  const podeExportar = permissoesContexto ? permissoesContexto.temPermissaoAcao('exportarDados') : true;
+
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('');
@@ -568,7 +578,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
         titulo="Dashboard"
         subtitulo="INDICADORES ESTATÍSTICOS, CONVERSÃO E PRODUTIVIDADE OPERACIONAL"
         fixo={false}
-        aoExportar={handleExportarExcel}
+        aoExportar={podeExportar ? handleExportarExcel : undefined}
       />
 
       {/* ─── Banner de Onboarding quando não há atendimentos no sistema ──── */}

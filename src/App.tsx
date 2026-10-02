@@ -23,7 +23,7 @@ import { requisicaoApi, ErroApi } from './servicos/api.ts';
 import { verificarAutorizacoesEmLote, sanitizarCpf } from './servicos/servicoCatraki.ts';
 import { formatarCpf, formatarTelefone } from './utilitarios/mascaras.ts';
 import { useItensPorPaginaInteligente } from './utilitarios/useItensPorPaginaInteligente.ts';
-import { type PermissoesPerfil, type PerfilAcesso, StatusAtendimento, type StatusAtendimento as TipoStatusAtendimento, formatarHoraBrasilia, formatarDataBrasilia } from '../compartilhado/index.ts';
+import { type PermissoesPerfil, type PerfilAcesso, PERMISSOES_PADRAO, StatusAtendimento, type StatusAtendimento as TipoStatusAtendimento, formatarHoraBrasilia, formatarDataBrasilia } from '../compartilhado/index.ts';
 
 interface RespostaListaPacientes {
   dados: Array<{
@@ -127,7 +127,23 @@ export function App() {
       }
     };
     window.addEventListener('permissoes_atualizadas', handleAtualizacao);
-    return () => window.removeEventListener('permissoes_atualizadas', handleAtualizacao);
+
+    let canal: BroadcastChannel | null = null;
+    try {
+      canal = new BroadcastChannel('catraki_rbac_sync');
+      canal.onmessage = (event) => {
+        if (event.data?.tipo === 'permissoes_atualizadas' && event.data?.permissoes) {
+          setPermissoesRbac(event.data.permissoes);
+        }
+      };
+    } catch {
+      canal = null;
+    }
+
+    return () => {
+      window.removeEventListener('permissoes_atualizadas', handleAtualizacao);
+      canal?.close();
+    };
   }, []);
 
   // Interceptador global de expiração de sessão (401) para interromper polling e exibir Login limpo
@@ -147,19 +163,37 @@ export function App() {
     return () => window.removeEventListener('auth:nao_autorizado', handleNaoAutorizado);
   }, []);
 
+  const obterPermissoesPerfil = (perfil: PerfilAcesso | string): PermissoesPerfil | undefined => {
+    if (!perfil) return undefined;
+    const pAcesso = perfil as PerfilAcesso;
+    const padrao = PERMISSOES_PADRAO[pAcesso];
+    const personalizadas = permissoesRbac[pAcesso];
+    if (!personalizadas) return padrao;
+    return {
+      modulos: {
+        ...padrao?.modulos,
+        ...personalizadas.modulos,
+      },
+      acoes: {
+        ...padrao?.acoes,
+        ...personalizadas.acoes,
+      },
+    };
+  };
+
   const temAcesso = (secao: SecaoMenu) => {
     const perfil = usuarioLogado?.perfil || '';
     if (perfil === 'BOOTSTRAP') return true;
-    if (perfil === 'ADMIN') return true;
-    const permissoesDoPerfil = perfil ? permissoesRbac[perfil as PerfilAcesso] : undefined;
+    // Prevenção de auto-bloqueio: ADMIN sempre pode acessar a tela de Usuários/RBAC
+    if (perfil === 'ADMIN' && secao === 'usuarios') return true;
+    const permissoesDoPerfil = obterPermissoesPerfil(perfil);
     return permissoesDoPerfil?.modulos[secao] === 'LIVRE';
   };
 
   const temPermissao = (acao: keyof PermissoesPerfil['acoes']) => {
     const perfil = usuarioLogado?.perfil || '';
     if (perfil === 'BOOTSTRAP') return true;
-    if (perfil === 'ADMIN') return true;
-    const permissoesDoPerfil = perfil ? permissoesRbac[perfil as PerfilAcesso] : undefined;
+    const permissoesDoPerfil = obterPermissoesPerfil(perfil);
     return permissoesDoPerfil?.acoes[acao] === 'LIVRE';
   };
 

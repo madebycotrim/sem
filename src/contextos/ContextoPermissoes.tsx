@@ -1,5 +1,9 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import { type PermissoesPerfil, type PerfilAcesso } from '../../compartilhado/index.ts';
+import { 
+  type PermissoesPerfil, 
+  type PerfilAcesso, 
+  PERMISSOES_PADRAO 
+} from '../../compartilhado/index.ts';
 
 interface PermissoesContextData {
   permissoes: Partial<Record<PerfilAcesso, PermissoesPerfil>>;
@@ -19,16 +23,39 @@ export const ProvedorPermissoes = ({
   perfilLogado: PerfilAcesso | null;
   permissoes: Partial<Record<PerfilAcesso, PermissoesPerfil>>;
 }) => {
+  const obterPermissoesPerfil = (perfil: PerfilAcesso): PermissoesPerfil | undefined => {
+    const padrao = PERMISSOES_PADRAO[perfil];
+    const personalizadas = permissoes[perfil];
+    if (!personalizadas) return padrao;
+    return {
+      modulos: {
+        ...padrao?.modulos,
+        ...personalizadas.modulos,
+      },
+      acoes: {
+        ...padrao?.acoes,
+        ...personalizadas.acoes,
+      },
+    };
+  };
+
   const temAcessoModulo = (modulo: keyof PermissoesPerfil['modulos']) => {
     if (!perfilLogado) return false;
-    if (perfilLogado === 'BOOTSTRAP' || perfilLogado === 'ADMIN') return true;
-    return permissoes[perfilLogado]?.modulos[modulo] === 'LIVRE';
+    // BOOTSTRAP tem acesso irrestrito
+    if (perfilLogado === 'BOOTSTRAP') return true;
+    // Prevenção de bloqueio: ADMIN sempre tem acesso ao gerenciamento de usuários/RBAC
+    if (perfilLogado === 'ADMIN' && modulo === 'usuarios') return true;
+    
+    const perfilConfig = obterPermissoesPerfil(perfilLogado);
+    return perfilConfig?.modulos[modulo] === 'LIVRE';
   };
 
   const temPermissaoAcao = (acao: keyof PermissoesPerfil['acoes']) => {
     if (!perfilLogado) return false;
-    if (perfilLogado === 'BOOTSTRAP' || perfilLogado === 'ADMIN') return true;
-    return permissoes[perfilLogado]?.acoes[acao] === 'LIVRE';
+    if (perfilLogado === 'BOOTSTRAP') return true;
+    
+    const perfilConfig = obterPermissoesPerfil(perfilLogado);
+    return perfilConfig?.acoes[acao] === 'LIVRE';
   };
 
   return (

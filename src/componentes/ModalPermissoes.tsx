@@ -138,7 +138,16 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
         metodo: 'PUT',
         corpo: { permissoes: estadoPermissoes }
       });
+      // Notificação no documento ativo
       window.dispatchEvent(new CustomEvent('permissoes_atualizadas', { detail: estadoPermissoes }));
+      // Notificação instantânea cross-tab / cross-window
+      try {
+        const canal = new BroadcastChannel('catraki_rbac_sync');
+        canal.postMessage({ tipo: 'permissoes_atualizadas', permissoes: estadoPermissoes });
+        canal.close();
+      } catch {
+        // Fallback se BroadcastChannel não estiver disponível
+      }
       setSalvo(true);
       setTimeout(() => setSalvo(false), 3000);
       aoFechar();
@@ -237,18 +246,32 @@ export const ModalPermissoes: FC<ModalPermissoesProps> = ({ aberto, aoFechar }) 
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
                 {(Object.entries(NOME_MODULOS) as [keyof PermissoesPerfil['modulos'], string][]).map(([chave, label]) => {
-                  const ativo = (permissaoAtual?.modulos[chave] ?? 'LIVRE') === 'LIVRE';
+                  const ehUsuariosAdmin = perfilAtivo === 'ADMIN' && chave === 'usuarios';
+                  const ativo = ehUsuariosAdmin ? true : (permissaoAtual?.modulos[chave] ?? 'LIVRE') === 'LIVRE';
                   return (
                     <div
                       key={chave}
-                      className="flex items-center justify-between p-2.5 bg-slate-50/90 rounded-xl border border-slate-200 hover:border-blue-200 hover:bg-blue-50/50 transition-all cursor-pointer group select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
-                      onClick={() => alternarModulo(chave)}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border transition-all select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] ${
+                        ehUsuariosAdmin
+                          ? 'bg-slate-100/90 border-slate-200 cursor-not-allowed opacity-85'
+                          : 'bg-slate-50/90 border-slate-200 hover:border-blue-200 hover:bg-blue-50/50 cursor-pointer group'
+                      }`}
+                      onClick={() => !ehUsuariosAdmin && alternarModulo(chave)}
+                      title={ehUsuariosAdmin ? 'Módulo obrigatório para Administradores para evitar auto-bloqueio de acesso' : undefined}
                     >
-                      <span className="text-[13px] font-semibold text-slate-700">
-                        {label}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="text-[13px] font-semibold text-slate-700">
+                          {label}
+                        </span>
+                        {ehUsuariosAdmin && (
+                          <span className="text-[10px] text-blue-600 font-bold">
+                            Obrigatório p/ Admin (Anti-bloqueio)
+                          </span>
+                        )}
+                      </div>
                       <ToggleSwitch
                         ativo={ativo}
+                        desabilitado={ehUsuariosAdmin}
                         aoAlternar={() => alternarModulo(chave)}
                       />
                     </div>
