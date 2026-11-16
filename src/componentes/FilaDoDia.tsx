@@ -13,7 +13,7 @@ import { EspecialidadeBadge } from './EspecialidadeVisual.tsx';
 import { StatusAtendimentoBadge } from './StatusAtendimentoBadge.tsx';
 import { censurarCpf, type ItemPaciente } from './TabelaPacientes.tsx';
 import { CardHoverPaciente } from './CardHoverPaciente.tsx';
-import { Clock3, RotateCcw, CalendarDays, ClipboardCheck, Play, Plus, Ban, FileText } from 'lucide-react';
+import { Clock3, RotateCcw, CalendarDays, ClipboardCheck, Play, Plus, Ban, FileText, Check } from 'lucide-react';
 import { Botao } from './Botao.tsx';
 import { ModalTriagem, type ItemPacienteTriagem, type ItemProfissionalTriagem } from './ModalTriagem.tsx';
 import { ModalIniciarAtendimento, type DadosAtendimento } from './ModalIniciarAtendimento.tsx';
@@ -963,10 +963,23 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                                   }
                                   abrirModalProntuario(item, true);
                                 }}
-                                className="inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-xl shadow-[0_4px_12px_rgba(37,99,235,0.24)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+                                className={
+                                  ehAdmin
+                                    ? 'inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-white bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 rounded-xl shadow-[0_4px_12px_rgba(5,150,105,0.24)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100'
+                                    : 'inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-xl shadow-[0_4px_12px_rgba(37,99,235,0.24)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100'
+                                }
                               >
-                                <Play className="w-3.5 h-3.5" />
-                                Iniciar Atendimento
+                                {ehAdmin ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5" />
+                                    Finalizar Atendimento
+                                  </>
+                                ) : (
+                                  <>
+                                    <Play className="w-3.5 h-3.5" />
+                                    Iniciar Atendimento
+                                  </>
+                                )}
                               </button>
                               {ehAdmin && confirmandoFinalizacaoId === item.id && (
                                 <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
@@ -1050,10 +1063,23 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                                   }
                                   abrirModalProntuario(item, false);
                                 }}
-                                className="inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-xl shadow-[0_2px_8px_rgba(37,99,235,0.12)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+                                className={
+                                  ehAdmin
+                                    ? 'inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl shadow-[0_2px_8px_rgba(5,150,105,0.12)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100'
+                                    : 'inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-xl shadow-[0_2px_8px_rgba(37,99,235,0.12)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100'
+                                }
                               >
-                                <Play className="w-3.5 h-3.5 text-blue-600" />
-                                Continuar
+                                {ehAdmin ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                    Finalizar Atendimento
+                                  </>
+                                ) : (
+                                  <>
+                                    <Play className="w-3.5 h-3.5 text-blue-600" />
+                                    Continuar
+                                  </>
+                                )}
                               </button>
                               {ehAdmin && confirmandoFinalizacaoId === item.id && (
                                 <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
