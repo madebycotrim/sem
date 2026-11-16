@@ -39,6 +39,7 @@ function parseKek(kekHex: string): Uint8Array {
 
 const cacheChavesAes = new Map<string, CryptoKey>();
 const cacheChavesHmac = new Map<string, CryptoKey>();
+const LIMITE_CACHE_CHAVES = 256;
 
 async function importarChaveAesGcm(chaveRaw: Uint8Array): Promise<CryptoKey> {
   const chaveHex = bufferParaHex(chaveRaw);
@@ -51,6 +52,10 @@ async function importarChaveAesGcm(chaveRaw: Uint8Array): Promise<CryptoKey> {
       false,
       ['encrypt', 'decrypt']
     );
+    if (cacheChavesAes.size >= LIMITE_CACHE_CHAVES) {
+      const primeiraChave = cacheChavesAes.keys().next().value;
+      if (primeiraChave !== undefined) cacheChavesAes.delete(primeiraChave);
+    }
     cacheChavesAes.set(chaveHex, chave);
   }
   return chave;

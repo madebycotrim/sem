@@ -20,8 +20,8 @@ import { ModalIniciarAtendimento, type DadosAtendimento } from './ModalIniciarAt
 import type { ItemAtendimentoLista } from './Atendimentos.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
 
-// Data de hoje no formato pt-BR no fuso de Brasília (ex: "08/09/2026")
-const HOJE = formatarDataBrasilia(new Date());
+// Obtém a data de hoje no formato pt-BR no fuso de Brasília em tempo de execução
+const obterHojeBr = () => formatarDataBrasilia(new Date());
 
 export type StatusPresenca = 'AGUARDANDO' | 'CONFIRMADO' | 'EM_ATENDIMENTO' | 'CONCLUIDO' | 'CANCELADO';
 
@@ -260,7 +260,8 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
     });
 
     setFilaLocal((prev) => {
-      const novaLista = [novoItemFila, ...prev.filter((i) => i.id !== novoItemFila.id)];
+      const base = filaProp ?? prev;
+      const novaLista = [novoItemFila, ...base.filter((i) => i.id !== novoItemFila.id)];
       aoAtualizarFila?.(novaLista);
       return novaLista;
     });
@@ -384,6 +385,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         idFinal = respostaPatch?.id || idFinal;
       } catch (errPatch) {
         console.warn('Erro ao atualizar via PATCH, tentando POST/upsert:', errPatch);
+        idFinal = undefined;
       }
     }
 
@@ -415,7 +417,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
               escolaLocalId: escolaIdFinal,
               ...(profissionalIdFinal ? { usuarioId: profissionalIdFinal } : {}),
               especialidade: dadosAtendimento.especialidade,
-              resumo: textoAnotacoes,
+              ...(textoAnotacoes ? { resumo: textoAnotacoes } : {}),
             },
           });
           if (respostaPost?.id) {
@@ -430,7 +432,8 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
 
     // 1. Atualiza a fila local mantendo o texto e marcando como CONCLUÍDO
     setFilaLocal((prev) => {
-      const novaLista = prev.map((f) =>
+      const base = filaProp ?? prev;
+      const novaLista = base.map((f) =>
         f.id === itemId
           ? {
               ...f,
@@ -553,10 +556,10 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   );
 
   // ─── Separação: apenas itens de HOJE na fila ativa ─────────────────────
-  const filaHoje = useMemo(() =>
-    fila.filter((f) => (f.dataChegada || HOJE) === HOJE),
-    [fila]
-  );
+  const filaHoje = useMemo(() => {
+    const hoje = obterHojeBr();
+    return fila.filter((f) => (f.dataChegada || hoje) === hoje);
+  }, [fila]);
 
   const filtroExcel = useFiltroExcel<ItemFila>({
     dados: filaHoje,

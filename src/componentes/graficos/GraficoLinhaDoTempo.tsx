@@ -53,17 +53,20 @@ export const GraficoLinhaDoTempo: FC<GraficoLinhaDoTempoProps> = ({
   const [modoAcumulado, setModoAcumulado] = useState(false);
   const idGradiente = useId();
 
-  // Dados calculados para exibição (diário ou acumulado)
-  const dadosEfetivos = pontos.map((p, idx) => {
-    if (!modoAcumulado) return p;
-    const somaAteAqui = pontos.slice(0, idx + 1).reduce((acc, curr) => acc + curr.total, 0);
-    return {
-      ...p,
-      total: somaAteAqui,
-    };
-  });
+  // Dados calculados para exibição (diário ou acumulado) em O(N)
+  const dadosEfetivos = useMemo(() => {
+    let acumulado = 0;
+    return pontos.map((p) => {
+      const totalSeguro = Number.isFinite(p.total) ? Math.max(0, p.total) : 0;
+      acumulado += totalSeguro;
+      return {
+        ...p,
+        total: modoAcumulado ? acumulado : totalSeguro,
+      };
+    });
+  }, [pontos, modoAcumulado]);
 
-  const totalGeral = pontos.reduce((acc, p) => acc + p.total, 0);
+  const totalGeral = pontos.reduce((acc, p) => acc + (Number.isFinite(p.total) ? Math.max(0, p.total) : 0), 0);
   const valores = dadosEfetivos.map((p) => p.total);
   const maxValor = Math.max(...valores, 1);
   const minValor = 0;
@@ -74,7 +77,7 @@ export const GraficoLinhaDoTempo: FC<GraficoLinhaDoTempoProps> = ({
   const paddingX = 45;
   const paddingTop = 30;
   const paddingBottom = 42;
-  const alturaGrafico = altura - paddingTop - paddingBottom;
+  const alturaGrafico = Math.max(40, altura - paddingTop - paddingBottom);
   const larguraGrafico = larguraSvg - paddingX * 2;
 
   // Mapeamento dos pontos em coordenadas cartesianas

@@ -606,9 +606,9 @@ export const Atendimentos: FC<AtendimentosProps> = ({
       const cr = (formatarConselhoERegistro(reg, cons, item.especialidade) || '').toLowerCase();
 
       return (
-        item.pacienteNome.toLowerCase().includes(termo) ||
-        item.profissionalNome.toLowerCase().includes(termo) ||
-        item.escolaNome.toLowerCase().includes(termo) ||
+        String(item.pacienteNome ?? '').toLowerCase().includes(termo) ||
+        String(item.profissionalNome ?? '').toLowerCase().includes(termo) ||
+        String(item.escolaNome ?? '').toLowerCase().includes(termo) ||
         Boolean(item.resumo && item.resumo.toLowerCase().includes(termo)) ||
         (termoNumerico.length >= 3 && cpfLimpo.includes(termoNumerico)) ||
         reg.includes(termo) ||

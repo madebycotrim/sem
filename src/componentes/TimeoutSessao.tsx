@@ -223,12 +223,12 @@ export function TimeoutSessao({
     };
   }, [imune, tempoLimiteMs, tempoAvisoMs, tempoInatividadeAvisoMs, tempoAvisoSegundos, encerrarSessao]);
 
-  // Teclado para o popup: Enter ou Esc cancelam o encerramento e continuam conectado
+  // Teclado para o popup: Esc cancela o encerramento e continua conectado (sem bloquear Enter nos botões)
   useEffect(() => {
     if (!mostrarAviso) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Enter') {
+      if (e.key === 'Escape') {
         e.preventDefault();
         renovarSessao();
       }
@@ -273,7 +273,7 @@ export function TimeoutSessao({
           id="descricao-timeout-sessao"
           className="text-xs sm:text-[13px] text-slate-500 font-medium leading-relaxed max-w-xs mb-4"
         >
-          Detectamos inatividade por quase 5 minutos. Sua sessão será encerrada automaticamente por segurança em:
+          Detectamos inatividade por quase {tempoLimiteMinutos} {tempoLimiteMinutos === 1 ? 'minuto' : 'minutos'}. Sua sessão será encerrada automaticamente por segurança em:
         </p>
 
         {/* Display Visual de Contagem Regressiva */}

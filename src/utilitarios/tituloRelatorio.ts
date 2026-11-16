@@ -75,8 +75,10 @@ export function sanitizarNomeArquivoRelatorio(
     .replace(/^_+|_+$/g, '');
 
   const base = slug || 'relatorio_saude_itinerante';
-  const inicioSlug = dataInicio ? dataInicio.replace(/[^0-9]/g, '-') : 'inicio';
-  const fimSlug = dataFim ? dataFim.replace(/[^0-9]/g, '-') : 'fim';
+  const inicioDigits = dataInicio?.replace(/[^0-9]+/g, '-').replace(/^-+|-+$/g, '') ?? '';
+  const fimDigits = dataFim?.replace(/[^0-9]+/g, '-').replace(/^-+|-+$/g, '') ?? '';
+  const inicioSlug = /\d/.test(inicioDigits) ? inicioDigits : 'inicio';
+  const fimSlug = /\d/.test(fimDigits) ? fimDigits : 'fim';
 
   return `${base}_${inicioSlug}_${fimSlug}.xlsx`;
 }

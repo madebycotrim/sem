@@ -85,8 +85,9 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
 
     const db = getDb(c.env.DB);
 
+    const emailNormalizado = body.email.toLowerCase().trim();
     const usuario = await db.query.usuarios.findFirst({
-      where: eq(usuarios.email, body.email),
+      where: eq(usuarios.email, emailNormalizado),
     });
 
     if (!usuario || !usuario.ativo) {
@@ -101,7 +102,7 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
     const iteracoesArmazenadas = parseInt(partesHash[2] || '0', 10);
     if (iteracoesArmazenadas > 20_000) {
       console.warn(
-        `[AUTH] Usuário ${usuario.email} possui hash legado com ${iteracoesArmazenadas} iterações. Excede o limite de CPU do Cloudflare Free.`
+        `[AUTH] Usuário ${usuario.id} possui hash legado com ${iteracoesArmazenadas} iterações. Excede o limite de CPU do Cloudflare Free.`
       );
       return c.json(
         {
@@ -184,12 +185,10 @@ rotasAuth.post('/login', zValidator('json', loginSchema), async (c) => {
       trocaSenhaObrigatoria: usuario.senhaTemporaria,
     });
   } catch (erro) {
-    const detalhe = erro instanceof Error ? `${erro.name}: ${erro.message}` : String(erro);
     console.error('Erro no processamento do login:', erro);
     return c.json(
       {
-        erro: `Falha interna durante a autenticação: ${detalhe}`,
-        detalhe,
+        erro: 'Falha interna durante a autenticação. Tente novamente em instantes.',
       },
       500
     );

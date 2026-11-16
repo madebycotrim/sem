@@ -61,6 +61,9 @@ const obterCorAvatar = (nome: string): string => {
   return cores[nome.charCodeAt(0) % cores.length];
 };
 
+const TEXTO_PADRAO_ATENDIMENTO =
+  'Atendimento realizado sem intercorrências. Paciente orientado quanto às condutas clínicas.';
+
 export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
   aberto,
   dados,
@@ -68,7 +71,12 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
   aoConfirmar,
   somenteLeitura = false,
 }) => {
-  const [anotacoes, setAnotacoes] = useState(dados?.anotacoes || '');
+  const obterTextoInicial = () => {
+    if (somenteLeitura) return dados?.anotacoes || '';
+    return dados?.anotacoes?.trim() ? dados.anotacoes : TEXTO_PADRAO_ATENDIMENTO;
+  };
+
+  const [anotacoes, setAnotacoes] = useState(obterTextoInicial);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -76,7 +84,11 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
   // Mantém dados existentes ao editar e foca ao abrir
   useEffect(() => {
     if (aberto) {
-      setAnotacoes(dados?.anotacoes || '');
+      setAnotacoes(
+        somenteLeitura
+          ? (dados?.anotacoes || '')
+          : (dados?.anotacoes?.trim() ? dados.anotacoes : TEXTO_PADRAO_ATENDIMENTO)
+      );
       setErro(null);
       setSalvando(false);
       if (!somenteLeitura) {
@@ -94,11 +106,6 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
 
   const handleConfirmar = async () => {
     const textoLimpo = anotacoes.trim();
-    if (textoLimpo.length < 5) {
-      setErro('Descreva o que foi feito nesta consulta com no mínimo 5 caracteres.');
-      textareaRef.current?.focus();
-      return;
-    }
 
     try {
       setSalvando(true);

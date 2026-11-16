@@ -1,29 +1,39 @@
-import { type FC, useEffect, useState } from 'react';
+import { type FC, useEffect, useRef, useState } from 'react';
 
 const NumeroAnimado: FC<{ valor: number; duracao?: number }> = ({ valor, duracao = 450 }) => {
-  const [valorExibido, setValorExibido] = useState(0);
+  const valorSeguro = Number.isFinite(valor) ? valor : 0;
+  const [valorExibido, setValorExibido] = useState(valorSeguro);
+  const valorAtualRef = useRef(valorSeguro);
 
   useEffect(() => {
+    if (duracao <= 0) {
+      valorAtualRef.current = valorSeguro;
+      setValorExibido(valorSeguro);
+      return;
+    }
+
     let frameId = 0;
     const inicio = performance.now();
-    const valorInicial = valorExibido;
+    const valorInicial = valorAtualRef.current;
 
     const animar = (agora: number) => {
-      const progresso = Math.min((agora - inicio) / duracao, 1);
+      const progresso = Math.min(Math.max((agora - inicio) / duracao, 0), 1);
       const progressoSuave = 1 - Math.pow(1 - progresso, 4);
-      setValorExibido(Math.round(valorInicial + (valor - valorInicial) * progressoSuave));
+      const proximo = Math.round(valorInicial + (valorSeguro - valorInicial) * progressoSuave);
+      valorAtualRef.current = proximo;
+      setValorExibido(proximo);
       if (progresso < 1) frameId = requestAnimationFrame(animar);
     };
 
     frameId = requestAnimationFrame(animar);
     return () => cancelAnimationFrame(frameId);
-  }, [valor]);
+  }, [valorSeguro, duracao]);
 
   return <>{valorExibido}</>;
 };
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import { Activity, Apple, BarChart3, ClipboardCheck, Clock3, Ear, Eye, FileText, Lightbulb, Brain, Play, Smile, UserPlus, XCircle } from 'lucide-react';
-import { formatarHoraBrasilia, formatarDataBrasilia, obterDataHojeBrasilia, obterDataIsoBrasilia } from '../../compartilhado/index.ts';
+import { formatarHoraBrasilia, formatarDataBrasilia, obterDataHojeBrasilia, obterDataIsoBrasilia, parseDataBrasilia } from '../../compartilhado/index.ts';
 import type { ItemFila } from './FilaDoDia.tsx';
 
 export interface DashboardProps {
@@ -35,6 +45,7 @@ export interface DashboardProps {
     criadoEm: string;
   }>;
   atendimentos: Array<{
+    id?: string;
     especialidade: string;
     criadoEm: string;
     status?: string;
@@ -78,7 +89,7 @@ export const Dashboard: FC<DashboardProps> = ({
   );
 
   // Identificadores de atendimentos já persistidos para evitar dupla contagem
-  const idsAtendimentosBanco = new Set(atendimentos.map((a: any) => a.id));
+  const idsAtendimentosBanco = new Set(atendimentos.map((a) => a.id).filter(Boolean));
 
   // Itens da fila não duplicados no banco
   const itensFilaNaoDuplicados = itensFilaHoje.filter(
@@ -118,9 +129,7 @@ export const Dashboard: FC<DashboardProps> = ({
 
   const totalConsultasConcluidas = todasConsultasHoje.filter((item) => {
     const s = String(item.status || '').toUpperCase().trim();
-    if (s.includes('CANCEL') || s.includes('DESIST') || s.includes('FALT') || s.includes('AUSENT')) return false;
-    if (['AGUARDANDO', 'CONFIRMADO', 'AGENDADO', 'PENDENTE', 'EM_ATENDIMENTO', 'EM_ANDAMENTO'].includes(s)) return false;
-    return true;
+    return s === 'CONCLUIDO' || s === 'CONCLUÍDO' || s === 'FINALIZADO' || s === 'REALIZADO';
   }).length;
 
   const nomesEspecialidades: Record<string, string> = {
@@ -131,7 +140,7 @@ export const Dashboard: FC<DashboardProps> = ({
     PSICOLOGIA: 'Psicologia',
   };
   const atendimentosRecentes = [...atendimentos]
-    .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
+    .sort((a, b) => (parseDataBrasilia(b.criadoEm)?.getTime() ?? 0) - (parseDataBrasilia(a.criadoEm)?.getTime() ?? 0))
     .slice(0, 3);
   const especialidadesTotal = [
     { id: 'ODONTOLOGIA', nome: 'Odontologia', icone: Smile, cor: 'text-blue-600', fundo: 'bg-blue-50' },

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
+import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import type { Bindings } from '../../config/env.js';
 
 export const rotasCpf = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
@@ -10,7 +11,7 @@ const consultaCpfSchema = z.object({
   cpf: z.string().regex(/^\d{11}$/, 'CPF deve conter 11 dígitos.'),
 });
 
-rotasCpf.use('*', middlewareAutenticacao);
+rotasCpf.use('*', middlewareAutenticacao, autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE']));
 
 rotasCpf.post('/', zValidator('json', consultaCpfSchema), async (c) => {
   if (!c.env.APICPF_KEY) {
@@ -20,6 +21,7 @@ rotasCpf.post('/', zValidator('json', consultaCpfSchema), async (c) => {
   const { cpf } = c.req.valid('json');
   const resposta = await fetch(`https://apicpf.com/api/consulta?cpf=${encodeURIComponent(cpf)}`, {
     headers: { 'X-API-KEY': c.env.APICPF_KEY },
+    signal: AbortSignal.timeout(5000),
   });
   const dados = await resposta.json().catch(() => null) as {
     code?: number;

@@ -33,18 +33,18 @@ export const GraficoPizzaDonut: FC<GraficoPizzaDonutProps> = ({
   const [fatiaHover, setFatiaHover] = useState<ItemGraficoPizza | null>(null);
   const idGradiente = useId();
 
-  const total = dados.reduce((acc, item) => acc + item.valor, 0);
+  const dadosPositivos = dados.filter((d) => Number.isFinite(d.valor) && d.valor > 0);
+  const total = dadosPositivos.reduce((acc, item) => acc + item.valor, 0);
 
-  // Raio do anel
-  const raioExterno = tamanho / 2 - 10;
-  const raioInterno = raioExterno - larguraAnel;
+  // Raio do anel (com limites seguros para evitar arcos negativos)
+  const raioExterno = Math.max(20, tamanho / 2 - 10);
+  const raioInterno = Math.max(4, raioExterno - Math.min(larguraAnel, raioExterno - 4));
   const centro = tamanho / 2;
 
   // Calcula os arcos para cada fatia
   let acumuladorAngulo = -Math.PI / 2; // Começa no topo (12 horas)
 
-  const fatias = dados
-    .filter((d) => d.valor > 0)
+  const fatias = dadosPositivos
     .map((item) => {
       const proporcao = total > 0 ? item.valor / total : 0;
       const anguloFatia = proporcao * 2 * Math.PI;

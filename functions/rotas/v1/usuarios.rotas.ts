@@ -174,6 +174,10 @@ rotasUsuarios.put(
       return c.json({ erro: 'Usuário não encontrado' }, 404);
     }
 
+    if (usuarioExistente.perfil === 'BOOTSTRAP' && usuarioLogado.perfil !== 'BOOTSTRAP') {
+      return c.json({ erro: 'Apenas o usuário Bootstrap pode gerenciar esta conta.' }, 403);
+    }
+
     if (dados.perfil === 'ADMIN' && usuarioExistente.perfil !== 'ADMIN' && usuarioLogado.perfil !== 'BOOTSTRAP') {
       return c.json({ erro: 'Apenas o usuário Bootstrap pode conceder o cargo de Administrador.' }, 403);
     }
@@ -205,7 +209,17 @@ rotasUsuarios.put(
         atualizadoEm: new Date().toISOString(),
       })
       .where(eq(usuarios.id, id))
-      .returning();
+      .returning({
+        id: usuarios.id,
+        email: usuarios.email,
+        nomeCompleto: usuarios.nomeCompleto,
+        perfil: usuarios.perfil,
+        conselhoProfissional: usuarios.conselhoProfissional,
+        registroProfissional: usuarios.registroProfissional,
+        especialidade: usuarios.especialidade,
+        ativo: usuarios.ativo,
+        atualizadoEm: usuarios.atualizadoEm,
+      });
 
     await registrarAuditoria(db, {
       userId: usuarioLogado.userId,
@@ -250,6 +264,10 @@ rotasUsuarios.post(
     const usuarioExistente = await db.query.usuarios.findFirst({ where: eq(usuarios.id, id) });
     if (!usuarioExistente) {
       return c.json({ erro: 'Usuário não encontrado' }, 404);
+    }
+
+    if (usuarioExistente.perfil === 'BOOTSTRAP' && usuarioLogado.perfil !== 'BOOTSTRAP') {
+      return c.json({ erro: 'Apenas o usuário Bootstrap pode gerenciar esta conta.' }, 403);
     }
 
     const senhaHash = await gerarHashSenha(novaSenha);

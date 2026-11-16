@@ -868,7 +868,7 @@ rotasImportacao.post(
 // ─── Endpoint: Rollback Atômico Total ───────────────────────────────────────
 
 const rollbackSchema = z.object({
-  importacaoId: z.string().min(1, 'ID da importação é obrigatório'),
+  importacaoId: z.string().min(8, 'ID da importação é obrigatório e deve ter ao menos 8 caracteres'),
   atendimentoIds: z.array(z.string()).optional().default([]),
   pacienteIds: z.array(z.string()).optional().default([]),
   usuarioIds: z.array(z.string()).optional().default([]),
@@ -924,19 +924,21 @@ rotasImportacao.post('/rollback', zValidator('json', rollbackSchema), async (c) 
 
   // ─── 3. Identificar TODOS os profissionais criados nesta sessão ─────────────
   const setUsuariosIds = new Set<string>(usuarioIds.filter(Boolean));
-  try {
-    const usuariosSessao = await db.query.usuarios.findMany({
-      where: and(
-        like(usuarios.email, `%${slugImportacao}%`),
-        eq(usuarios.perfil, 'PROFISSIONAL_SAUDE')
-      ),
-      columns: { id: true },
-    });
-    for (const u of usuariosSessao) {
-      if (u.id) setUsuariosIds.add(u.id);
+  if (slugImportacao.length >= 6) {
+    try {
+      const usuariosSessao = await db.query.usuarios.findMany({
+        where: and(
+          like(usuarios.email, `%${slugImportacao}%`),
+          eq(usuarios.perfil, 'PROFISSIONAL_SAUDE')
+        ),
+        columns: { id: true },
+      });
+      for (const u of usuariosSessao) {
+        if (u.id) setUsuariosIds.add(u.id);
+      }
+    } catch (err: any) {
+      errosOcorridos.push(`Erro ao identificar profissionais da sessão: ${err?.message}`);
     }
-  } catch (err: any) {
-    errosOcorridos.push(`Erro ao identificar profissionais da sessão: ${err?.message}`);
   }
 
   const todosPacientesIds = Array.from(setPacientesIds);

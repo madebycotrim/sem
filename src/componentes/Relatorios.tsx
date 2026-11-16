@@ -41,6 +41,7 @@ import {
   formatarDataBrasilia,
   formatarDataEHoraBrasilia,
   obterDataHojeBrasilia,
+  parseDataBrasilia,
 } from '../../compartilhado/index.ts';
 import {
   useFiltroExcel,
@@ -111,21 +112,15 @@ const formatarDataBrasileira = (data: string) => {
 const getDiaDaSemana = (dataIso: string) => {
   if (!dataIso) return '';
   const dias = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-  const d = new Date(`${dataIso}T12:00:00`);
-  return dias[d.getDay()] ?? '';
+  const d = parseDataBrasilia(dataIso);
+  return d ? (dias[d.getDay()] ?? '') : '';
 };
 
-export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
-  const permissoesContexto = (() => {
-    try {
-      return usePermissoes();
-    } catch {
-      return null;
-    }
-  })();
-  const podeExportar = permissoesContexto ? permissoesContexto.temPermissaoAcao('exportarDados') : true;
+export const Relatorios: FC<RelatoriosProps> = ({ escolas }) => {
+  const permissoesContexto = usePermissoes();
+  const podeExportar = permissoesContexto?.temPermissaoAcao?.('exportarDados') ?? true;
 
-  const [escolasLocais, setEscolasLocais] = useState<Array<{ id: string; nome: string }>>(escolas);
+  const [escolasLocais, setEscolasLocais] = useState<Array<{ id: string; nome: string }>>(() => escolas ?? []);
   const [escolaFiltro, setEscolaFiltro] = useState('');
   const [especialidadeFiltro, setEspecialidadeFiltro] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('');
@@ -209,7 +204,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   useEffect(() => {
     if (escolas && escolas.length > 0) {
       setEscolasLocais(escolas);
-    } else {
+    } else if (escolasLocais.length === 0) {
       let ativo = true;
       void requisicaoApi<{ dados: Array<{ id: string; nome: string }> }>('/escolas')
         .then((res) => {
@@ -327,14 +322,11 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         setDadosTabela(
           (respostaAtendimentos.dados ?? []).map((item) => ({
             id: item.id,
-            data: new Date(item.criadoEm).toLocaleString('pt-BR', {
-              dateStyle: 'short',
-              timeStyle: 'short',
-            }),
+            data: formatarDataEHoraBrasilia(item.criadoEm),
             paciente: item.pacienteNome || 'Paciente Desconhecido',
             turma: item.pacienteTurma || 'Não informada',
             cpf: item.pacienteCpf || 'Não informado',
-            especialidade: item.especialidade,
+            especialidade: item.especialidade || '',
             profissional: item.profissional || 'Não informado',
             registroConselho: formatarConselhoERegistro(item.profissionalRegistro || undefined, item.profissionalConselho || undefined, item.especialidade as any) || 'Não informado',
             instituicao: item.escolaLocal || 'Não informado',
@@ -349,12 +341,15 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         // Disparo 100% AUTOMÁTICO da síntese executiva por IA com base nos dados filtrados
         if ((respostaRelatorio.total ?? 0) > 0) {
           void gerarSinteseComIaRef.current?.(false, respostaRelatorio);
+        } else {
+          setGerandoSinteseIa(false);
         }
       } catch (erroApi) {
         if (!controlador.signal.aborted) {
           setDados(DADOS_RELATORIO_INICIAIS);
           setDadosTabela([]);
           setRelatorioGerado(false);
+          setGerandoSinteseIa(false);
           setErro(erroApi instanceof Error ? erroApi.message : 'Não foi possível carregar o relatório.');
         }
       } finally {
@@ -489,12 +484,14 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
   }, [dados.porProfissional, profissionalFiltro, profissionaisDisponiveis]);
 
   const linhaDoTempo = useMemo(() => {
-    const entradas = Object.entries(dados.serie || {}).sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime());
+    const entradas = Object.entries(dados.serie || {}).sort(
+      ([a], [b]) => (parseDataBrasilia(a)?.getTime() ?? 0) - (parseDataBrasilia(b)?.getTime() ?? 0)
+    );
     return entradas.map(([data, valor]) => ({
       data,
       dataFormatada: formatarDataBrasileira(data),
       diaSemana: getDiaDaSemana(data),
-      valor,
+      valor: Number.isFinite(valor) ? Math.max(0, valor) : 0,
     }));
   }, [dados.serie]);
 
@@ -644,7 +641,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     }
 
     // Chave de cache baseada nas dimensões quantitativas e filtros
-    const chaveCache = `${dataInicio}_${dataFim}_${escolaFiltro || 'todas'}_${especialidadeFiltro || 'todas'}_${profissionalFiltro || 'todos'}_${totalEfetivo}_${dadosBase.pacientesUnicos ?? 0}`;
+    const chaveCache = `${dataInicio}_${dataFim}_${escolaFiltro || 'todas'}_${especialidadeFiltro || 'todas'}_${profissionalFiltro || 'todos'}_${statusFiltro || 'todos'}_${totalEfetivo}_${dadosBase.pacientesUnicos ?? 0}`;
 
     // Reutilização instantânea de cache se não foi solicitada regeneração forçada
     if (!forcarNovo && cacheSinteseRef.current.has(chaveCache)) {
@@ -737,9 +734,9 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
     dados: dadosTabela,
     colunas: colunasTabela,
     buscaGeral: buscaTabela,
-    funcaoBuscaGeral: (item, termo) =>
-      [item.data, item.paciente, item.turma, item.cpf, item.especialidade, item.profissional, item.instituicao, item.status]
-        .some((valor) => valor.toLowerCase().includes(termo)),
+      funcaoBuscaGeral: (item, termo) =>
+        [item.data, item.paciente, item.turma, item.cpf, item.especialidade, item.profissional, item.instituicao, item.status]
+          .some((valor) => String(valor ?? '').toLowerCase().includes(termo)),
   });
 
   const dadosTabelaFiltrados = filtroExcel.dadosFiltrados;
@@ -849,7 +846,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
           ? [
               ['=== 2. PARECER EXECUTIVO E DIRETRIZES DA GESTÃO ==='],
               ['Resumo do Período:', sinteseExecutiva.resumo],
-              ['Diretriz da Coordenação:', sinteseExecutiva.recomendacao],
+              ['Diretriz da Coordenação:', sinteseExecutiva.recomendacao || ''],
               ...sinteseExecutiva.pontos.map((ponto, i) => [`Destaque Estratégico ${i + 1}:`, ponto]),
               [],
             ]
@@ -926,7 +923,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         atendimentos.forEach((item) => {
           linhasDadosBrutosMatriz.push([
             item.id,
-            item.criadoEm ? new Date(item.criadoEm).toLocaleString('pt-BR') : 'Não informado',
+            item.criadoEm ? formatarDataEHoraBrasilia(item.criadoEm, 'Não informado') : 'Não informado',
             item.pacienteNome || 'Não informado',
             item.pacienteCpf || 'Não informado',
             item.pacienteTurma || 'Não informada',
@@ -1027,7 +1024,16 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                 className="relative flex h-10 cursor-pointer items-center justify-between gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 w-full min-w-0 shadow-2xs"
                 onClick={(evento) => {
                   evento.preventDefault();
-                  dataInicioRef.current?.showPicker?.();
+                  try {
+                    if (dataInicioRef.current?.showPicker) {
+                      dataInicioRef.current.showPicker();
+                    } else {
+                      dataInicioRef.current?.focus();
+                      dataInicioRef.current?.click();
+                    }
+                  } catch {
+                    dataInicioRef.current?.focus();
+                  }
                 }}
               >
                 <div className="flex items-center gap-1.5 min-w-0">
@@ -1056,7 +1062,16 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                 className="relative flex h-10 cursor-pointer items-center justify-between gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 w-full min-w-0 shadow-2xs"
                 onClick={(evento) => {
                   evento.preventDefault();
-                  dataFimRef.current?.showPicker?.();
+                  try {
+                    if (dataFimRef.current?.showPicker) {
+                      dataFimRef.current.showPicker();
+                    } else {
+                      dataFimRef.current?.focus();
+                      dataFimRef.current?.click();
+                    }
+                  } catch {
+                    dataFimRef.current?.focus();
+                  }
                 }}
               >
                 <div className="flex items-center gap-1.5 min-w-0">
@@ -1424,7 +1439,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
         </div>
 
         {/* Estado de Carregamento da IA — ZERO texto hardcoded exibido */}
-        {gerandoSinteseIa || !sinteseExecutiva ? (
+        {gerandoSinteseIa ? (
           <div className="py-8 flex flex-col items-center justify-center gap-3 text-center animate-fade-in">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 animate-spin border border-blue-100">
               <Sparkles className="h-5 w-5 text-blue-600" />
@@ -1433,6 +1448,23 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
               <p className="text-sm font-bold text-slate-800">Elaborando resumo com Inteligência Artificial...</p>
               <p className="text-xs text-slate-400 mt-0.5">Organizando dados das escolas atendidas, consultas e especialidades do projeto</p>
             </div>
+          </div>
+        ) : !sinteseExecutiva ? (
+          <div className="py-6 flex flex-col items-center justify-center gap-2 text-center animate-fade-in">
+            <p className="text-xs font-semibold text-slate-500">
+              {totalGeral === 0
+                ? 'Nenhum atendimento encontrado no período para gerar síntese executiva.'
+                : 'Não foi possível carregar a síntese executiva neste momento.'}
+            </p>
+            {totalGeral > 0 && (
+              <button
+                type="button"
+                onClick={() => void gerarSinteseComIa(true)}
+                className="text-xs font-bold text-blue-600 hover:text-blue-700 underline cursor-pointer"
+              >
+                Tentar novamente
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-4 animate-fade-in">
@@ -1967,7 +1999,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas = [] }) => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-xs text-slate-400">
+                  <td colSpan={8} className="px-4 py-12 text-center text-xs text-slate-400">
                     Nenhum atendimento encontrado para os filtros selecionados.
                   </td>
                 </tr>

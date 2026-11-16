@@ -1,6 +1,6 @@
 import { getDb } from '../infraestrutura/banco/drizzle.js';
 import { tentativasLogin } from '../infraestrutura/banco/schema.js';
-import { eq, and, gte, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 
 /**
  * Constantes de configuração de brute force.
@@ -22,7 +22,10 @@ export async function verificarBloqueioLogin(
     const db = getDb(dbBinding);
     const limiteTimestamp = new Date(
       Date.now() - JANELA_BLOQUEIO_MINUTOS * 60 * 1000
-    ).toISOString();
+    )
+      .toISOString()
+      .slice(0, 19)
+      .replace('T', ' ');
 
     if (typeof db?.select !== 'function') {
       return { bloqueado: false, retryAfterSegundos: 0 };
@@ -35,7 +38,7 @@ export async function verificarBloqueioLogin(
         and(
           eq(tentativasLogin.email, email.toLowerCase()),
           eq(tentativasLogin.sucesso, false),
-          gte(tentativasLogin.criadoEm, limiteTimestamp)
+          sql`datetime(${tentativasLogin.criadoEm}) >= ${limiteTimestamp}`
         )
       );
 

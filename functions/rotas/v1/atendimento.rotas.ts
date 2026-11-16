@@ -6,10 +6,11 @@ import {
   filtroAtendimentoSchema,
   Especialidade,
   StatusAtendimento,
+  obterDataIsoBrasilia,
 } from '../../../compartilhado/index.js';
 import { getDb } from '../../infraestrutura/banco/drizzle.js';
 import { atendimentos, pacientes, escolasLocais, usuarios, consentimentos } from '../../infraestrutura/banco/schema.js';
-import { eq, and, desc, asc, count, gte, lte, sql, inArray, or } from 'drizzle-orm';
+import { eq, and, desc, asc, count, sql, inArray, or } from 'drizzle-orm';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import { middlewareIdempotencia } from '../../middlewares/idempotencia.js';
@@ -19,6 +20,15 @@ import type { Bindings } from '../../config/env.js';
 import { sanitizarTexto, sanitizarTextoOpcional } from '../../infraestrutura/sanitizacao.js';
 
 export const rotasAtendimento = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
+
+/**
+ * Converte data YYYY-MM-DD (horário de Brasília UTC-3) para string UTC 'YYYY-MM-DD HH:MM:SS'
+ * compatível com datetime() no SQLite/D1.
+ */
+function obterLimiteDataUtc(dataYmd: string, fimDoDia: boolean): string {
+  const horario = fimDoDia ? '23:59:59' : '00:00:00';
+  return new Date(`${dataYmd}T${horario}-03:00`).toISOString().slice(0, 19).replace('T', ' ');
+}
 
 function mascararCpf(cpf?: string | null): string {
   if (!cpf) return 'Não informado';
@@ -228,7 +238,7 @@ rotasAtendimento.post(
 );
 
 const atualizarAtendimentoSchema = z.object({
-  resumo: z.string().min(1, 'Resumo não pode ser vazio').max(5000).trim().optional(),
+  resumo: z.string().max(5000).trim().optional(),
   procedimentos: z.string().max(5000).trim().optional().nullable(),
   status: z.enum(Object.values(StatusAtendimento) as [string, ...string[]]).optional(),
   /** Permite corrigir o profissional responsável (ex.: registros criados pela triagem) */
@@ -444,8 +454,12 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
     if (filtros.dataInicio && filtros.dataFim && filtros.dataInicio > filtros.dataFim) {
       return c.json({ erro: 'A data inicial não pode ser posterior à data final.' }, 400);
     }
-    if (filtros.dataInicio) condicoes.push(gte(atendimentos.criadoEm, `${filtros.dataInicio} 00:00:00`));
-    if (filtros.dataFim) condicoes.push(lte(atendimentos.criadoEm, `${filtros.dataFim} 23:59:59`));
+    if (filtros.dataInicio) {
+      condicoes.push(sql`datetime(${atendimentos.criadoEm}) >= ${obterLimiteDataUtc(filtros.dataInicio, false)}`);
+    }
+    if (filtros.dataFim) {
+      condicoes.push(sql`datetime(${atendimentos.criadoEm}) <= ${obterLimiteDataUtc(filtros.dataFim, true)}`);
+    }
   }
 
   const whereClause = condicoes.length > 0 ? and(...condicoes) : undefined;
@@ -513,7 +527,7 @@ rotasAtendimento.get('/relatorio', zValidator('query', filtroRelatorioSchema), a
   const total = listaAtendimentos.length;
 
   const serie = listaAtendimentos.reduce((acc: Record<string, number>, atendimento) => {
-    const dia = (atendimento.criadoEm ?? '').slice(0, 10);
+    const dia = obterDataIsoBrasilia(atendimento.criadoEm);
     if (dia) acc[dia] = (acc[dia] ?? 0) + 1;
     return acc;
   }, {} as Record<string, number>);
@@ -818,7 +832,7 @@ Responda EXCLUSIVAMENTE em formato JSON sem cercaduras markdown:
             titulo: parsed.titulo || 'Relatório Analítico de Atendimentos Filtrados',
             resumo: String(parsed.resumo),
             pontos: parsed.pontos.map((p: any) => String(p)),
-            recomendacao: parsed.recomendacao ? String(parsed.recomendacao) : undefined,
+            recomendacao: parsed.recomendacao ? String(parsed.recomendacao) : '',
           });
         }
       }
@@ -919,8 +933,12 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
   }
 
   if (filtros.pacienteId) condicoes.push(eq(atendimentos.pacienteId, filtros.pacienteId));
-  if (filtros.dataInicio) condicoes.push(gte(atendimentos.criadoEm, `${filtros.dataInicio} 00:00:00`));
-  if (filtros.dataFim) condicoes.push(lte(atendimentos.criadoEm, `${filtros.dataFim} 23:59:59`));
+  if (filtros.dataInicio) {
+    condicoes.push(sql`datetime(${atendimentos.criadoEm}) >= ${obterLimiteDataUtc(filtros.dataInicio, false)}`);
+  }
+  if (filtros.dataFim) {
+    condicoes.push(sql`datetime(${atendimentos.criadoEm}) <= ${obterLimiteDataUtc(filtros.dataFim, true)}`);
+  }
 
   const whereClause = condicoes.length > 0 ? and(...condicoes) : undefined;
 

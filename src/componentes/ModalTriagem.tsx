@@ -1,5 +1,6 @@
 import { type FC, useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { parseDataBrasilia } from '../../compartilhado/index.ts';
 import {
   Building2,
   CircleAlert,
@@ -64,9 +65,10 @@ export interface ModalTriagemProps {
 
 // Avatar com inicial do nome
 const AvatarLetra: FC<{ nome: string; tamanho?: 'sm' | 'md' | 'lg' }> = ({ nome, tamanho = 'md' }) => {
-  const inicial = nome.trim().charAt(0).toUpperCase();
+  const nomeLimpo = (nome || '').trim();
+  const inicial = nomeLimpo ? nomeLimpo.charAt(0).toUpperCase() : '?';
   const cores = ['bg-blue-100 text-blue-600', 'bg-violet-100 text-violet-600', 'bg-emerald-100 text-emerald-600', 'bg-amber-100 text-amber-700', 'bg-rose-100 text-rose-600', 'bg-cyan-100 text-cyan-600'];
-  const cor = cores[nome.charCodeAt(0) % cores.length];
+  const cor = nomeLimpo ? cores[nomeLimpo.charCodeAt(0) % cores.length] : cores[0];
   const sz = tamanho === 'lg' ? 'w-12 h-12 text-lg' : tamanho === 'sm' ? 'w-7 h-7 text-xs' : 'w-9 h-9 text-sm';
   return (
     <div className={`${sz} ${cor} rounded-xl font-extrabold flex items-center justify-center shrink-0 border border-white/60 shadow-sm`}>
@@ -204,10 +206,15 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
   }, [aberto]);
 
   const calcularIdade = (dataNascimento?: string): number => {
-    if (!dataNascimento) return 12;
-    const anoNascimento = new Date(dataNascimento).getFullYear();
-    const anoAtual = new Date().getFullYear();
-    return Math.max(1, anoAtual - anoNascimento);
+    const nasc = parseDataBrasilia(dataNascimento);
+    if (!nasc) return 12;
+    const hoje = new Date();
+    let idade = hoje.getFullYear() - nasc.getFullYear();
+    const mesDiff = hoje.getMonth() - nasc.getMonth();
+    if (mesDiff < 0 || (mesDiff === 0 && hoje.getDate() < nasc.getDate())) {
+      idade--;
+    }
+    return Math.max(1, idade);
   };
 
   const handleSubmeter = async () => {

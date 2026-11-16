@@ -32,20 +32,22 @@ export async function requisicaoApi<T = unknown>(
   const {
     metodo = 'GET',
     corpo,
-    tentativasMaximas = 3,
+    tentativasMaximas = metodo === 'GET' ? 3 : 1,
   } = opcoes;
 
   let ultimoErro: Error | null = null;
 
   for (let tentativa = 0; tentativa < tentativasMaximas; tentativa++) {
+    const controlador = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controlador ? setTimeout(() => controlador.abort(), 15_000) : null;
     try {
+      const temCorpo = corpo !== undefined;
       const resposta = await fetch(`${URL_BASE_API}${rota}`, {
         method: metodo,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: temCorpo ? { 'Content-Type': 'application/json' } : undefined,
         credentials: 'include',
-        body: corpo ? JSON.stringify(corpo) : undefined,
+        body: temCorpo ? JSON.stringify(corpo) : undefined,
+        signal: controlador?.signal,
       });
 
       if (!resposta.ok) {
@@ -71,14 +73,14 @@ export async function requisicaoApi<T = unknown>(
           mensagemErro = erroBody.message;
         }
 
-        // Tratamento especial de Rate Limit (HTTP 429): aguarda intervalo e tenta novamente
+        // Tratamento especial de Rate Limit (HTTP 429): aguarda intervalo e tenta novamente sem duplo backoff
         if (resposta.status === 429) {
           if (tentativa < tentativasMaximas - 1) {
             const retryHeader = resposta.headers.get('Retry-After');
             const esperaSeg = retryHeader ? parseInt(retryHeader, 10) : 2;
             const esperaMs = (!isNaN(esperaSeg) && esperaSeg > 0 ? esperaSeg : 2) * 1000;
             await new Promise((r) => setTimeout(r, Math.min(esperaMs, 5000)));
-            throw new Error('Limite de requisições temporariamente excedido (HTTP 429). Tentando novamente...');
+            continue;
           }
           throw new ErroApi(429, mensagemErro ?? 'Limite de requisições excedido. Tente novamente mais tarde.');
         }
@@ -90,7 +92,12 @@ export async function requisicaoApi<T = unknown>(
             : undefined;
 
           // Se a sessão expirou ou não há token (401), notifica a aplicação para redirecionar ao login
-          if (resposta.status === 401 && !rota.includes('/auth/login') && !rota.includes('/auth/me')) {
+          if (
+            resposta.status === 401 &&
+            !rota.includes('/auth/login') &&
+            !rota.includes('/auth/me') &&
+            !rota.includes('/auth/alterar-senha')
+          ) {
             if (typeof window !== 'undefined') {
               window.dispatchEvent(
                 new CustomEvent('auth:nao_autorizado', {
@@ -144,6 +151,8 @@ export async function requisicaoApi<T = unknown>(
         const espera = Math.min(1000 * 2 ** tentativa, 10_000);
         await new Promise((resolve) => setTimeout(resolve, espera));
       }
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 

@@ -151,7 +151,7 @@ export function App() {
     const handleNaoAutorizado = (event: Event) => {
       setAutenticado((estavaAutenticado) => {
         if (estavaAutenticado) {
-          setUsuarioLogado(null);
+          limparNavegacaoAoDeslogar();
           const detalhe = (event as CustomEvent)?.detail;
           const msg = detalhe?.mensagem || 'Sessão expirada ou não autenticada. Faça login novamente.';
           mostrarToast(msg, 'erro');
@@ -294,6 +294,16 @@ export function App() {
     setUsuarioLogado(null);
     setAutenticado(false);
     setModalAlterarSenhaAberto(false);
+    setPacientes([]);
+    setAtendimentos([]);
+    setFila([]);
+    setProfissionais([]);
+    setPermissoesRbac({});
+    setPacienteHistoricoDrawer(null);
+    setPacienteParaEditar(null);
+    setBuscaPaciente('');
+    setTotalPacientes(0);
+    setTotalAtendimentos(0);
   };
 
   const deslogar = async () => {
@@ -730,7 +740,7 @@ export function App() {
     let montado = true;
 
     const sincronizarEmSegundoPlano = async () => {
-      if ((window as any)?.__importacaoEmAndamento || modalImportarPlanilhaAberto) return;
+      if (!autenticado || (window as any)?.__importacaoEmAndamento || modalImportarPlanilhaAberto) return;
       const cpfs = pacientes
         .map((p) => sanitizarCpf(p.cpf))
         .filter((cpf) => cpf.length === 11);
@@ -1040,6 +1050,11 @@ export function App() {
           perfil: usuario.perfil as PerfilAcesso,
         });
         setModalAlterarSenhaAberto(trocaSenhaObrigatoria);
+        void requisicaoApi<{ dados: Partial<Record<PerfilAcesso, PermissoesPerfil>> }>('/rbac/permissoes')
+          .then((res) => {
+            if (res?.dados) setPermissoesRbac(res.dados);
+          })
+          .catch(() => {});
         mostrarToast(`Bem-vindo de volta!`, 'sucesso');
       }} />
     );
@@ -1173,7 +1188,7 @@ export function App() {
                 }
               }}
               aoExcluirPaciente={handleExcluirPaciente}
-              ehAdminGeral={true}
+              ehAdminGeral={usuarioLogado?.perfil === 'ADMIN' || usuarioLogado?.perfil === 'BOOTSTRAP'}
             />
           </div>
             );
@@ -1326,11 +1341,12 @@ export function App() {
             totalAtendimentos={totalAtendimentos > 0 ? totalAtendimentos : todosAtendimentos.length}
             totalInstituicoes={escolasGlobais.length}
             pacientes={pacientes}
-            atendimentos={atendimentos}
+            atendimentos={todosAtendimentos}
             fila={fila}
             carregando={carregandoPacientes || carregandoAtendimentos}
             aoNovoPaciente={temPermissao('criarPaciente') ? () => setModalNovoPacienteAberto(true) : () => {}}
             aoNovoAtendimento={() => navegarParaSecao('filaDia')}
+            aoAbrirFila={() => navegarParaSecao('filaDia')}
             aoAbrirAtendimentos={() => navegarParaSecao('consultas')}
             aoAbrirRelatorios={() => navegarParaSecao('relatorios')}
             aoAbrirBi={() => navegarParaSecao('bi')}

@@ -141,15 +141,15 @@ function formatarHorarioPlanilha(valor: unknown): string | null {
   }
 
   if (valor instanceof Date && !isNaN(valor.getTime())) {
-    const hUtc = String(valor.getUTCHours()).padStart(2, '0');
-    const mUtc = String(valor.getUTCMinutes()).padStart(2, '0');
-    if (hUtc !== '00' || mUtc !== '00') {
-      return `${hUtc}:${mUtc}`;
-    }
     const hLocal = String(valor.getHours()).padStart(2, '0');
     const mLocal = String(valor.getMinutes()).padStart(2, '0');
     if (hLocal !== '00' || mLocal !== '00') {
       return `${hLocal}:${mLocal}`;
+    }
+    const hUtc = String(valor.getUTCHours()).padStart(2, '0');
+    const mUtc = String(valor.getUTCMinutes()).padStart(2, '0');
+    if (hUtc !== '00' || mUtc !== '00') {
+      return `${hUtc}:${mUtc}`;
     }
     return null;
   }

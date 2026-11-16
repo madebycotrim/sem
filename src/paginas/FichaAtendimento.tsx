@@ -33,6 +33,7 @@ export function FichaAtendimento({
     reset,
     setFocus,
     setValue,
+    getValues,
     formState: { errors, isSubmitting, isSubmitSuccessful },
   } = useForm<DadosFichaAtendimento, unknown, TipoFichaAtendimento>({
     resolver: zodResolver(fichaAtendimentoSchema),
@@ -51,6 +52,12 @@ export function FichaAtendimento({
       setValue('pacienteId', pacientePreSelecionado.id);
     }
   }, [pacientePreSelecionado, setValue]);
+
+  useEffect(() => {
+    if (escolas.length > 0 && !getValues('escolaLocalId')) {
+      setValue('escolaLocalId', escolas[0].id);
+    }
+  }, [escolas, setValue, getValues]);
 
   // Foco automático no resumo ou primeiro campo
   useEffect(() => {

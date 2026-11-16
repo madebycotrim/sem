@@ -15,19 +15,20 @@
  */
 export function sanitizarTexto(texto: string): string {
   return texto
-    // Remover tags HTML completas (abertura, fechamento, self-closing)
-    .replace(/<[^>]*>/g, '')
-    // Remover entidades HTML perigosas e decodificar as seguras
+    // Decodificar entidades antes de remover tags para impedir bypass via &lt;script&gt;
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
     .replace(/&amp;/gi, '&')
     .replace(/&quot;/gi, '"')
     .replace(/&#x27;/gi, "'")
-    // Remover possíveis event handlers inline que sobreviveram
+    // Remover tags HTML completas (abertura, fechamento, self-closing)
+    .replace(/<[^>]*>/g, '')
+    // Remover event handlers inline e URIs perigosas
     .replace(/on\w+\s*=\s*(['"])[^'"]*\1/gi, '')
-    // Remover javascript: e data: URIs
     .replace(/javascript\s*:/gi, '')
     .replace(/data\s*:\s*text\/html/gi, '')
+    // Remover quaisquer colchetes angulares remanescentes
+    .replace(/[<>]/g, '')
     // Normalizar múltiplos espaços/quebras de linha
     .replace(/\s+/g, ' ')
     .trim();

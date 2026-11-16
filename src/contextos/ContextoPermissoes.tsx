@@ -12,7 +12,7 @@ interface PermissoesContextData {
   temPermissaoAcao: (acao: keyof PermissoesPerfil['acoes']) => boolean;
 }
 
-const PermissoesContext = createContext<PermissoesContextData>({} as PermissoesContextData);
+const PermissoesContext = createContext<PermissoesContextData | null>(null);
 
 export const ProvedorPermissoes = ({ 
   children, 

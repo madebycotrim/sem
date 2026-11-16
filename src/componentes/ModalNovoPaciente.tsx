@@ -208,9 +208,17 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
 
       if (pacienteParaEditar) {
         const { anoEscolar, turma } = extrairAnoETurma(pacienteParaEditar.turma);
+        const dataNascBruta = (pacienteParaEditar.dataNascimento || '').trim();
+        let dataNascNormalizada = '';
+        if (/^\d{4}-\d{2}-\d{2}/.test(dataNascBruta)) {
+          dataNascNormalizada = dataNascBruta.slice(0, 10);
+        } else {
+          const matchBr = dataNascBruta.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+          if (matchBr) dataNascNormalizada = `${matchBr[3]}-${matchBr[2]}-${matchBr[1]}`;
+        }
         setValue('nomeCompleto', pacienteParaEditar.nome, { shouldValidate: true });
         setValue('cpf', formatarCpf(pacienteParaEditar.cpf || ''), { shouldValidate: true });
-        setValue('dataNascimento', pacienteParaEditar.dataNascimento || '', { shouldValidate: true });
+        setValue('dataNascimento', dataNascNormalizada, { shouldValidate: true });
         setValue('sexo', normalizarSexo(pacienteParaEditar.sexo), { shouldValidate: true });
         setValue('instituicao', pacienteParaEditar.escolaNome || instituicaoPadrao, { shouldValidate: true });
         setValue('perfilUsuario', pacienteParaEditar.perfil || 'ESTUDANTE', { shouldValidate: true });
@@ -236,7 +244,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
         setCamposBloqueadosPorCpf(false);
       }
     }
-  }, [aberto, pacienteParaEditar, instituicaoPadrao, setValue, reset, escolas]);
+  }, [aberto, pacienteParaEditar, instituicaoPadrao, setValue, reset]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -257,6 +265,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
 
       clearErrors('cpf');
 
+      let cancelado = false;
       const timer = setTimeout(async () => {
         setConsultandoCpf(true);
         setErroConsultaCpf(null);
@@ -265,6 +274,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
         try {
           const chave = obterChaveApiCpf();
           const pessoa = await consultarCpf(limpo, chave);
+          if (cancelado) return;
 
           setValue('nomeCompleto', pessoa.nome, { shouldValidate: true });
           setValue('dataNascimento', pessoa.dataNascimento, { shouldValidate: true });
@@ -274,18 +284,26 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           setCamposBloqueadosPorCpf(true);
 
           setSucessoConsultaCpf(`Dados de ${pessoa.nome.split(' ')[0]} localizados e preenchidos automaticamente!`);
-          setTimeout(() => setSucessoConsultaCpf(null), 4000);
+          setTimeout(() => {
+            if (!cancelado) setSucessoConsultaCpf(null);
+          }, 4000);
         } catch (err: any) {
+          if (cancelado) return;
           setCpfConsultado(limpo);
           const msg = err?.message || 'Falha ao consultar CPF.';
           setErroConsultaCpf(msg);
-          setTimeout(() => setErroConsultaCpf(null), 5000);
+          setTimeout(() => {
+            if (!cancelado) setErroConsultaCpf(null);
+          }, 5000);
         } finally {
-          setConsultandoCpf(false);
+          if (!cancelado) setConsultandoCpf(false);
         }
       }, 600);
 
-      return () => clearTimeout(timer);
+      return () => {
+        cancelado = true;
+        clearTimeout(timer);
+      };
     }
   }, [cpfAtual, cpfConsultado, aberto, setValue, setError, clearErrors]);
 

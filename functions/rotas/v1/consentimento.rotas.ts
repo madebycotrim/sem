@@ -6,11 +6,12 @@ import { getDb } from '../../infraestrutura/banco/drizzle.js';
 import { consentimentos, pacientes } from '../../infraestrutura/banco/schema.js';
 import { gerarBlindIndex } from '../../infraestrutura/criptografia/crypto.js';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
+import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import type { Bindings } from '../../config/env.js';
 
 export const rotasConsentimento = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
-rotasConsentimento.use('*', middlewareAutenticacao);
+rotasConsentimento.use('*', middlewareAutenticacao, autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE']));
 
 const itemAutorizacaoCatrakiSchema = z.object({
   cpf: z.string().optional(),

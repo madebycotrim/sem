@@ -60,8 +60,10 @@ export const GraficoFunilAssistencial: FC<GraficoFunilAssistencialProps> = ({
         <div className="my-auto space-y-3 pt-2">
           {/* Etapas do Funil */}
           {etapas.map((etapa, idx) => {
-            const percDaBase = ((etapa.total / baseTotal) * 100).toFixed(0);
-            const larguraBarra = Math.max(Number(percDaBase), etapa.total > 0 ? 15 : 8);
+            const totalEtapa = Number.isFinite(etapa.total) ? Math.max(0, etapa.total) : 0;
+            const percNumerico = baseTotal > 0 ? Math.min(100, (totalEtapa / baseTotal) * 100) : 0;
+            const percDaBase = percNumerico.toFixed(0);
+            const larguraBarra = Math.min(100, Math.max(Number(percDaBase), totalEtapa > 0 ? 15 : 8));
 
             return (
               <div key={etapa.id} className="relative">

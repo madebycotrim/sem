@@ -1,4 +1,4 @@
-import { type FC, useState, useEffect, useMemo } from 'react';
+import { type FC, useState, useEffect, useMemo, useRef } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -37,6 +37,7 @@ import {
   formatarDataBrasilia,
   formatarDataEHoraBrasilia,
   obterDataHojeBrasilia,
+  obterDataIsoBrasilia,
   parseDataBrasilia,
 } from '../../compartilhado/index.ts';
 import { CabecalhoPagina } from '../componentes/CabecalhoPagina.tsx';
@@ -50,31 +51,48 @@ import { GraficoFunilAssistencial } from '../componentes/graficos/GraficoFunilAs
 import { requisicaoApi } from '../servicos/api.ts';
 
 const NumeroAnimado: FC<{ valor: number; duracao?: number }> = ({ valor, duracao = 450 }) => {
-  const [valorExibido, setValorExibido] = useState(0);
+  const valorSeguro = Number.isFinite(valor) ? valor : 0;
+  const [valorExibido, setValorExibido] = useState(valorSeguro);
+  const valorAtualRef = useRef(valorSeguro);
 
   useEffect(() => {
+    if (duracao <= 0) {
+      valorAtualRef.current = valorSeguro;
+      setValorExibido(valorSeguro);
+      return;
+    }
+
     let frameId = 0;
     const inicio = performance.now();
-    const valorInicial = valorExibido;
+    const valorInicial = valorAtualRef.current;
 
     const animar = (agora: number) => {
-      const progresso = Math.min((agora - inicio) / duracao, 1);
+      const progresso = Math.min(Math.max((agora - inicio) / duracao, 0), 1);
       const progressoSuave = 1 - Math.pow(1 - progresso, 4);
-      setValorExibido(Math.round(valorInicial + (valor - valorInicial) * progressoSuave));
+      const proximo = Math.round(valorInicial + (valorSeguro - valorInicial) * progressoSuave);
+      valorAtualRef.current = proximo;
+      setValorExibido(proximo);
       if (progresso < 1) frameId = requestAnimationFrame(animar);
     };
 
     frameId = requestAnimationFrame(animar);
     return () => cancelAnimationFrame(frameId);
-  }, [valor]);
+  }, [valorSeguro, duracao]);
 
   return <>{valorExibido}</>;
 };
 
 const formatarDataBr = (dataIso: string): string => {
   if (!dataIso) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataIso)) return formatarDataBrasilia(dataIso, '');
   const [ano, mes, dia] = dataIso.split('-');
   return `${dia}/${mes}/${ano}`;
+};
+
+const subtrairDiasIsoBrasilia = (dataIso: string, dias: number): string => {
+  const [ano, mes, dia] = dataIso.split('-').map(Number);
+  const d = new Date(Date.UTC(ano, mes - 1, dia - dias, 12, 0, 0));
+  return d.toISOString().slice(0, 10);
 };
 
 export interface AtendimentoAnalitico {
@@ -119,14 +137,8 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
   aoNavegarFila,
   aoImportarPlanilha,
 }) => {
-  const permissoesContexto = (() => {
-    try {
-      return usePermissoes();
-    } catch {
-      return null;
-    }
-  })();
-  const podeExportar = permissoesContexto ? permissoesContexto.temPermissaoAcao('exportarDados') : true;
+  const permissoesContexto = usePermissoes();
+  const podeExportar = permissoesContexto?.temPermissaoAcao?.('exportarDados') ?? true;
 
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
@@ -243,24 +255,19 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
       setDataInicio(hojeIso);
       setDataFim(hojeIso);
     } else if (preset === '7dias') {
-      const d = new Date();
-      d.setDate(d.getDate() - 7);
-      setDataInicio(d.toISOString().slice(0, 10));
+      setDataInicio(subtrairDiasIsoBrasilia(hojeIso, 7));
       setDataFim(hojeIso);
     } else if (preset === '30dias') {
-      const d = new Date();
-      d.setDate(d.getDate() - 30);
-      setDataInicio(d.toISOString().slice(0, 10));
+      setDataInicio(subtrairDiasIsoBrasilia(hojeIso, 30));
       setDataFim(hojeIso);
     } else if (preset === 'mes') {
-      const d = new Date();
-      const mes = String(d.getMonth() + 1).padStart(2, '0');
-      setDataInicio(`${d.getFullYear()}-${mes}-01`);
+      const [ano, mes] = hojeIso.split('-');
+      setDataInicio(`${ano}-${mes}-01`);
       setDataFim(hojeIso);
     } else if (preset === 'ano') {
-      const d = new Date();
-      setDataInicio(`${d.getFullYear()}-01-01`);
-      setDataFim(`${d.getFullYear()}-12-31`);
+      const [ano] = hojeIso.split('-');
+      setDataInicio(`${ano}-01-01`);
+      setDataFim(`${ano}-12-31`);
     }
   };
 
@@ -268,21 +275,24 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
     if (!dataInicio && !dataFim) return 'todos';
     const hojeIso = obterDataHojeBrasilia();
     if (dataInicio === hojeIso && dataFim === hojeIso) return 'hoje';
-    const anoAtual = new Date().getFullYear();
+    if (dataInicio === subtrairDiasIsoBrasilia(hojeIso, 7) && dataFim === hojeIso) return '7dias';
+    if (dataInicio === subtrairDiasIsoBrasilia(hojeIso, 30) && dataFim === hojeIso) return '30dias';
+    const [anoAtual, mesAtual] = hojeIso.split('-');
+    if (dataInicio === `${anoAtual}-${mesAtual}-01` && dataFim === hojeIso) return 'mes';
     if (dataInicio === `${anoAtual}-01-01` && dataFim === `${anoAtual}-12-31`) return 'ano';
     return null;
   }, [dataInicio, dataFim]);
 
   const atendimentosFiltrados = useMemo(() => {
     return todosAtendimentos.filter((atendimento) => {
-      const data = (atendimento.criadoEm || '').slice(0, 10);
+      const data = obterDataIsoBrasilia(atendimento.criadoEm);
       const dentroDataInicio = !dataInicio || (data && data >= dataInicio);
       const dentroDataFim = !dataFim || (data && data <= dataFim);
       return (
         dentroDataInicio &&
         dentroDataFim &&
         (!especialidade || atendimento.especialidade === especialidade) &&
-        (!profissional || atendimento.profissionalNome === profissional) &&
+        (!profissional || (atendimento.profissionalNome || '').trim() === profissional) &&
         (!escola || atendimento.escolaNome === escola) &&
         (!statusFiltro || (() => {
           const s = String(atendimento.status || '').toUpperCase().trim();
@@ -290,7 +300,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
             return s.includes('CANCEL') || s.includes('DESIST') || s.includes('FALT') || s.includes('AUSENT');
           }
           if (statusFiltro === StatusAtendimento.CONCLUIDO) {
-            return s === 'CONCLUIDO' || (!s.includes('CANCEL') && !s.includes('DESIST') && !s.includes('FALT') && !s.includes('AGEND') && !s.includes('CONFIRM') && !s.includes('EM_ATEND'));
+            return s === 'CONCLUIDO' || s === 'CONCLUÍDO' || s === 'FINALIZADO' || s === 'REALIZADO';
           }
           return s === statusFiltro;
         })())
@@ -373,7 +383,7 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
     const mapaPorData = new Map<string, { total: number; especialidades: Record<string, number> }>();
 
     atendimentosFiltrados.forEach((a) => {
-      const dataIso = (a.criadoEm || '').slice(0, 10);
+      const dataIso = obterDataIsoBrasilia(a.criadoEm);
       if (!dataIso) return;
       const item = mapaPorData.get(dataIso) || { total: 0, especialidades: {} };
       item.total += 1;
@@ -422,16 +432,23 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
 
   // ─── 3. Dados para o Gráfico de Pizza/Donut de Status & Resolutividade
   const dadosPizzaStatus = useMemo(() => {
-    const concluidos = atendimentosFiltrados.filter(
-      (a) => a.status === 'CONCLUIDO' || !a.status
-    ).length;
-    const emAndamento = atendimentosFiltrados.filter((a) => a.status === 'EM_ATENDIMENTO').length;
-    const filaEspera = atendimentosFiltrados.filter((a) =>
-      ['AGENDADO', 'CONFIRMADO', 'AGUARDANDO'].includes(a.status || '')
-    ).length;
-    const canceladosEFaltas = atendimentosFiltrados.filter((a) =>
-      ['CANCELADO', 'FALTOU'].includes(a.status || '')
-    ).length;
+    const normalizar = (s?: string) => String(s || '').toUpperCase().trim();
+    const concluidos = atendimentosFiltrados.filter((a) => {
+      const s = normalizar(a.status);
+      return !s || s === 'CONCLUIDO' || s === 'CONCLUÍDO' || s === 'FINALIZADO' || s === 'REALIZADO';
+    }).length;
+    const emAndamento = atendimentosFiltrados.filter((a) => {
+      const s = normalizar(a.status);
+      return s === 'EM_ATENDIMENTO' || s === 'EM_ANDAMENTO';
+    }).length;
+    const filaEspera = atendimentosFiltrados.filter((a) => {
+      const s = normalizar(a.status);
+      return ['AGENDADO', 'CONFIRMADO', 'AGUARDANDO', 'PENDENTE'].includes(s);
+    }).length;
+    const canceladosEFaltas = atendimentosFiltrados.filter((a) => {
+      const s = normalizar(a.status);
+      return s.includes('CANCEL') || s.includes('DESIST') || s.includes('FALT') || s.includes('AUSENT');
+    }).length;
 
     return [
       { id: 'concluidos', rotulo: 'Concluídos', valor: concluidos, corHex: '#10b981', subrotulo: 'Resolutividade' },
@@ -469,10 +486,10 @@ export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
   const etapasFunil = useMemo(() => {
     const total = atendimentosFiltrados.length;
     const confirmadosEAcima = atendimentosFiltrados.filter((a) =>
-      ['CONFIRMADO', 'EM_ATENDIMENTO', 'CONCLUIDO'].includes(a.status || '')
+      !a.status || ['CONFIRMADO', 'EM_ATENDIMENTO', 'CONCLUIDO'].includes(a.status)
     ).length;
     const emAtendimentoEAcima = atendimentosFiltrados.filter((a) =>
-      ['EM_ATENDIMENTO', 'CONCLUIDO'].includes(a.status || '')
+      !a.status || ['EM_ATENDIMENTO', 'CONCLUIDO'].includes(a.status)
     ).length;
     const concluidos = atendimentosFiltrados.filter(
       (a) => a.status === 'CONCLUIDO' || !a.status

@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { getDb } from '../../infraestrutura/banco/drizzle.js';
-import { escolasLocais, pacientes } from '../../infraestrutura/banco/schema.js';
-import { eq, asc } from 'drizzle-orm';
+import { escolasLocais, pacientes, atendimentos } from '../../infraestrutura/banco/schema.js';
+import { eq, asc, count } from 'drizzle-orm';
 import { criarEscolaSchema } from '../../../compartilhado/index.js';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
@@ -17,29 +17,49 @@ rotasEscola.use('*', middlewareAutenticacao);
 // ─── Listar Escolas ──────────────────────────────────────────────────────────
 rotasEscola.get('/', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE']), async (c) => {
   const db = getDb(c.env.DB);
-  
-  const escolas = await db.query.escolasLocais.findMany({
-    where: eq(escolasLocais.ativo, true),
-    orderBy: [asc(escolasLocais.nome)],
-    with: {
-      pacientes: {
-        where: eq(pacientes.ativo, true),
-        columns: { id: true },
-      },
-      atendimentos: {
-        columns: { id: true, especialidade: true },
-      },
-    },
-  });
-  
-  const mapeado = escolas.map((e) => {
-    const atendimentosPorEspecialidade: Record<string, number> = {};
-    for (const a of e.atendimentos || []) {
-      if (a.especialidade) {
-        atendimentosPorEspecialidade[a.especialidade] =
-          (atendimentosPorEspecialidade[a.especialidade] || 0) + 1;
-      }
+
+  const [escolas, contagemPacientes, contagemAtendimentos] = await Promise.all([
+    db.query.escolasLocais.findMany({
+      where: eq(escolasLocais.ativo, true),
+      orderBy: [asc(escolasLocais.nome)],
+    }),
+    db
+      .select({
+        escolaLocalId: pacientes.escolaLocalId,
+        total: count(),
+      })
+      .from(pacientes)
+      .where(eq(pacientes.ativo, true))
+      .groupBy(pacientes.escolaLocalId),
+    db
+      .select({
+        escolaLocalId: atendimentos.escolaLocalId,
+        especialidade: atendimentos.especialidade,
+        total: count(),
+      })
+      .from(atendimentos)
+      .groupBy(atendimentos.escolaLocalId, atendimentos.especialidade),
+  ]);
+
+  const mapaPacientes = new Map<string, number>();
+  for (const row of contagemPacientes) {
+    if (row.escolaLocalId) mapaPacientes.set(row.escolaLocalId, Number(row.total) || 0);
+  }
+
+  const mapaAtendimentos = new Map<string, { total: number; porEsp: Record<string, number> }>();
+  for (const row of contagemAtendimentos) {
+    if (!row.escolaLocalId) continue;
+    const entry = mapaAtendimentos.get(row.escolaLocalId) ?? { total: 0, porEsp: {} };
+    const qtd = Number(row.total) || 0;
+    entry.total += qtd;
+    if (row.especialidade) {
+      entry.porEsp[row.especialidade] = (entry.porEsp[row.especialidade] || 0) + qtd;
     }
+    mapaAtendimentos.set(row.escolaLocalId, entry);
+  }
+
+  const mapeado = escolas.map((e) => {
+    const infoAtend = mapaAtendimentos.get(e.id);
     return {
       id: e.id,
       nome: e.nome,
@@ -47,9 +67,9 @@ rotasEscola.get('/', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 
       regiao: `${e.cidade} / ${e.uf}`,
       endereco: e.endereco,
       diretoriaRegional: e.diretoriaRegional || 'Não informada',
-      alunosMatriculados: e.pacientes?.length ?? e.alunosMatriculados,
-      totalAtendimentos: e.atendimentos?.length ?? 0,
-      atendimentosPorEspecialidade,
+      alunosMatriculados: mapaPacientes.get(e.id) ?? e.alunosMatriculados,
+      totalAtendimentos: infoAtend?.total ?? 0,
+      atendimentosPorEspecialidade: infoAtend?.porEsp ?? {},
       unidadesMoveisEstacionadas: e.unidadesMoveis,
       status: e.statusOperacao,
     };
@@ -136,12 +156,12 @@ rotasEscola.put(
     if (!existente) return c.json({ erro: 'Instituição não encontrada' }, 404);
 
     const [escola] = await db.update(escolasLocais).set({
-      ...(dados.nome && { nome: dados.nome }),
-      ...(dados.endereco && { endereco: dados.endereco }),
-      ...(dados.cidade && { cidade: dados.cidade }),
-      ...(dados.uf && { uf: dados.uf }),
+      ...(dados.nome && { nome: sanitizarTexto(dados.nome) }),
+      ...(dados.endereco && { endereco: sanitizarTexto(dados.endereco) }),
+      ...(dados.cidade && { cidade: sanitizarTexto(dados.cidade) }),
+      ...(dados.uf && { uf: sanitizarTexto(dados.uf) }),
       ...(dados.cnpj !== undefined && { cnpj: dados.cnpj }),
-      ...(dados.diretoriaRegional !== undefined && { diretoriaRegional: dados.diretoriaRegional }),
+      ...(dados.diretoriaRegional !== undefined && { diretoriaRegional: sanitizarTextoOpcional(dados.diretoriaRegional) }),
     }).where(eq(escolasLocais.id, id)).returning();
 
     await registrarAuditoria(db, {
@@ -162,6 +182,11 @@ rotasEscola.post('/:id/ativar', autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_
   const id = c.req.param('id');
   const db = getDb(c.env.DB);
   const usuario = c.get('usuario');
+
+  const existente = await db.query.escolasLocais.findFirst({ where: eq(escolasLocais.id, id) });
+  if (!existente) {
+    return c.json({ erro: 'Instituição não encontrada' }, 404);
+  }
 
   await db.update(escolasLocais).set({ statusOperacao: 'PROGRAMADA' });
   const [escola] = await db.update(escolasLocais).set({ statusOperacao: 'ESTACIONADA_HOJE' }).where(eq(escolasLocais.id, id)).returning();

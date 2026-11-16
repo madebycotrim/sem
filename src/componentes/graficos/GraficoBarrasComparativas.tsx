@@ -24,15 +24,22 @@ export const GraficoBarrasComparativas: FC<GraficoBarrasComparativasProps> = ({
   rotuloSerieA = 'Concluídos',
   rotuloSerieB = 'Agendados / Fila',
 }) => {
-  const [itemHover, setItemHover] = useState<ItemColunaComparativa | null>(null);
+  const [indiceHover, setIndiceHover] = useState<number | null>(null);
+
+  const dadosSanitizados = dados.map((d) => ({
+    ...d,
+    valorA: Number.isFinite(d.valorA) ? Math.max(0, d.valorA) : 0,
+    valorB: Number.isFinite(d.valorB) ? Math.max(0, d.valorB) : 0,
+  }));
+  const itemHover = indiceHover !== null ? dadosSanitizados[indiceHover] ?? null : null;
 
   const maiorValor = Math.max(
-    ...dados.map((d) => Math.max(d.valorA, d.valorB)),
+    ...dadosSanitizados.map((d) => Math.max(d.valorA, d.valorB)),
     1
   );
 
-  const totalA = dados.reduce((acc, d) => acc + d.valorA, 0);
-  const totalB = dados.reduce((acc, d) => acc + d.valorB, 0);
+  const totalA = dadosSanitizados.reduce((acc, d) => acc + d.valorA, 0);
+  const totalB = dadosSanitizados.reduce((acc, d) => acc + d.valorB, 0);
   const totalGeral = totalA + totalB;
 
   return (
@@ -74,16 +81,16 @@ export const GraficoBarrasComparativas: FC<GraficoBarrasComparativasProps> = ({
         <div className="my-auto pt-4">
           {/* Eixo de colunas agrupadas */}
           <div className="flex h-44 items-end justify-between gap-2 sm:gap-4 border-b border-slate-200/80 px-2 pb-2">
-            {dados.map((item) => {
+            {dadosSanitizados.map((item, idx) => {
               const alturaA = (item.valorA / maiorValor) * 100;
               const alturaB = (item.valorB / maiorValor) * 100;
-              const isHovered = itemHover?.categoria === item.categoria;
+              const isHovered = indiceHover === idx;
 
               return (
                 <div
-                  key={item.categoria}
-                  onMouseEnter={() => setItemHover(item)}
-                  onMouseLeave={() => setItemHover(null)}
+                  key={`${item.categoria}-${idx}`}
+                  onMouseEnter={() => setIndiceHover(idx)}
+                  onMouseLeave={() => setIndiceHover(null)}
                   className={`flex-1 flex flex-col items-center justify-end h-full group cursor-pointer transition-all duration-200 ${
                     isHovered ? 'scale-105' : ''
                   }`}

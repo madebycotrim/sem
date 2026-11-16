@@ -1,6 +1,6 @@
 import { useState, type FC, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { PerfilAcesso, PERFIL_ACESSO_LABELS } from '../../compartilhado/index.ts';
+import { PerfilAcesso, PERFIL_ACESSO_LABELS, formatarDataEHoraBrasilia } from '../../compartilhado/index.ts';
 import { CabecalhoPagina } from './CabecalhoPagina.tsx';
 import {
   useFiltroExcel,
@@ -122,8 +122,8 @@ export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
     colunas: colunasConfig,
     buscaGeral: busca,
     funcaoBuscaGeral: (item, termo) =>
-      item.nome.toLowerCase().includes(termo) ||
-      item.email.toLowerCase().includes(termo) ||
+      String(item.nome ?? '').toLowerCase().includes(termo) ||
+      String(item.email ?? '').toLowerCase().includes(termo) ||
       Boolean(item.conselhoProfissional && item.conselhoProfissional.toLowerCase().includes(termo)) ||
       Boolean(item.registroProfissional && item.registroProfissional.toLowerCase().includes(termo)),
   });
@@ -438,7 +438,7 @@ export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
                     </td>
 
                     <td className="py-3 px-3.5 text-slate-500 font-mono text-[11px]">
-                      {u.ultimoAcesso || 'Não informado'}
+                      {u.ultimoAcesso ? formatarDataEHoraBrasilia(u.ultimoAcesso, 'Não informado') : 'Não informado'}
                     </td>
 
                     <td className={`py-3 px-4 text-right ${menuAcoesAbertoId === u.id ? 'relative z-30' : ''}`}>

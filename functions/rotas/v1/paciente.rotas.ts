@@ -171,8 +171,10 @@ rotasPaciente.post('/', autorizarAcao('criarPaciente'), zValidator('json', criar
 rotasPaciente.get('/', async (c) => {
   const db = getDb(c.env.DB);
   const query = c.req.query();
-  const pagina = Math.max(1, parseInt(query['pagina'] ?? '1', 10));
-  const porPagina = Math.min(100, Math.max(1, parseInt(query['porPagina'] ?? '20', 10)));
+  const paginaBruta = parseInt(query['pagina'] ?? '1', 10);
+  const porPaginaBruta = parseInt(query['porPagina'] ?? '20', 10);
+  const pagina = Number.isFinite(paginaBruta) ? Math.max(1, paginaBruta) : 1;
+  const porPagina = Number.isFinite(porPaginaBruta) ? Math.min(100, Math.max(1, porPaginaBruta)) : 20;
 
   const condicoes = [eq(pacientes.ativo, true)];
 
@@ -334,10 +336,10 @@ rotasPaciente.patch('/:id', autorizarAcao('editarPaciente'), zValidator('json', 
   }
 
   const piiCifrada = await criptografarPii(JSON.stringify({
-    nome: dados.nome ?? piiAtual.nome,
+    nome: dados.nome ? sanitizarTexto(dados.nome) : piiAtual.nome,
     cpf: dados.cpf ?? piiAtual.cpf,
     dataNascimento: dados.dataNascimento ?? piiAtual.dataNascimento,
-    telefone: dados.telefone ?? piiAtual.telefone,
+    telefone: dados.telefone ? sanitizarTexto(dados.telefone) : piiAtual.telefone,
     sexo: dados.sexo ?? piiAtual.sexo ?? null,
   }), c.env.KEK_HEX);
 
