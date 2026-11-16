@@ -5,11 +5,12 @@ import {
   forwardRef,
   useEffect,
   useRef,
+  useState,
   createContext,
   useContext,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { CircleAlert, X } from 'lucide-react';
+import { CircleAlert, TriangleAlert, X } from 'lucide-react';
 import { SeletorFiltroUniversal, type OpcaoFiltroItem, type CategoriaFiltro } from './SeletorFiltroUniversal.tsx';
 import { Botao } from './Botao.tsx';
 
@@ -136,8 +137,8 @@ export const Modal: FC<ModalProps> = ({
   aberto,
   aoFechar,
   aoResetar,
-  temDadosPreenchidos: _temDadosPreenchidos,
-  confirmarAoFechar: _confirmarAoFechar = true,
+  temDadosPreenchidos = false,
+  confirmarAoFechar = true,
   titulo,
   subtitulo,
   icone,
@@ -148,8 +149,10 @@ export const Modal: FC<ModalProps> = ({
   contentClassName = 'px-6 py-6',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
 
   const executarFechamentoEReset = () => {
+    setConfirmandoDescarte(false);
     if (containerRef.current) {
       const formularios = containerRef.current.querySelectorAll('form');
       formularios.forEach((f) => f.reset());
@@ -159,19 +162,30 @@ export const Modal: FC<ModalProps> = ({
   };
 
   const tentarFechar = () => {
+    if (confirmarAoFechar && temDadosPreenchidos && !confirmandoDescarte) {
+      setConfirmandoDescarte(true);
+      return;
+    }
     executarFechamentoEReset();
   };
 
   useEffect(() => {
-    if (!aberto) return;
+    if (!aberto) {
+      setConfirmandoDescarte(false);
+      return;
+    }
     const aoPressionarTecla = (evento: KeyboardEvent) => {
       if (evento.key === 'Escape') {
-        executarFechamentoEReset();
+        if (confirmandoDescarte) {
+          setConfirmandoDescarte(false);
+          return;
+        }
+        tentarFechar();
       }
     };
     window.addEventListener('keydown', aoPressionarTecla);
     return () => window.removeEventListener('keydown', aoPressionarTecla);
-  }, [aberto]);
+  }, [aberto, confirmarAoFechar, temDadosPreenchidos, confirmandoDescarte]);
 
   if (!aberto) return null;
 
@@ -235,6 +249,56 @@ export const Modal: FC<ModalProps> = ({
           {rodape && (
             <div className="min-h-16 px-6 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-3 rounded-b-3xl shrink-0 relative z-10">
               {rodape}
+            </div>
+          )}
+
+          {/* ─── 4. Confirmação de Descarte de Alterações ─────────────────── */}
+          {confirmandoDescarte && (
+            <div
+              className="absolute inset-0 z-40 bg-slate-950/35 backdrop-blur-[2px] flex items-center justify-center p-4 animate-fade-in"
+              onClick={(evento) => evento.stopPropagation()}
+            >
+              <div
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="modal-descarte-titulo"
+                aria-describedby="modal-descarte-descricao"
+                className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 space-y-4 animate-slide-up"
+              >
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shrink-0">
+                    <TriangleAlert className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 id="modal-descarte-titulo" className="text-[15px] font-bold text-slate-800">
+                      Descartar alterações?
+                    </h3>
+                    <p id="modal-descarte-descricao" className="mt-1 text-[12.5px] text-slate-500 leading-relaxed">
+                      Existem informações preenchidas que ainda não foram salvas. Se sair agora, os dados serão perdidos.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <Botao
+                    type="button"
+                    variante="secundario"
+                    tamanho="sm"
+                    formato="pilula"
+                    onClick={() => setConfirmandoDescarte(false)}
+                  >
+                    Continuar editando
+                  </Botao>
+                  <Botao
+                    type="button"
+                    variante="perigo"
+                    tamanho="sm"
+                    formato="pilula"
+                    onClick={executarFechamentoEReset}
+                  >
+                    Descartar
+                  </Botao>
+                </div>
+              </div>
             </div>
           )}
         </div>

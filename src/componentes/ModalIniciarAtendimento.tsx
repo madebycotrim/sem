@@ -4,6 +4,7 @@ import {
   Check,
   FileText,
   Loader2,
+  Lock,
   AlertCircle,
 } from 'lucide-react';
 import {
@@ -31,6 +32,7 @@ export interface DadosAtendimento {
   profissionalConselho?: string;
   horarioChegada: string;
   anotacoes?: string;
+  sigiloRestrito?: boolean;
 }
 
 export interface ModalIniciarAtendimentoProps {
@@ -63,6 +65,7 @@ const obterCorAvatar = (nome: string): string => {
 
 const TEXTO_PADRAO_ATENDIMENTO =
   'Atendimento realizado sem intercorrências. Paciente orientado quanto às condutas clínicas.';
+const TEXTO_PLACEHOLDER_CHECKIN = 'Check-in realizado. Prontuário aguardando atendimento.';
 
 export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
   aberto,
@@ -71,9 +74,14 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
   aoConfirmar,
   somenteLeitura = false,
 }) => {
+  const ehTextoReal = (texto?: string) => {
+    const limpo = (texto || '').trim();
+    return Boolean(limpo) && limpo !== TEXTO_PLACEHOLDER_CHECKIN;
+  };
+
   const obterTextoInicial = () => {
     if (somenteLeitura) return dados?.anotacoes || '';
-    return dados?.anotacoes?.trim() ? dados.anotacoes : TEXTO_PADRAO_ATENDIMENTO;
+    return ehTextoReal(dados?.anotacoes) ? (dados?.anotacoes || '') : TEXTO_PADRAO_ATENDIMENTO;
   };
 
   const [anotacoes, setAnotacoes] = useState(obterTextoInicial);
@@ -84,11 +92,7 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
   // Mantém dados existentes ao editar e foca ao abrir
   useEffect(() => {
     if (aberto) {
-      setAnotacoes(
-        somenteLeitura
-          ? (dados?.anotacoes || '')
-          : (dados?.anotacoes?.trim() ? dados.anotacoes : TEXTO_PADRAO_ATENDIMENTO)
-      );
+      setAnotacoes(obterTextoInicial());
       setErro(null);
       setSalvando(false);
       if (!somenteLeitura) {
@@ -119,12 +123,19 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
     }
   };
 
+  const textoInicialAtual = obterTextoInicial().trim();
+  const temAlteracoesNaoSalvas =
+    !somenteLeitura &&
+    anotacoes.trim().length > 0 &&
+    anotacoes.trim() !== textoInicialAtual;
+
   return (
     <Modal
       aberto={aberto}
       aoFechar={() => {
         if (!salvando) aoFechar();
       }}
+      temDadosPreenchidos={temAlteracoesNaoSalvas}
       titulo={somenteLeitura ? "Prontuário do Atendimento" : "Finalizar Atendimento"}
       subtitulo={somenteLeitura ? "Registro clínico e anotações do atendimento finalizado." : "Registre as informações da consulta antes de finalizar."}
       tamanho="lg"
@@ -247,18 +258,36 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
             rotulo="Evolução e Conduta Clínica Registrada"
             dica="Anotações e procedimentos salvos pelo profissional responsável no encerramento da consulta."
           >
-            <div className="p-4 rounded-xl bg-slate-50/90 border border-slate-200/90 text-[13px] font-medium text-slate-800 leading-relaxed whitespace-pre-wrap select-text min-h-[130px]">
-              <div className="flex items-start gap-3">
-                <FileText className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  {anotacoes && anotacoes.trim() ? (
-                    <p className="text-slate-800 font-normal leading-relaxed">{anotacoes}</p>
-                  ) : (
-                    <p className="text-slate-400 italic">Nenhuma anotação registrada para este atendimento.</p>
-                  )}
+            {dados.sigiloRestrito ? (
+              <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/90 text-[13px] text-amber-900 leading-relaxed min-h-[130px] flex items-center">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-200 text-amber-700 flex items-center justify-center shrink-0">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-bold text-[13px] text-amber-950">
+                      Conteúdo protegido por sigilo profissional
+                    </p>
+                    <p className="text-[12px] text-amber-800/90 leading-relaxed">
+                      A evolução e a conduta clínica deste atendimento são restritas ao profissional de saúde responsável pelo registro (LGPD / Sigilo Profissional).
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-slate-50/90 border border-slate-200/90 text-[13px] font-medium text-slate-800 leading-relaxed whitespace-pre-wrap select-text min-h-[130px]">
+                <div className="flex items-start gap-3">
+                  <FileText className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    {anotacoes && anotacoes.trim() ? (
+                      <p className="text-slate-800 font-normal leading-relaxed">{anotacoes}</p>
+                    ) : (
+                      <p className="text-slate-400 italic">Nenhuma anotação registrada para este atendimento.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </ModalCampo>
         ) : (
           <ModalCampo

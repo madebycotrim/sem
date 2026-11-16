@@ -119,6 +119,7 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
         const mapeadosApi: ItemHistoricoAtendimento[] = dadosApi.map((item) => {
           const status = normalizarStatus(String(item.status || 'CONCLUIDO'));
           const { data, hora, timestamp } = formatarDataHora(String(item.criadoEm || item.entradaFilaEm || ''));
+          const sigiloRestrito = Boolean(item.sigiloRestrito);
           return {
             id: String(item.id),
             especialidade: String(item.especialidade || 'Geral'),
@@ -128,8 +129,10 @@ export const DrawerHistoricoPaciente: FC<DrawerHistoricoPacienteProps> = ({
             rawTimestamp: timestamp,
             profissionalNome: String(item.profissional || item.profissionalNome || 'Profissional de Saúde'),
             profissionalRegistro: String(item.profissionalRegistro || 'Registro Ativo'),
-            motivoConsulta: String(item.resumo || (status === 'CONCLUIDO' ? 'Consulta clínica realizada' : 'Atendimento registrado no sistema')),
-            condutaClinica: item.procedimentos
+            motivoConsulta: sigiloRestrito
+              ? 'Conteúdo protegido por sigilo profissional (visível apenas para o profissional responsável).'
+              : String(item.resumo || (status === 'CONCLUIDO' ? 'Consulta clínica realizada' : 'Atendimento registrado no sistema')),
+            condutaClinica: !sigiloRestrito && item.procedimentos
               ? String(item.procedimentos)
               : undefined,
           };

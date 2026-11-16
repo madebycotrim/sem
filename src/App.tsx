@@ -520,6 +520,7 @@ export function App() {
             profissionalConselho: d.profissionalConselho ? String(d.profissionalConselho) : undefined,
             profissionalRegistro: d.profissionalRegistro ? String(d.profissionalRegistro) : undefined,
             resumo: String(d.resumo || ''),
+            sigiloRestrito: Boolean(d.sigiloRestrito),
             criadoEm: String(d.criadoEm || new Date().toISOString()),
             entradaFilaEm: d.entradaFilaEm ? String(d.entradaFilaEm) : undefined,
             escolaId: d.escolaLocalId ? String(d.escolaLocalId) : undefined,

@@ -71,13 +71,14 @@ export const ModalNovaEscola: FC<ModalNovaEscolaProps> = ({
   const cidadeAtual = watch('cidade');
   const ufAtual = watch('uf');
 
-  const temDadosPreenchidos =
-    isDirty ||
-    !!cnpjExibicao ||
-    !!(nomeAtual && nomeAtual.trim()) ||
-    !!(enderecoAtual && enderecoAtual.trim()) ||
-    !!(cidadeAtual && cidadeAtual.trim()) ||
-    !!(ufAtual && ufAtual.trim());
+  const temDadosPreenchidos = escolaParaEditar
+    ? isDirty
+    : isDirty ||
+      !!cnpjExibicao ||
+      !!(nomeAtual && nomeAtual.trim()) ||
+      !!(enderecoAtual && enderecoAtual.trim()) ||
+      !!(cidadeAtual && cidadeAtual.trim()) ||
+      !!(ufAtual && ufAtual.trim());
 
   const resetarFormulario = () => {
     reset({ alunosMatriculados: 0, nome: '', cnpj: '', endereco: '', cidade: '', uf: '' });
@@ -196,7 +197,6 @@ export const ModalNovaEscola: FC<ModalNovaEscolaProps> = ({
           <BotaoModal
             variante="secundario"
             rotulo="Cancelar"
-            aoClicar={aoFechar}
           />
           <BotaoModal
             tipo="submit"
@@ -227,7 +227,7 @@ export const ModalNovaEscola: FC<ModalNovaEscolaProps> = ({
                   onChange={(evento) => {
                     const cnpj = somenteDigitos(evento.target.value);
                     setCnpjExibicao(formatarCnpj(cnpj));
-                    setValue('cnpj', cnpj, { shouldValidate: false });
+                    setValue('cnpj', cnpj, { shouldValidate: false, shouldDirty: true });
                     setErroCnpj(null);
                     if (cnpj !== cnpjConsultado) setCnpjConsultado('');
                   }}

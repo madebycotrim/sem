@@ -46,6 +46,7 @@ export interface ItemAtendimentoLista {
   profissionalRegistro?: string;
   profissionalConselho?: string;
   resumo?: string;
+  sigiloRestrito?: boolean;
   criadoEm: string;
   entradaFilaEm?: string;
   status?: StatusAtendimento;
@@ -115,9 +116,10 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   const [confirmandoCancelamentoId, setConfirmandoCancelamentoId] = useState<string | null>(null);
   const [confirmandoPresencaId, setConfirmandoPresencaId] = useState<string | null>(null);
   const [confirmandoReativacaoId, setConfirmandoReativacaoId] = useState<string | null>(null);
+  const [confirmandoFinalizacaoId, setConfirmandoFinalizacaoId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!confirmandoAlteracaoId && !confirmandoCancelamentoId && !confirmandoPresencaId && !confirmandoReativacaoId) return undefined;
+    if (!confirmandoAlteracaoId && !confirmandoCancelamentoId && !confirmandoPresencaId && !confirmandoReativacaoId && !confirmandoFinalizacaoId) return undefined;
 
     const fecharAoClicarFora = (evento: MouseEvent) => {
       const alvo = evento?.target as HTMLElement | undefined;
@@ -127,12 +129,14 @@ export const Atendimentos: FC<AtendimentosProps> = ({
           setConfirmandoCancelamentoId(null);
           setConfirmandoPresencaId(null);
           setConfirmandoReativacaoId(null);
+          setConfirmandoFinalizacaoId(null);
         }
       } else {
         setConfirmandoAlteracaoId(null);
         setConfirmandoCancelamentoId(null);
         setConfirmandoPresencaId(null);
         setConfirmandoReativacaoId(null);
+        setConfirmandoFinalizacaoId(null);
       }
     };
     const fecharComEscape = (evento: KeyboardEvent) => {
@@ -141,6 +145,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         setConfirmandoCancelamentoId(null);
         setConfirmandoPresencaId(null);
         setConfirmandoReativacaoId(null);
+        setConfirmandoFinalizacaoId(null);
       }
     };
 
@@ -150,7 +155,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
       document.removeEventListener('mousedown', fecharAoClicarFora);
       document.removeEventListener('keydown', fecharComEscape);
     };
-  }, [confirmandoAlteracaoId, confirmandoCancelamentoId, confirmandoPresencaId, confirmandoReativacaoId]);
+  }, [confirmandoAlteracaoId, confirmandoCancelamentoId, confirmandoPresencaId, confirmandoReativacaoId, confirmandoFinalizacaoId]);
 
   const handleAlterarStatus = async (id: string, novoStatus: StatusAtendimento) => {
     const item = atendimentos.find((a) => a.id === id);
@@ -223,6 +228,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
       profissionalConselho: profissionalEncontrado?.conselho,
       horarioChegada: hora !== 'Invalid Date' ? hora : '--:--',
       anotacoes: item.resumo || '',
+      sigiloRestrito: item.sigiloRestrito,
     });
     setModalModoVisualizacao(somenteLeitura);
     setModalAtendimentoAberto(true);
@@ -1062,7 +1068,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                     <td className="py-3 px-3.5">
                       <StatusAtendimentoBadge status={item.status || StatusAtendimento.CONCLUIDO} />
                     </td>
-                    <td className={`py-3 px-4 text-right ${confirmandoAlteracaoId === item.id || confirmandoCancelamentoId === item.id || confirmandoPresencaId === item.id || confirmandoReativacaoId === item.id ? 'relative z-50' : ''}`}>
+                    <td className={`py-3 px-4 text-right ${confirmandoAlteracaoId === item.id || confirmandoCancelamentoId === item.id || confirmandoPresencaId === item.id || confirmandoReativacaoId === item.id || confirmandoFinalizacaoId === item.id ? 'relative z-50' : ''}`}>
                       <div className="flex items-center justify-end gap-1.5" data-confirmacao-popover>
                         {/* PASSO 1: AGUARDANDO / AGENDADO */}
                         {(item.status === StatusAtendimento.AGENDADO || (item.status as unknown) === 'AGUARDANDO') && (
@@ -1152,14 +1158,51 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                         {/* PASSO 2: CONFIRMADO */}
                         {item.status === 'CONFIRMADO' && (
                           <>
-                            <button
-                              type="button"
-                              onClick={() => abrirModalProntuario(item, true)}
-                              className="inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-xl shadow-[0_4px_12px_rgba(37,99,235,0.24)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
-                            >
-                              <Play className="w-3.5 h-3.5" />
-                              Iniciar Atendimento
-                            </button>
+                            <div className="relative inline-flex items-center" data-confirmacao-popover>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (ehAdmin) {
+                                    setConfirmandoFinalizacaoId(confirmandoFinalizacaoId === item.id ? null : item.id);
+                                    setConfirmandoCancelamentoId(null);
+                                    setConfirmandoAlteracaoId(null);
+                                    setConfirmandoPresencaId(null);
+                                    setConfirmandoReativacaoId(null);
+                                    return;
+                                  }
+                                  abrirModalProntuario(item, true);
+                                }}
+                                className="inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-xl shadow-[0_4px_12px_rgba(37,99,235,0.24)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+                              >
+                                <Play className="w-3.5 h-3.5" />
+                                Iniciar Atendimento
+                              </button>
+                              {ehAdmin && confirmandoFinalizacaoId === item.id && (
+                                <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
+                                  <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                  <span className="text-[11.5px] font-bold text-slate-700">Deseja finalizar este atendimento?</span>
+                                  <div className="flex items-center justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmandoFinalizacaoId(null)}
+                                      className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                    >
+                                      Voltar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setConfirmandoFinalizacaoId(null);
+                                        void handleAlterarStatus(item.id, StatusAtendimento.CONCLUIDO);
+                                      }}
+                                      className="px-2.5 py-1 text-[11px] bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                    >
+                                      Sim, finalizar
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                             {ehAdmin && (
                               <div className="relative inline-flex items-center">
                                 <button
@@ -1205,14 +1248,51 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                         {/* PASSO 3: EM_ATENDIMENTO */}
                         {item.status === 'EM_ATENDIMENTO' && (
                           <>
-                            <button
-                              type="button"
-                              onClick={() => abrirModalProntuario(item, false)}
-                              className="inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-xl shadow-[0_2px_8px_rgba(37,99,235,0.12)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
-                            >
-                              <Play className="w-3.5 h-3.5 text-blue-600" />
-                              Continuar
-                            </button>
+                            <div className="relative inline-flex items-center" data-confirmacao-popover>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (ehAdmin) {
+                                    setConfirmandoFinalizacaoId(confirmandoFinalizacaoId === item.id ? null : item.id);
+                                    setConfirmandoCancelamentoId(null);
+                                    setConfirmandoAlteracaoId(null);
+                                    setConfirmandoPresencaId(null);
+                                    setConfirmandoReativacaoId(null);
+                                    return;
+                                  }
+                                  abrirModalProntuario(item, false);
+                                }}
+                                className="inline-flex h-8 items-center gap-1.5 px-3 text-[11px] font-extrabold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-xl shadow-[0_2px_8px_rgba(37,99,235,0.12)] transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+                              >
+                                <Play className="w-3.5 h-3.5 text-blue-600" />
+                                Continuar
+                              </button>
+                              {ehAdmin && confirmandoFinalizacaoId === item.id && (
+                                <div className="absolute right-0 top-full mt-1.5 flex flex-col gap-2 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 whitespace-nowrap z-[100] animate-fade-in text-left">
+                                  <div className="absolute right-4 -top-1.5 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" aria-hidden="true" />
+                                  <span className="text-[11.5px] font-bold text-slate-700">Deseja finalizar este atendimento?</span>
+                                  <div className="flex items-center justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmandoFinalizacaoId(null)}
+                                      className="px-2.5 py-1 text-[11px] text-slate-500 hover:bg-slate-100 rounded-lg transition-colors font-semibold cursor-pointer"
+                                    >
+                                      Voltar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setConfirmandoFinalizacaoId(null);
+                                        void handleAlterarStatus(item.id, StatusAtendimento.CONCLUIDO);
+                                      }}
+                                      className="px-2.5 py-1 text-[11px] bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
+                                    >
+                                      Sim, finalizar
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                             {ehAdmin && (
                               <div className="relative inline-flex items-center">
                                 <button
@@ -1289,31 +1369,31 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                                   <FileText className="w-3.5 h-3.5 text-blue-600" />
                                   Visualizar prontuário
                                 </button>
+                                {!item.sigiloRestrito && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setConfirmandoAlteracaoId(null);
+                                      abrirModalProntuario(item, false, false);
+                                    }}
+                                    className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5 text-blue-600" />
+                                    Registrar / Editar prontuário
+                                  </button>
+                                )}
                                 {ehAdmin && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setConfirmandoAlteracaoId(null);
-                                        abrirModalProntuario(item, false, false);
-                                      }}
-                                      className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
-                                    >
-                                      <RotateCcw className="w-3.5 h-3.5 text-blue-600" />
-                                      Alterar atendimento
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setConfirmandoCancelamentoId(item.id);
-                                        setConfirmandoAlteracaoId(null);
-                                      }}
-                                      className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
-                                    >
-                                      <Ban className="w-3.5 h-3.5 text-rose-600" />
-                                      Cancelar atendimento
-                                    </button>
-                                  </>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setConfirmandoCancelamentoId(item.id);
+                                      setConfirmandoAlteracaoId(null);
+                                    }}
+                                    className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                                  >
+                                    <Ban className="w-3.5 h-3.5 text-rose-600" />
+                                    Cancelar atendimento
+                                  </button>
                                 )}
                               </div>
                             )}

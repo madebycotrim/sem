@@ -247,6 +247,29 @@ const atualizarAtendimentoSchema = z.object({
 });
 
 /**
+ * Verifica se o usuário autenticado pode visualizar/editar o conteúdo clínico
+ * (evolução/resumo e procedimentos) de um atendimento.
+ *
+ * Regra de sigilo profissional (CFM / LGPD):
+ * - Enquanto em fila/agendamento (AGENDADO ou CONFIRMADO), exibe notas de check-in.
+ * - Em atendimento ou concluído/encerrado, o conteúdo clínico é restrito ao
+ *   profissional responsável registrado no atendimento.
+ */
+function podeVisualizarConteudoClinico(
+  usuario: { userId: string },
+  atendimento: { usuarioId: string; status: string }
+): boolean {
+  if (
+    atendimento.status === StatusAtendimento.AGENDADO ||
+    atendimento.status === StatusAtendimento.CONFIRMADO
+  ) {
+    return true;
+  }
+
+  return atendimento.usuarioId === usuario.userId;
+}
+
+/**
  * PATCH /atendimentos/:id
  * Atualiza campos do atendimento (resumo/prontuário, procedimentos, status, profissional).
  */
@@ -262,6 +285,16 @@ rotasAtendimento.patch('/:id', zValidator('json', atualizarAtendimentoSchema), a
 
   if (!atendimentoExistente) {
     return c.json({ erro: 'Atendimento não encontrado.' }, 404);
+  }
+
+  const alterandoProntuario = dados.resumo !== undefined || dados.procedimentos !== undefined;
+  if (alterandoProntuario && !podeVisualizarConteudoClinico(usuario, atendimentoExistente)) {
+    return c.json(
+      {
+        erro: 'Sigilo profissional: apenas o profissional responsável pelo atendimento pode visualizar ou alterar este prontuário.',
+      },
+      403
+    );
   }
 
   const camposParaAtualizar: Record<string, unknown> = {
@@ -314,7 +347,16 @@ rotasAtendimento.patch('/:id', zValidator('json', atualizarAtendimentoSchema), a
     ip,
   });
 
-  return c.json(atendimentoAtualizado, 200);
+  const podeVerClinico = podeVisualizarConteudoClinico(usuario, atendimentoAtualizado);
+  return c.json(
+    {
+      ...atendimentoAtualizado,
+      resumo: podeVerClinico ? atendimentoAtualizado.resumo : null,
+      procedimentos: podeVerClinico ? atendimentoAtualizado.procedimentos : null,
+      sigiloRestrito: !podeVerClinico,
+    },
+    200
+  );
 });
 
 const atualizarStatusSchema = z.object({
@@ -1068,6 +1110,8 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
         }
       }
 
+      const podeVerClinico = podeVisualizarConteudoClinico(usuario, a);
+
       return {
         id: a.id,
         pacienteId: a.pacienteId,
@@ -1082,8 +1126,9 @@ rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c
         especialidade: a.especialidade,
         status: a.status,
         entradaFilaEm: a.entradaFilaEm ?? a.criadoEm,
-        resumo: a.resumo,
-        procedimentos: a.procedimentos,
+        resumo: podeVerClinico ? a.resumo : null,
+        procedimentos: podeVerClinico ? a.procedimentos : null,
+        sigiloRestrito: !podeVerClinico,
         escolaLocal: a.escolaLocal?.nome ?? 'Desconhecida',
         profissional: a.usuario?.nomeCompleto ?? 'Desconhecido',
         profissionalNome: a.usuario?.nomeCompleto ?? 'Desconhecido',
