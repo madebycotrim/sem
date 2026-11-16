@@ -805,7 +805,7 @@ Responda EXCLUSIVAMENTE em formato JSON sem cercaduras markdown:
 - Profissionais de Saúde: ${dados.porProfissional?.slice(0, 10).map((p) => `${p.nome}: ${p.total}`).join(', ') || 'Não discriminado'}
 - Status Operacional: ${JSON.stringify(dados.porStatus ?? {})}`;
 
-      const timeoutMs = 9000;
+      const timeoutMs = 12000;
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('TIMEOUT_WORKERS_AI')), timeoutMs)
       );
@@ -820,21 +820,35 @@ Responda EXCLUSIVAMENTE em formato JSON sem cercaduras markdown:
       });
 
       const resultado: any = await Promise.race([aiPromise, timeoutPromise]);
-      let textoGerado = typeof resultado?.response === 'string' ? resultado.response.trim() : '';
+      let parsed: any = null;
 
-      if (textoGerado) {
-        textoGerado = textoGerado.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
-        const parsed = JSON.parse(textoGerado);
-        if (parsed.resumo && Array.isArray(parsed.pontos)) {
-          return c.json({
-            origem: 'CLOUDFLARE_WORKERS_AI',
-            modelo: '@cf/meta/llama-3-8b-instruct',
-            titulo: parsed.titulo || 'Relatório Analítico de Atendimentos Filtrados',
-            resumo: String(parsed.resumo),
-            pontos: parsed.pontos.map((p: any) => String(p)),
-            recomendacao: parsed.recomendacao ? String(parsed.recomendacao) : '',
-          });
+      if (resultado?.response && typeof resultado.response === 'object') {
+        parsed = resultado.response;
+      } else {
+        const textoBruto =
+          typeof resultado?.response === 'string'
+            ? resultado.response.trim()
+            : typeof resultado === 'string'
+            ? resultado.trim()
+            : '';
+        if (textoBruto) {
+          const semMarkdown = textoBruto.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+          const matchJson = semMarkdown.match(/\{[\s\S]*\}/);
+          if (matchJson) {
+            parsed = JSON.parse(matchJson[0]);
+          }
         }
+      }
+
+      if (parsed && typeof parsed.resumo === 'string' && parsed.resumo.trim()) {
+        return c.json({
+          origem: 'CLOUDFLARE_WORKERS_AI',
+          modelo: '@cf/meta/llama-3-8b-instruct',
+          titulo: parsed.titulo || 'Relatório Analítico de Atendimentos Filtrados',
+          resumo: String(parsed.resumo),
+          pontos: Array.isArray(parsed.pontos) ? parsed.pontos.map((p: any) => String(p)) : [],
+          recomendacao: parsed.recomendacao ? String(parsed.recomendacao) : '',
+        });
       }
     } catch (erro) {
       console.warn('Falha ou timeout no Cloudflare Workers AI, acionando fallback local:', erro);

@@ -185,15 +185,8 @@ export const ModalIniciarAtendimento: FC<ModalIniciarAtendimentoProps> = ({
             </span>
           </div>
         ) : (
-          <div className="flex items-center justify-between gap-3 px-1">
-            <div>
-              <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-600">Etapa 2 de 2</p>
-              <p className="mt-1 text-[13px] font-bold text-slate-800">Finalize o atendimento deste paciente</p>
-            </div>
-            <div className="flex items-center gap-1" aria-hidden="true">
-              <span className="h-1.5 w-2 rounded-full bg-blue-300" />
-              <span className="h-1.5 w-7 rounded-full bg-blue-600" />
-            </div>
+          <div className="px-1">
+            <p className="text-[13px] font-bold text-slate-800">Finalize o atendimento deste paciente</p>
           </div>
         )}
 

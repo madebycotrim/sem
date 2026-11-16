@@ -156,6 +156,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas }) => {
   const [gerandoSinteseIa, setGerandoSinteseIa] = useState(false);
 
   // Cache inteligente em memória para reutilização instantânea
+  const [erroSinteseIa, setErroSinteseIa] = useState<string | null>(null);
   const cacheSinteseRef = useRef<Map<string, RespostaSinteseIa>>(new Map());
   const gerarSinteseComIaRef = useRef<((forcarNovo?: boolean, dadosDiretos?: RelatorioDados) => Promise<void>) | null>(null);
 
@@ -653,6 +654,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas }) => {
     }
 
     setGerandoSinteseIa(true);
+    setErroSinteseIa(null);
     setSinteseExecutivaIa(null);
     try {
       const nomeEscolaFiltro = escolaFiltro
@@ -707,9 +709,12 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas }) => {
         const itemPronto = { ...res, veioDoCache: false };
         cacheSinteseRef.current.set(chaveCache, itemPronto);
         setSinteseExecutivaIa(itemPronto);
+      } else {
+        setErroSinteseIa('A resposta da síntese veio incompleta.');
       }
     } catch (err) {
       console.warn('Falha ao gerar síntese via Workers AI:', err);
+      setErroSinteseIa(err instanceof Error ? err.message : 'Não foi possível gerar a síntese executiva.');
     } finally {
       setGerandoSinteseIa(false);
     }
@@ -1454,7 +1459,7 @@ export const Relatorios: FC<RelatoriosProps> = ({ escolas }) => {
             <p className="text-xs font-semibold text-slate-500">
               {totalGeral === 0
                 ? 'Nenhum atendimento encontrado no período para gerar síntese executiva.'
-                : 'Não foi possível carregar a síntese executiva neste momento.'}
+                : erroSinteseIa || 'Não foi possível carregar a síntese executiva neste momento.'}
             </p>
             {totalGeral > 0 && (
               <button

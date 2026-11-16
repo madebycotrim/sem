@@ -299,7 +299,7 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
       valor: p.id,
       rotulo: p.nome.replace(/^(Dr\.ª?|Dra?\.?)\s*/i, ''),
       subtexto: conselhoReg ? `Conselho/Reg: ${conselhoReg}` : undefined,
-      textoBusca: `${p.especialidade} ${conselhoReg}`,
+      textoBusca: `${p.nome} ${p.especialidade} ${conselhoReg}`,
       icone: IconeEsp,
       corFundoIcone: estiloEsp.fundo,
       corIcone: estiloEsp.texto,
@@ -319,7 +319,7 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
         instituicaoPendenteId
       )}
       titulo="Triagem & Check-in de Paciente"
-      subtitulo="Selecione o paciente — instituição e profissional serão confirmados em seguida."
+      subtitulo="Selecione o paciente e o profissional responsável para adicionar à fila do dia."
       tamanho="lg"
       icone={<UserCheck className="w-5 h-5 text-blue-600" />}
       contentClassName="p-0"
@@ -344,18 +344,9 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
           </div>
         )}
 
-        {/* ─── Campo Único: Seleção do Paciente ───────────────────────── */}
+        {/* ─── Seleção do Paciente ─────────────────────────────────────── */}
         <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-[0_8px_28px_rgba(37,99,235,0.06)]">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-600">Etapa 1 de 2</p>
-              <p className="mt-1 text-[13px] font-bold text-slate-800">Quem será atendido?</p>
-            </div>
-            <div className="flex items-center gap-1" aria-hidden="true">
-              <span className="h-1.5 w-7 rounded-full bg-blue-600" />
-              <span className="h-1.5 w-2 rounded-full bg-slate-200" />
-            </div>
-          </div>
+          <p className="mb-3 text-[13px] font-bold text-slate-800">Quem será atendido?</p>
           <ModalCampo
             rotulo="Paciente / Aluno"
             obrigatorio
@@ -474,7 +465,9 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
 
             {/* ── Linha 2: Profissional ────────────────────────────────── */}
             <div className="px-4 py-3 space-y-2">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profissional responsável</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Profissional responsável <span className="text-rose-500">*</span>
+              </p>
               <ModalSelectCustom
                 categoria="custom"
                 valorAtual={profissionalSelecionadoId}
