@@ -344,40 +344,42 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
           </div>
         )}
 
-        {/* ─── Seleção do Paciente ─────────────────────────────────────── */}
-        <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-[0_8px_28px_rgba(37,99,235,0.06)]">
-          <p className="mb-3 text-[13px] font-bold text-slate-800">Quem será atendido?</p>
-          <ModalCampo
-            rotulo="Paciente / Aluno"
-            obrigatorio
-            erro={campoComErro === 'paciente' ? 'Selecione um paciente.' : undefined}
-          >
-            <ModalSelectCustom
-              categoria="custom"
-              valorAtual={pacienteSelecionadoId}
-              aoMudar={selecionarPaciente}
-              opcoes={opcoesPaciente}
-              placeholder="Buscar ou selecionar paciente..."
-              pesquisavel={true}
-              className={campoComErro === 'paciente' ? 'border-rose-300 ring-3 ring-rose-100' : ''}
-              rodapePopover={
-                aoCriarNovoPaciente ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      aoFechar();
-                      aoCriarNovoPaciente();
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 py-1.5 cursor-pointer hover:bg-blue-50/50 rounded-xl transition-colors"
-                  >
-                    <UserPlus className="w-3.5 h-3.5" />
-                    <span>Cadastrar Novo Paciente</span>
-                  </button>
-                ) : undefined
-              }
-            />
-          </ModalCampo>
-        </div>
+        {/* ─── Seleção do Paciente (oculta após selecionar o aluno) ───── */}
+        {!pacienteSelecionado && (
+          <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-[0_8px_28px_rgba(37,99,235,0.06)] animate-fade-in">
+            <p className="mb-3 text-[13px] font-bold text-slate-800">Quem será atendido?</p>
+            <ModalCampo
+              rotulo="Paciente / Aluno"
+              obrigatorio
+              erro={campoComErro === 'paciente' ? 'Selecione um paciente.' : undefined}
+            >
+              <ModalSelectCustom
+                categoria="custom"
+                valorAtual={pacienteSelecionadoId}
+                aoMudar={selecionarPaciente}
+                opcoes={opcoesPaciente}
+                placeholder="Buscar ou selecionar paciente..."
+                pesquisavel={true}
+                className={campoComErro === 'paciente' ? 'border-rose-300 ring-3 ring-rose-100' : ''}
+                rodapePopover={
+                  aoCriarNovoPaciente ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        aoFechar();
+                        aoCriarNovoPaciente();
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 py-1.5 cursor-pointer hover:bg-blue-50/50 rounded-xl transition-colors"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Cadastrar Novo Paciente</span>
+                    </button>
+                  ) : undefined
+                }
+              />
+            </ModalCampo>
+          </div>
+        )}
 
         {/* ─── Painel de Confirmação (visível após selecionar paciente) ── */}
         {pacienteSelecionado && (
@@ -395,9 +397,25 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
                   )}
                 </p>
               </div>
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg uppercase tracking-wide shrink-0">
-                Selecionado
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg uppercase tracking-wide">
+                  Selecionado
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPacienteSelecionadoId('');
+                    setProfissionalSelecionadoId('');
+                    setInstituicaoPendenteId('');
+                    setEditandoInstituicao(false);
+                    setErro(null);
+                    setCampoComErro(null);
+                  }}
+                  className="text-[11px] font-bold text-slate-500 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                >
+                  Trocar
+                </button>
+              </div>
             </div>
 
             {/* ── Linha 1: Instituição ─────────────────────────────────── */}
