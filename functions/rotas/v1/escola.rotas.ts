@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { getDb } from '../../infraestrutura/banco/drizzle.js';
 import { escolasLocais, pacientes, atendimentos } from '../../infraestrutura/banco/schema.js';
-import { eq, asc, count } from 'drizzle-orm';
+import { eq, and, ne, asc, count } from 'drizzle-orm';
 import { criarEscolaSchema } from '../../../compartilhado/index.js';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
@@ -109,20 +109,71 @@ rotasEscola.post(
     const db = getDb(c.env.DB);
     const usuario = c.get('usuario');
 
-    const [escola] = await db.insert(escolasLocais).values({
-      nome: sanitizarTexto(dados.nome),
-      endereco: sanitizarTexto(dados.endereco),
-      cidade: sanitizarTexto(dados.cidade),
-      uf: dados.uf,
-      cnpj: dados.cnpj,
-      telefone: dados.telefone,
-      email: dados.email,
-      diretoriaRegional: sanitizarTextoOpcional(dados.diretoriaRegional),
-      alunosMatriculados: dados.alunosMatriculados,
-      unidadesMoveis: 0,
-      statusOperacao: 'PROGRAMADA',
-      ativo: true,
-    }).returning();
+    if (dados.cnpj) {
+      const existentePorCnpj = await db.query.escolasLocais.findFirst({
+        where: eq(escolasLocais.cnpj, dados.cnpj),
+      });
+
+      if (existentePorCnpj) {
+        if (existentePorCnpj.ativo) {
+          return c.json({ erro: 'Já existe uma instituição cadastrada com este CNPJ.' }, 409);
+        }
+
+        // Reativa instituição anteriormente removida (soft delete) com o mesmo CNPJ
+        const [reativada] = await db
+          .update(escolasLocais)
+          .set({
+            nome: sanitizarTexto(dados.nome),
+            endereco: sanitizarTexto(dados.endereco),
+            cidade: sanitizarTexto(dados.cidade),
+            uf: sanitizarTexto(dados.uf).toUpperCase(),
+            telefone: dados.telefone ?? null,
+            email: dados.email ?? null,
+            diretoriaRegional: sanitizarTextoOpcional(dados.diretoriaRegional),
+            alunosMatriculados: dados.alunosMatriculados,
+            ativo: true,
+          })
+          .where(eq(escolasLocais.id, existentePorCnpj.id))
+          .returning();
+
+        await registrarAuditoria(db, {
+          userId: usuario.userId,
+          acao: 'CREATE',
+          entidade: 'EscolaLocal',
+          entidadeId: reativada.id,
+          diffPosterior: { nome: reativada.nome, cnpj: reativada.cnpj, reativada: true },
+          ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1',
+        });
+
+        return c.json({
+          mensagem: 'Escola cadastrada com sucesso',
+          dados: { id: reativada.id }
+        }, 201);
+      }
+    }
+
+    let escola;
+    try {
+      [escola] = await db.insert(escolasLocais).values({
+        nome: sanitizarTexto(dados.nome),
+        endereco: sanitizarTexto(dados.endereco),
+        cidade: sanitizarTexto(dados.cidade),
+        uf: sanitizarTexto(dados.uf).toUpperCase(),
+        cnpj: dados.cnpj,
+        telefone: dados.telefone,
+        email: dados.email,
+        diretoriaRegional: sanitizarTextoOpcional(dados.diretoriaRegional),
+        alunosMatriculados: dados.alunosMatriculados,
+        unidadesMoveis: 0,
+        statusOperacao: 'PROGRAMADA',
+        ativo: true,
+      }).returning();
+    } catch (erro) {
+      if (erro instanceof Error && /UNIQUE/i.test(erro.message)) {
+        return c.json({ erro: 'Já existe uma instituição cadastrada com este CNPJ.' }, 409);
+      }
+      throw erro;
+    }
 
     // Registra a auditoria
     await registrarAuditoria(db, {
@@ -155,14 +206,31 @@ rotasEscola.put(
     const existente = await db.query.escolasLocais.findFirst({ where: eq(escolasLocais.id, id) });
     if (!existente) return c.json({ erro: 'Instituição não encontrada' }, 404);
 
-    const [escola] = await db.update(escolasLocais).set({
-      ...(dados.nome && { nome: sanitizarTexto(dados.nome) }),
-      ...(dados.endereco && { endereco: sanitizarTexto(dados.endereco) }),
-      ...(dados.cidade && { cidade: sanitizarTexto(dados.cidade) }),
-      ...(dados.uf && { uf: sanitizarTexto(dados.uf) }),
-      ...(dados.cnpj !== undefined && { cnpj: dados.cnpj }),
-      ...(dados.diretoriaRegional !== undefined && { diretoriaRegional: sanitizarTextoOpcional(dados.diretoriaRegional) }),
-    }).where(eq(escolasLocais.id, id)).returning();
+    if (dados.cnpj) {
+      const conflitoCnpj = await db.query.escolasLocais.findFirst({
+        where: and(eq(escolasLocais.cnpj, dados.cnpj), ne(escolasLocais.id, id)),
+      });
+      if (conflitoCnpj) {
+        return c.json({ erro: 'Já existe outra instituição cadastrada com este CNPJ.' }, 409);
+      }
+    }
+
+    let escola;
+    try {
+      [escola] = await db.update(escolasLocais).set({
+        ...(dados.nome && { nome: sanitizarTexto(dados.nome) }),
+        ...(dados.endereco && { endereco: sanitizarTexto(dados.endereco) }),
+        ...(dados.cidade && { cidade: sanitizarTexto(dados.cidade) }),
+        ...(dados.uf && { uf: sanitizarTexto(dados.uf).toUpperCase() }),
+        ...(dados.cnpj !== undefined && { cnpj: dados.cnpj }),
+        ...(dados.diretoriaRegional !== undefined && { diretoriaRegional: sanitizarTextoOpcional(dados.diretoriaRegional) }),
+      }).where(eq(escolasLocais.id, id)).returning();
+    } catch (erro) {
+      if (erro instanceof Error && /UNIQUE/i.test(erro.message)) {
+        return c.json({ erro: 'Já existe outra instituição cadastrada com este CNPJ.' }, 409);
+      }
+      throw erro;
+    }
 
     await registrarAuditoria(db, {
       userId: usuario.userId,
