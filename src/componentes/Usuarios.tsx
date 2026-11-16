@@ -65,6 +65,7 @@ export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
   const [usuarioEditando, setUsuarioEditando] = useState<UsuarioItem | null>(null);
   const [usuarioArquivando, setUsuarioArquivando] = useState<UsuarioItem | null>(null);
   const [arquivando, setArquivando] = useState(false);
+  const [erroArquivamento, setErroArquivamento] = useState<string | null>(null);
   const [consoleBootstrapAberto, setConsoleBootstrapAberto] = useState(false);
 
   const carregarUsuarios = useCallback(async () => {
@@ -164,16 +165,18 @@ export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
     if (!usuarioArquivando) return;
     try {
       setArquivando(true);
+      setErroArquivamento(null);
       await requisicaoApi(`/usuarios/${usuarioArquivando.id}`, {
         metodo: 'PUT',
         corpo: { ativo: false },
       });
       await carregarUsuarios();
-    } catch (err) {
+      setUsuarioArquivando(null);
+    } catch (err: any) {
       console.error('Erro ao arquivar usuário:', err);
+      setErroArquivamento(err?.message || 'Não foi possível arquivar o usuário. Tente novamente.');
     } finally {
       setArquivando(false);
-      setUsuarioArquivando(null);
     }
   };
 
@@ -593,10 +596,19 @@ export const Usuarios: FC<UsuariosProps> = ({ ehBootstrap = false }) => {
                 Ele perderá imediatamente o acesso ao sistema, mas todos os registros e atividades vinculadas a ele serão preservados no histórico para auditoria.
               </p>
 
+              {erroArquivamento && (
+                <p className="mb-4 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                  {erroArquivamento}
+                </p>
+              )}
+
               <div className="flex items-center justify-end gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setUsuarioArquivando(null)}
+                  onClick={() => {
+                    setUsuarioArquivando(null);
+                    setErroArquivamento(null);
+                  }}
                   disabled={arquivando}
                   className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl transition-colors cursor-pointer shadow-2xs"
                 >

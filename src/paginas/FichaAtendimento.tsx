@@ -1,4 +1,4 @@
-import { useEffect, useCallback, forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { useEffect, useCallback, useState, forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -84,7 +84,10 @@ export function FichaAtendimento({
     return DOMPurify.sanitize(valor.trim());
   }, []);
 
+  const [erroEnvio, setErroEnvio] = useState<string | null>(null);
+
   const aoSubmeter = async (dados: DadosFichaAtendimento) => {
+    setErroEnvio(null);
     const dadosSanitizados: DadosFichaAtendimento = {
       ...dados,
       resumo: sanitizar(dados.resumo ?? 'Check-in realizado. Prontuário aguardando atendimento.'),
@@ -100,7 +103,8 @@ export function FichaAtendimento({
       if (erro instanceof ErroApi && erro.status === 409) {
         // Idempotência garantida: registro já processado com sucesso
       } else {
-        throw erro;
+        setErroEnvio(erro instanceof Error ? erro.message : 'Não foi possível salvar a ficha de atendimento.');
+        return;
       }
     }
 
@@ -235,6 +239,11 @@ export function FichaAtendimento({
         </div>
 
         {/* Ações do Formulário */}
+        {erroEnvio && (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">
+            {erroEnvio}
+          </div>
+        )}
         <div className="flex items-center justify-between pt-4 border-t border-slate-100">
           <div className="text-[11px] text-slate-400">
             Pressione <kbd className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">Ctrl + S</kbd> para salvar imediatamente.

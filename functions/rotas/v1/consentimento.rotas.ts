@@ -54,7 +54,19 @@ rotasConsentimento.post(
 
     for (const item of autorizacoes) {
       const cpfLimpo = (item.cpf || '').replace(/\D/g, '');
-      let pacienteEncontradoId = item.pacienteId;
+      const pacienteIdValido =
+        item.pacienteId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.pacienteId)
+          ? item.pacienteId
+          : undefined;
+      let pacienteEncontradoId = pacienteIdValido;
+
+      if (pacienteEncontradoId) {
+        const pacienteAtivo = await db.query.pacientes.findFirst({
+          where: and(eq(pacientes.id, pacienteEncontradoId), eq(pacientes.ativo, true)),
+          columns: { id: true },
+        });
+        if (!pacienteAtivo) pacienteEncontradoId = undefined;
+      }
 
       if (!pacienteEncontradoId && cpfLimpo.length === 11) {
         const cpfHash = await gerarBlindIndex(cpfLimpo, kekHex);

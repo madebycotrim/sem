@@ -1045,7 +1045,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                                       type="button"
                                       onClick={() => {
                                         setConfirmandoAlteracaoId(null);
-                                        abrirModalProntuario(item, true, false);
+                                        abrirModalProntuario(item, false, false);
                                       }}
                                       className="flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
                                     >

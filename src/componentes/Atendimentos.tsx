@@ -172,13 +172,18 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         prev.map((a) => (a.id === id ? { ...a, status: statusAnterior } : a))
       );
       console.error('Erro ao atualizar status do atendimento:', err);
+      throw err;
     }
   };
 
   const handleCancelarAtendimento = async (id: string) => {
     setConfirmandoCancelamentoId(null);
-    await handleAlterarStatus(id, StatusAtendimento.CANCELADO);
-    aoSincronizar?.();
+    try {
+      await handleAlterarStatus(id, StatusAtendimento.CANCELADO);
+      aoSincronizar?.();
+    } catch {
+      // Estado já revertido em handleAlterarStatus
+    }
   };
 
   const abrirModalProntuario = async (
@@ -260,6 +265,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
       setDadosAtendimentoAtivo(null);
     } catch (erro) {
       console.error('Erro ao salvar prontuário:', erro);
+      throw erro;
     }
   };
   const [busca, setBusca] = useState('');

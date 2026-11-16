@@ -18,12 +18,11 @@ export const middlewareRateLimit: MiddlewareHandler<{ Bindings: Bindings }> = as
     return next();
   }
 
-  // 2. Isentar health check, checagem de sessão do usuário e rotas de importação administrativa
+  // 2. Isentar apenas health check e checagem de sessão do usuário
   const path = c.req.path;
   if (
     path === '/api/health' ||
-    path === '/api/v1/auth/me' ||
-    path.startsWith('/api/v1/importacao')
+    path === '/api/v1/auth/me'
   ) {
     return next();
   }

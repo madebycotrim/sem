@@ -219,7 +219,7 @@ rotasBootstrap.delete(
       acao: 'DELETE_PERMANENTE',
       entidade: 'Usuario',
       entidadeId: id,
-      diffAnterior: usuario,
+      diffAnterior: { id: usuario.id, perfil: usuario.perfil },
       ip: ipDaRequisicao(c),
     });
 
