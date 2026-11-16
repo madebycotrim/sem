@@ -6,8 +6,18 @@ import {
   sanitizarCpf,
 } from '../servicos/servicoCatraki.ts';
 import { requisicaoApi } from '../servicos/api.ts';
+import { formatarDataEHoraBrasilia } from '../../compartilhado/index.ts';
+import { mascararCpf } from '../servicos/apiCpf.ts';
 import { Modal, BotaoModal } from './Modal.tsx';
-import { Check, CircleAlert, ExternalLink, LoaderCircle, ShieldCheck } from 'lucide-react';
+import {
+  Building2,
+  Check,
+  CircleAlert,
+  Copy,
+  ExternalLink,
+  LoaderCircle,
+  ShieldCheck,
+} from 'lucide-react';
 
 interface ModalValidacaoCatrakiProps {
   aberto: boolean;
@@ -23,6 +33,7 @@ export function ModalValidacaoCatraki({
   const [carregando, setCarregando] = useState(false);
   const [detalhes, setDetalhes] = useState<DetalhesValidacaoCatraki | null>(null);
   const [validadoComSucesso, setValidadoComSucesso] = useState(false);
+  const [codigoCopiado, setCodigoCopiado] = useState(false);
 
   useEffect(() => {
     if (!aberto || !paciente) {
@@ -85,14 +96,22 @@ export function ModalValidacaoCatraki({
     paciente.criadoEm ||
     new Date().toISOString();
 
-  const dataFormatada = new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'America/Sao_Paulo',
-  }).format(new Date(dataAssinatura));
+  const dataFormatada = formatarDataEHoraBrasilia(dataAssinatura, 'Não informada');
+  const cpfExibicao = mascararCpf(paciente.cpf);
+  const urlPortalValidacao = detalhes?.validation_code
+    ? `https://catraki---sesi.pages.dev/validar/${encodeURIComponent(detalhes.validation_code)}`
+    : 'https://catraki---sesi.pages.dev/validar';
+
+  const copiarCodigo = async () => {
+    if (!detalhes?.validation_code) return;
+    try {
+      await navigator.clipboard.writeText(detalhes.validation_code);
+      setCodigoCopiado(true);
+      setTimeout(() => setCodigoCopiado(false), 2000);
+    } catch {
+      // Fallback silencioso caso clipboard não esteja disponível
+    }
+  };
 
   return (
     <Modal
@@ -116,18 +135,23 @@ export function ModalValidacaoCatraki({
     >
       <div className="space-y-4">
         {/* Card Estudante */}
-        <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex items-center justify-between gap-3">
-          <div className="min-w-0 flex-1">
+        <div className="bg-slate-50/90 border border-slate-200/80 rounded-2xl p-4 flex items-start sm:items-center justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
               Estudante / Paciente
             </span>
-            <span className="text-sm font-bold text-slate-900 block mt-0.5 truncate uppercase">
+            <span className="text-sm font-extrabold text-slate-900 block truncate uppercase">
               {paciente.nome}
             </span>
-            <div className="flex items-center gap-3 text-xs text-slate-500 font-medium mt-1">
-              <span>CPF: <strong className="font-mono text-slate-700">{paciente.cpf || 'Não informado'}</strong></span>
-              <span>•</span>
-              <span className="truncate">{paciente.escolaNome}</span>
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-500 font-medium pt-0.5">
+              <span className="whitespace-nowrap">
+                CPF: <strong className="font-mono text-slate-700">{cpfExibicao}</strong>
+              </span>
+              <span className="text-slate-300" aria-hidden="true">•</span>
+              <span className="inline-flex items-center gap-1 min-w-0 truncate">
+                <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="truncate">{paciente.escolaNome}</span>
+              </span>
             </div>
           </div>
           {validadoComSucesso ? (
@@ -151,54 +175,66 @@ export function ModalValidacaoCatraki({
         ) : validadoComSucesso && detalhes ? (
           <div className="space-y-3.5 animate-fade-in text-xs text-slate-700">
             {/* Código Único de Validação Real */}
-            <div className="bg-emerald-50/60 border border-emerald-200/90 rounded-2xl p-3.5 flex items-center justify-between gap-2">
-              <div>
+            <div className="bg-gradient-to-r from-emerald-50/80 to-teal-50/50 border border-emerald-200/90 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="min-w-0">
                 <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
                   Código Oficial de Autenticidade
                 </span>
-                <span className="text-sm sm:text-base font-extrabold text-emerald-950 font-mono tracking-wide block mt-0.5">
+                <span className="text-sm sm:text-base font-extrabold text-emerald-950 font-mono tracking-wide block mt-0.5 break-all">
                   {detalhes.validation_code}
                 </span>
               </div>
-              <a
-                href={`https://catraki---sesi.pages.dev/validar`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-2xl text-[11px] transition-colors shadow-2xs whitespace-nowrap flex items-center gap-1 cursor-pointer"
-              >
-                <span>Conferir no Portal</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => void copiarCodigo()}
+                  className="px-3 py-1.5 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold rounded-2xl text-[11px] transition-colors shadow-2xs whitespace-nowrap flex items-center gap-1.5 cursor-pointer"
+                >
+                  {codigoCopiado ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                  <span>{codigoCopiado ? 'Copiado!' : 'Copiar'}</span>
+                </button>
+                <a
+                  href={urlPortalValidacao}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-2xl text-[11px] transition-colors shadow-2xs whitespace-nowrap flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>Conferir no Portal</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
             </div>
 
             {/* Informações Estruturadas do Termo */}
             <div className="border border-slate-200/90 rounded-2xl p-4 space-y-2.5 bg-white shadow-2xs">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+              <div className="flex justify-between items-center gap-4 border-b border-slate-100 pb-2">
                 <span className="text-slate-500">Status da Assinatura:</span>
-                <span className="font-semibold text-emerald-700 flex items-center gap-1.5">
-                  <Check className="w-3.5 h-3.5" />
+                <span className="font-semibold text-emerald-700 flex items-center gap-1.5 text-right">
+                  <Check className="w-3.5 h-3.5 shrink-0" />
                   Válida & Homologada
                 </span>
               </div>
-              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+              <div className="flex justify-between items-center gap-4 border-b border-slate-100 pb-2">
                 <span className="text-slate-500">Responsável que Assinou:</span>
-                <span className="font-semibold text-slate-800">
+                <span className="font-semibold text-slate-800 text-right">
                   {detalhes.signer_name} ({detalhes.signer_cpf_masked})
                 </span>
               </div>
-              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+              <div className="flex justify-between items-center gap-4 border-b border-slate-100 pb-2">
                 <span className="text-slate-500">Data e Hora da Assinatura:</span>
-                <span className="font-medium text-slate-800">{dataFormatada}</span>
+                <span className="font-medium text-slate-800 font-mono text-right">{dataFormatada}</span>
               </div>
-              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+              <div className="flex justify-between items-center gap-4 border-b border-slate-100 pb-2">
                 <span className="text-slate-500">Padrão Legal:</span>
                 <span className="text-[11px] font-medium text-slate-700 text-right">
                   Art. 10, §2º da MP 2.200-2/2001 c/c Lei nº 14.063/2020
                 </span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500">Localização e IP:</span>
-                <span className="font-mono text-[11px] text-slate-700">{detalhes.geolocation}</span>
+              <div className="flex justify-between items-center gap-4">
+                <span className="text-slate-500">Localização:</span>
+                <span className="font-mono text-[11px] text-slate-700 text-right">
+                  {detalhes.geolocation || 'Não informada'}
+                </span>
               </div>
             </div>
           </div>
@@ -210,7 +246,7 @@ export function ModalValidacaoCatraki({
                 <span>Nenhum Termo Assinado Localizado no Catraki</span>
               </div>
               <p className="text-[11.5px] text-amber-800/90 leading-relaxed">
-                O CPF <strong>{paciente.cpf || 'Não informado'}</strong> foi consultado na base de registros do Catraki, mas ainda não possui autorização digital assinada pelos pais ou responsáveis legais.
+                O CPF <strong className="font-mono whitespace-nowrap">{cpfExibicao}</strong> foi consultado na base de registros do Catraki, mas ainda não possui autorização digital assinada pelos pais ou responsáveis legais.
               </p>
             </div>
 

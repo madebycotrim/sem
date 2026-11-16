@@ -4,13 +4,12 @@ import {
   type Ref,
   forwardRef,
   useEffect,
-  useState,
   useRef,
   createContext,
   useContext,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { CircleAlert, Trash2, X } from 'lucide-react';
+import { CircleAlert, X } from 'lucide-react';
 import { SeletorFiltroUniversal, type OpcaoFiltroItem, type CategoriaFiltro } from './SeletorFiltroUniversal.tsx';
 import { Botao } from './Botao.tsx';
 
@@ -137,8 +136,8 @@ export const Modal: FC<ModalProps> = ({
   aberto,
   aoFechar,
   aoResetar,
-  temDadosPreenchidos,
-  confirmarAoFechar = true,
+  temDadosPreenchidos: _temDadosPreenchidos,
+  confirmarAoFechar: _confirmarAoFechar = true,
   titulo,
   subtitulo,
   icone,
@@ -148,50 +147,9 @@ export const Modal: FC<ModalProps> = ({
   className = '',
   contentClassName = 'px-6 py-6',
 }) => {
-  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
-  const [houveAlteracao, setHouveAlteracao] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!aberto) {
-      setConfirmandoDescarte(false);
-      setHouveAlteracao(false);
-    } else {
-      const handleInteracao = (e: Event) => {
-        const target = e?.target as HTMLElement | undefined;
-        if (!target || typeof target.closest !== 'function') return;
-        // Ignora cliques em botões normais que não são switches
-        if (e.type === 'click' && target.closest('button')) {
-          const btn = target.closest('button');
-          if (btn?.getAttribute('role') !== 'switch') return;
-        }
-        setHouveAlteracao(true);
-      };
-
-      const container = containerRef.current;
-      if (container) {
-        container.addEventListener('input', handleInteracao);
-        container.addEventListener('change', handleInteracao);
-        container.addEventListener('click', handleInteracao);
-      }
-      return () => {
-        if (container) {
-          container.removeEventListener('input', handleInteracao);
-          container.removeEventListener('change', handleInteracao);
-          container.removeEventListener('click', handleInteracao);
-        }
-      };
-    }
-  }, [aberto]);
-
-  const checarSeTemDados = (): boolean => {
-    if (confirmarAoFechar === false) return false;
-    if (typeof temDadosPreenchidos === 'boolean') return temDadosPreenchidos;
-    return houveAlteracao;
-  };
-
   const executarFechamentoEReset = () => {
-    setConfirmandoDescarte(false);
     if (containerRef.current) {
       const formularios = containerRef.current.querySelectorAll('form');
       formularios.forEach((f) => f.reset());
@@ -201,27 +159,19 @@ export const Modal: FC<ModalProps> = ({
   };
 
   const tentarFechar = () => {
-    if (checarSeTemDados()) {
-      setConfirmandoDescarte(true);
-    } else {
-      executarFechamentoEReset();
-    }
+    executarFechamentoEReset();
   };
 
   useEffect(() => {
     if (!aberto) return;
     const aoPressionarTecla = (evento: KeyboardEvent) => {
       if (evento.key === 'Escape') {
-        if (confirmandoDescarte) {
-          setConfirmandoDescarte(false);
-        } else {
-          tentarFechar();
-        }
+        executarFechamentoEReset();
       }
     };
     window.addEventListener('keydown', aoPressionarTecla);
     return () => window.removeEventListener('keydown', aoPressionarTecla);
-  }, [aberto, confirmandoDescarte, temDadosPreenchidos, confirmarAoFechar]);
+  }, [aberto]);
 
   if (!aberto) return null;
 
@@ -281,37 +231,11 @@ export const Modal: FC<ModalProps> = ({
             {children}
           </div>
 
-          {/* ─── 3. Rodapé com Ações ou Confirmação Discreta Inline (Altura Otimizada h-16) ─── */}
-          {confirmandoDescarte ? (
-            <div className="min-h-16 px-6 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-3 rounded-b-3xl shrink-0 animate-fade-in font-sans relative z-10">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-                <span>Descartar os dados preenchidos e fechar?</span>
-              </div>
-              <div className="flex items-center gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setConfirmandoDescarte(false)}
-                  className="h-10 px-4 text-xs font-bold rounded-xl text-slate-700 bg-white hover:bg-slate-100 border border-slate-200/90 shadow-2xs transition-all cursor-pointer"
-                >
-                  Não, Continuar Editando
-                </button>
-                <button
-                  type="button"
-                  onClick={executarFechamentoEReset}
-                  className="h-10 px-4 text-xs font-bold rounded-xl text-white bg-red-600 hover:bg-red-700 shadow-xs transition-all cursor-pointer active:scale-95 flex items-center gap-1.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Sim, Descartar</span>
-                </button>
-              </div>
+          {/* ─── 3. Rodapé com Ações ──────────────────────────────────────── */}
+          {rodape && (
+            <div className="min-h-16 px-6 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-3 rounded-b-3xl shrink-0 relative z-10">
+              {rodape}
             </div>
-          ) : (
-            rodape && (
-              <div className="min-h-16 px-6 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-3 rounded-b-3xl shrink-0 relative z-10">
-                {rodape}
-              </div>
-            )
           )}
         </div>
         </div>
