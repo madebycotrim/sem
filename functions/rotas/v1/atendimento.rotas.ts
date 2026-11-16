@@ -6,6 +6,7 @@ import {
   filtroAtendimentoSchema,
   Especialidade,
   StatusAtendimento,
+  obterDataHojeBrasilia,
   obterDataIsoBrasilia,
 } from '../../../compartilhado/index.js';
 import { getDb } from '../../infraestrutura/banco/drizzle.js';
@@ -857,6 +858,63 @@ Responda EXCLUSIVAMENTE em formato JSON sem cercaduras markdown:
 
   // Fallback caso AI não esteja configurada ou ocorra erro
   return c.json(gerarFallbackLocal());
+});
+
+/**
+ * GET /atendimentos/resumo-dia
+ * Retorna os totais operacionais reais do dia de hoje (horário de Brasília) para o Dashboard inicial.
+ */
+rotasAtendimento.get('/resumo-dia', async (c) => {
+  const db = getDb(c.env.DB);
+  const hojeIso = obterDataHojeBrasilia();
+  const inicioHojeUtc = obterLimiteDataUtc(hojeIso, false);
+  const fimHojeUtc = obterLimiteDataUtc(hojeIso, true);
+
+  const registrosHoje = await db
+    .select({
+      status: atendimentos.status,
+      especialidade: atendimentos.especialidade,
+    })
+    .from(atendimentos)
+    .where(
+      and(
+        sql`datetime(${atendimentos.criadoEm}) >= ${inicioHojeUtc}`,
+        sql`datetime(${atendimentos.criadoEm}) <= ${fimHojeUtc}`
+      )
+    );
+
+  let concluidosHoje = 0;
+  let emAtendimentoHoje = 0;
+  let aguardandoHoje = 0;
+  let canceladosHoje = 0;
+  const porEspecialidadeHoje: Record<string, number> = {};
+
+  for (const reg of registrosHoje) {
+    const s = String(reg.status || '').toUpperCase().trim();
+    if (s.includes('CANCEL') || s.includes('DESIST') || s.includes('FALT') || s.includes('AUSENT')) {
+      canceladosHoje += 1;
+    } else if (['AGUARDANDO', 'CONFIRMADO', 'AGENDADO', 'PENDENTE'].includes(s)) {
+      aguardandoHoje += 1;
+    } else if (s === 'EM_ATENDIMENTO' || s === 'EM_ANDAMENTO') {
+      emAtendimentoHoje += 1;
+    } else if (s === 'CONCLUIDO' || s === 'CONCLUÍDO' || s === 'FINALIZADO' || s === 'REALIZADO') {
+      concluidosHoje += 1;
+    }
+
+    if (reg.especialidade) {
+      porEspecialidadeHoje[reg.especialidade] = (porEspecialidadeHoje[reg.especialidade] || 0) + 1;
+    }
+  }
+
+  return c.json({
+    data: hojeIso,
+    totalHoje: registrosHoje.length,
+    concluidosHoje,
+    emAtendimentoHoje,
+    aguardandoHoje,
+    canceladosHoje,
+    porEspecialidadeHoje,
+  });
 });
 
 /**

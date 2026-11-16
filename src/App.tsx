@@ -8,7 +8,7 @@ import { ModalNovoPaciente, type FormNovoPaciente } from './componentes/ModalNov
 import { FilaDoDia, type ItemFila } from './componentes/FilaDoDia.tsx';
 import type { ItemProfissionalTriagem } from './componentes/ModalTriagem.tsx';
 import { Atendimentos, type ItemAtendimentoLista } from './componentes/Atendimentos.tsx';
-import { Dashboard } from './componentes/Dashboard.tsx';
+import { Dashboard, type ResumoDiaDashboard } from './componentes/Dashboard.tsx';
 import { Escolas, type EscolaPolo } from './componentes/Escolas.tsx';
 import { Usuarios } from './componentes/Usuarios.tsx';
 import { Login } from './paginas/Login.tsx';
@@ -119,6 +119,7 @@ export function App() {
 
   // Permissões RBAC dinâmicas
   const [permissoesRbac, setPermissoesRbac] = useState<Partial<Record<PerfilAcesso, PermissoesPerfil>>>({});
+  const [resumoDiaDashboard, setResumoDiaDashboard] = useState<ResumoDiaDashboard | null>(null);
 
   useEffect(() => {
     const handleAtualizacao = (event: Event) => {
@@ -305,6 +306,7 @@ export function App() {
     setBuscaPaciente('');
     setTotalPacientes(0);
     setTotalAtendimentos(0);
+    setResumoDiaDashboard(null);
   };
 
   const deslogar = async () => {
@@ -495,7 +497,13 @@ export function App() {
         if (filtrosAtendimentos.profissional) {
           url += `&profissional=${encodeURIComponent(filtrosAtendimentos.profissional)}`;
         }
-        const resposta = await requisicaoApi<RespostaListaAtendimentos>(url);
+        const [resposta, respostaResumoDia] = await Promise.all([
+          requisicaoApi<RespostaListaAtendimentos>(url),
+          requisicaoApi<ResumoDiaDashboard>('/atendimentos/resumo-dia').catch(() => null),
+        ]);
+        if (ativo && respostaResumoDia) {
+          setResumoDiaDashboard(respostaResumoDia);
+        }
         if (ativo && resposta?.dados) {
           const listaMapeada: ItemAtendimentoLista[] = resposta.dados.map((d: any) => ({
             id: String(d.id),
@@ -1252,6 +1260,7 @@ export function App() {
                 totalPacientes={totalPacientes > 0 ? totalPacientes : pacientes.length}
                 totalAtendimentos={totalAtendimentos > 0 ? totalAtendimentos : todosAtendimentos.length}
                 totalInstituicoes={escolasGlobais.length}
+                resumoDia={resumoDiaDashboard}
                 pacientes={pacientes}
                 atendimentos={todosAtendimentos}
                 fila={fila}
@@ -1341,6 +1350,7 @@ export function App() {
             totalPacientes={totalPacientes > 0 ? totalPacientes : pacientes.length}
             totalAtendimentos={totalAtendimentos > 0 ? totalAtendimentos : todosAtendimentos.length}
             totalInstituicoes={escolasGlobais.length}
+            resumoDia={resumoDiaDashboard}
             pacientes={pacientes}
             atendimentos={todosAtendimentos}
             fila={fila}

@@ -36,10 +36,21 @@ import { Activity, Apple, BarChart3, ClipboardCheck, Clock3, Ear, Eye, FileText,
 import { formatarHoraBrasilia, formatarDataBrasilia, obterDataHojeBrasilia, obterDataIsoBrasilia, parseDataBrasilia } from '../../compartilhado/index.ts';
 import type { ItemFila } from './FilaDoDia.tsx';
 
+export interface ResumoDiaDashboard {
+  data: string;
+  totalHoje: number;
+  concluidosHoje: number;
+  emAtendimentoHoje: number;
+  aguardandoHoje: number;
+  canceladosHoje: number;
+  porEspecialidadeHoje: Record<string, number>;
+}
+
 export interface DashboardProps {
   totalPacientes: number;
   totalAtendimentos: number;
   totalInstituicoes: number;
+  resumoDia?: ResumoDiaDashboard | null;
   pacientes: Array<{
     termoConsentimentoStatus: string;
     criadoEm: string;
@@ -64,6 +75,7 @@ export interface DashboardProps {
 
 export const Dashboard: FC<DashboardProps> = ({
   totalAtendimentos,
+  resumoDia = null,
   pacientes: _pacientes,
   atendimentos,
   fila = [],
@@ -110,27 +122,34 @@ export const Dashboard: FC<DashboardProps> = ({
     })),
   ];
 
-  const totalConsultasTodasUnidades = todasConsultasHoje.length;
+  const itensFilaLocaisSemIdBanco = itensFilaNaoDuplicados.filter((item) => !item.atendimentoId);
+  const contarPorStatus = (lista: Array<{ status?: string }>, fn: (s: string) => boolean) =>
+    lista.filter((item) => fn(String(item.status || '').toUpperCase().trim())).length;
 
-  const totalConsultasCanceladas = todasConsultasHoje.filter((item) => {
-    const s = String(item.status || '').toUpperCase().trim();
-    return s.includes('CANCEL') || s.includes('DESIST') || s.includes('FALT') || s.includes('AUSENT');
-  }).length;
+  const ehCancelado = (s: string) => s.includes('CANCEL') || s.includes('DESIST') || s.includes('FALT') || s.includes('AUSENT');
+  const ehAguardando = (s: string) => ['AGUARDANDO', 'CONFIRMADO', 'AGENDADO', 'PENDENTE'].includes(s);
+  const ehEmAtendimento = (s: string) => s === 'EM_ATENDIMENTO' || s === 'EM_ANDAMENTO';
+  const ehConcluido = (s: string) => s === 'CONCLUIDO' || s === 'CONCLUÍDO' || s === 'FINALIZADO' || s === 'REALIZADO';
 
-  const totalConsultasAguardando = todasConsultasHoje.filter((item) => {
-    const s = String(item.status || '').toUpperCase().trim();
-    return ['AGUARDANDO', 'CONFIRMADO', 'AGENDADO', 'PENDENTE'].includes(s);
-  }).length;
+  const totalConsultasTodasUnidades = resumoDia
+    ? resumoDia.totalHoje + itensFilaLocaisSemIdBanco.length
+    : todasConsultasHoje.length;
 
-  const totalConsultasEmAtendimento = todasConsultasHoje.filter((item) => {
-    const s = String(item.status || '').toUpperCase().trim();
-    return s === 'EM_ATENDIMENTO' || s === 'EM_ANDAMENTO';
-  }).length;
+  const totalConsultasCanceladas = resumoDia
+    ? resumoDia.canceladosHoje + contarPorStatus(itensFilaLocaisSemIdBanco, ehCancelado)
+    : contarPorStatus(todasConsultasHoje, ehCancelado);
 
-  const totalConsultasConcluidas = todasConsultasHoje.filter((item) => {
-    const s = String(item.status || '').toUpperCase().trim();
-    return s === 'CONCLUIDO' || s === 'CONCLUÍDO' || s === 'FINALIZADO' || s === 'REALIZADO';
-  }).length;
+  const totalConsultasAguardando = resumoDia
+    ? resumoDia.aguardandoHoje + contarPorStatus(itensFilaLocaisSemIdBanco, ehAguardando)
+    : contarPorStatus(todasConsultasHoje, ehAguardando);
+
+  const totalConsultasEmAtendimento = resumoDia
+    ? resumoDia.emAtendimentoHoje + contarPorStatus(itensFilaLocaisSemIdBanco, ehEmAtendimento)
+    : contarPorStatus(todasConsultasHoje, ehEmAtendimento);
+
+  const totalConsultasConcluidas = resumoDia
+    ? resumoDia.concluidosHoje + contarPorStatus(itensFilaLocaisSemIdBanco, ehConcluido)
+    : contarPorStatus(todasConsultasHoje, ehConcluido);
 
   const nomesEspecialidades: Record<string, string> = {
     ODONTOLOGIA: 'Odontologia',
@@ -150,9 +169,10 @@ export const Dashboard: FC<DashboardProps> = ({
     { id: 'PSICOLOGIA', nome: 'Psicologia', icone: Brain, cor: 'text-amber-600', fundo: 'bg-amber-50' },
   ].map((especialidade) => ({
     ...especialidade,
-    total: todasConsultasHoje.filter(
-      (item) => item.especialidade === especialidade.id
-    ).length,
+    total: resumoDia
+      ? (resumoDia.porEspecialidadeHoje[especialidade.id] ?? 0) +
+        itensFilaLocaisSemIdBanco.filter((item) => item.especialidade === especialidade.id).length
+      : todasConsultasHoje.filter((item) => item.especialidade === especialidade.id).length,
   }));
 
   return (
