@@ -58,7 +58,7 @@ export interface ModalTriagemProps {
   }) => Promise<void> | void;
   escolas?: Array<{ id: string; nome: string }>;
   pacientes?: ItemPacienteTriagem[];
-  atendimentos?: Array<{ pacienteId: string; especialidade: Especialidade }>;
+  atendimentos?: Array<{ pacienteId: string; especialidade: Especialidade; status?: string }>;
   profissionais?: ItemProfissionalTriagem[];
   aoCriarNovoPaciente?: () => void;
 }
@@ -119,7 +119,11 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
   const especialidadesJaRealizadas = useMemo(
     () => new Set(
       atendimentos
-        .filter((atendimento) => atendimento.pacienteId === pacienteSelecionadoId)
+        .filter(
+          (atendimento) =>
+            atendimento.pacienteId === pacienteSelecionadoId &&
+            atendimento.status !== 'CANCELADO'
+        )
         .map((atendimento) => atendimento.especialidade)
     ),
     [atendimentos, pacienteSelecionadoId]

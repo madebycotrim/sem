@@ -117,6 +117,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   const [confirmandoPresencaId, setConfirmandoPresencaId] = useState<string | null>(null);
   const [confirmandoReativacaoId, setConfirmandoReativacaoId] = useState<string | null>(null);
   const [confirmandoFinalizacaoId, setConfirmandoFinalizacaoId] = useState<string | null>(null);
+  const [erroOperacao, setErroOperacao] = useState<string | null>(null);
 
   useEffect(() => {
     if (!confirmandoAlteracaoId && !confirmandoCancelamentoId && !confirmandoPresencaId && !confirmandoReativacaoId && !confirmandoFinalizacaoId) return undefined;
@@ -881,6 +882,22 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         fixo={true}
       />
 
+      {erroOperacao && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold animate-fade-in"
+        >
+          <span>{erroOperacao}</span>
+          <button
+            type="button"
+            onClick={() => setErroOperacao(null)}
+            className="px-2 py-0.5 rounded-lg text-[11px] font-bold text-rose-700 hover:bg-rose-100 cursor-pointer"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
       {/* ─── Tabela de Registros com Filtros Excel ────────────────────────── */}
       <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-0">
         {/* Barra de Filtros Ativos */}
@@ -1457,7 +1474,30 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                                         type="button"
                                         onClick={async () => {
                                           setConfirmandoReativacaoId(null);
-                                          await handleAlterarStatus(item.id, StatusAtendimento.CONFIRMADO);
+                                          setErroOperacao(null);
+                                          const conflitoLocal = atendimentos.some(
+                                            (a) =>
+                                              a.id !== item.id &&
+                                              a.pacienteId === item.pacienteId &&
+                                              a.especialidade === item.especialidade &&
+                                              a.status !== StatusAtendimento.CANCELADO
+                                          );
+                                          if (conflitoLocal) {
+                                            setErroOperacao(
+                                              `Não é possível reativar este atendimento porque o paciente já possui outra consulta ativa ou concluída na especialidade ${item.especialidade}.`
+                                            );
+                                            return;
+                                          }
+                                          try {
+                                            await handleAlterarStatus(item.id, StatusAtendimento.CONFIRMADO);
+                                            aoSincronizar?.();
+                                          } catch (erro) {
+                                            setErroOperacao(
+                                              erro instanceof Error
+                                                ? erro.message
+                                                : 'Não foi possível reativar este atendimento.'
+                                            );
+                                          }
                                         }}
                                         className="px-2.5 py-1 text-[11px] bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
                                       >

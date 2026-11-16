@@ -515,6 +515,34 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
     setConfirmandoAlteracaoId(null);
     setConfirmandoPresencaId(null);
     setConfirmandoReativacaoId(null);
+    setErroOperacao(null);
+
+    const alvo = fila.find((f) => f.id === id);
+    if (alvo?.pacienteId) {
+      const conflitoLocal =
+        fila.some(
+          (f) =>
+            f.id !== id &&
+            f.pacienteId === alvo.pacienteId &&
+            f.especialidade === alvo.especialidade &&
+            f.status !== 'CANCELADO'
+        ) ||
+        atendimentos.some(
+          (a) =>
+            a.id !== (alvo.atendimentoId || id) &&
+            a.pacienteId === alvo.pacienteId &&
+            a.especialidade === alvo.especialidade &&
+            a.status !== 'CANCELADO'
+        );
+
+      if (conflitoLocal) {
+        setErroOperacao(
+          `Não é possível reativar este atendimento porque o paciente já possui outra consulta ativa ou concluída na especialidade ${alvo.especialidade}.`
+        );
+        return;
+      }
+    }
+
     try {
       await alternarStatus(id, 'AGUARDANDO');
     } catch (erro) {

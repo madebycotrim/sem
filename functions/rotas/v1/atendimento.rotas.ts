@@ -11,7 +11,7 @@ import {
 } from '../../../compartilhado/index.js';
 import { getDb } from '../../infraestrutura/banco/drizzle.js';
 import { atendimentos, pacientes, escolasLocais, usuarios, consentimentos } from '../../infraestrutura/banco/schema.js';
-import { eq, and, desc, asc, count, sql, inArray, or } from 'drizzle-orm';
+import { eq, and, ne, desc, asc, count, sql, inArray, or } from 'drizzle-orm';
 import { middlewareAutenticacao, type AppVariables } from '../../middlewares/autenticacao.js';
 import { autorizarPerfis } from '../../middlewares/autorizacao.js';
 import { middlewareIdempotencia } from '../../middlewares/idempotencia.js';
@@ -127,14 +127,13 @@ rotasAtendimento.post(
       );
     }
 
-    // Regra estrita: um paciente/CPF não pode ter mais de uma consulta na mesma especialidade
-    const consultaExistente = await db.query.atendimentos.findFirst({
-      where: and(
-        eq(atendimentos.pacienteId, dados.pacienteId),
-        eq(atendimentos.especialidade, dados.especialidade)
-      ),
-      columns: { id: true, status: true, resumo: true, especialidade: true, usuarioId: true },
-    });
+    // Regra estrita: um paciente/CPF não pode ter mais de uma consulta ativa/concluída na mesma especialidade
+    // Consultas CANCELADAS não impedem o agendamento de uma nova consulta na mesma especialidade
+    const consultaExistente = await verificarConflitoEspecialidadeAtiva(
+      db,
+      dados.pacienteId,
+      dados.especialidade
+    );
 
     const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1';
     const entradaFilaEm = new Date().toISOString();
@@ -297,6 +296,31 @@ function podeVisualizarConteudoClinico(
 }
 
 /**
+ * Busca consulta não-cancelada existente para o mesmo paciente e especialidade.
+ * Usado para permitir novo agendamento quando houver apenas consulta cancelada,
+ * e impedir duplicidade caso tentem reativar uma consulta cancelada.
+ */
+async function verificarConflitoEspecialidadeAtiva(
+  db: ReturnType<typeof getDb>,
+  pacienteId: string,
+  especialidade: string,
+  ignorarId?: string
+) {
+  const condicoes = [
+    eq(atendimentos.pacienteId, pacienteId),
+    eq(atendimentos.especialidade, especialidade),
+    ne(atendimentos.status, StatusAtendimento.CANCELADO),
+  ];
+  if (ignorarId) {
+    condicoes.push(ne(atendimentos.id, ignorarId));
+  }
+  return db.query.atendimentos.findFirst({
+    where: and(...condicoes),
+    columns: { id: true, status: true, resumo: true, especialidade: true, usuarioId: true },
+  });
+}
+
+/**
  * PATCH /atendimentos/:id
  * Atualiza campos do atendimento (resumo/prontuário, procedimentos, status, profissional).
  */
@@ -373,6 +397,28 @@ rotasAtendimento.patch('/:id', zValidator('json', atualizarAtendimentoSchema), a
     );
   }
 
+  // Ao reativar uma consulta cancelada, garante que não haja outra consulta ativa/concluída na mesma especialidade
+  if (
+    atendimentoExistente.status === StatusAtendimento.CANCELADO &&
+    dados.status !== undefined &&
+    dados.status !== StatusAtendimento.CANCELADO
+  ) {
+    const conflito = await verificarConflitoEspecialidadeAtiva(
+      db,
+      atendimentoExistente.pacienteId,
+      atendimentoExistente.especialidade,
+      id
+    );
+    if (conflito) {
+      return c.json(
+        {
+          erro: `Não é possível reativar este atendimento porque o paciente já possui outra consulta ativa ou concluída na especialidade ${atendimentoExistente.especialidade}.`,
+        },
+        409
+      );
+    }
+  }
+
   const camposParaAtualizar: Record<string, unknown> = {
     atualizadoEm: new Date().toISOString(),
   };
@@ -403,11 +449,24 @@ rotasAtendimento.patch('/:id', zValidator('json', atualizarAtendimentoSchema), a
     camposParaAtualizar.usuarioId = profissional.id;
   }
 
-  const [atendimentoAtualizado] = await db
-    .update(atendimentos)
-    .set(camposParaAtualizar)
-    .where(eq(atendimentos.id, id))
-    .returning();
+  let atendimentoAtualizado;
+  try {
+    [atendimentoAtualizado] = await db
+      .update(atendimentos)
+      .set(camposParaAtualizar)
+      .where(eq(atendimentos.id, id))
+      .returning();
+  } catch (erro) {
+    if (String(erro).toLowerCase().includes('unique')) {
+      return c.json(
+        {
+          erro: `Não é possível atualizar este atendimento porque o paciente já possui outra consulta ativa ou concluída na especialidade ${atendimentoExistente.especialidade}.`,
+        },
+        409
+      );
+    }
+    throw erro;
+  }
 
   const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1';
   await registrarAuditoria(db, {
@@ -446,7 +505,7 @@ rotasAtendimento.patch('/:id/status', zValidator('json', atualizarStatusSchema),
   const { status } = c.req.valid('json');
   const existente = await db.query.atendimentos.findFirst({
     where: eq(atendimentos.id, id),
-    columns: { status: true, usuarioId: true },
+    columns: { status: true, usuarioId: true, pacienteId: true, especialidade: true },
   });
   if (!existente) {
     return c.json({ erro: 'Atendimento não encontrado.' }, 404);
@@ -478,18 +537,49 @@ rotasAtendimento.patch('/:id/status', zValidator('json', atualizarStatusSchema),
       403
     );
   }
+
+  if (existente.status === StatusAtendimento.CANCELADO && status !== StatusAtendimento.CANCELADO) {
+    const conflito = await verificarConflitoEspecialidadeAtiva(
+      db,
+      existente.pacienteId,
+      existente.especialidade,
+      id
+    );
+    if (conflito) {
+      return c.json(
+        {
+          erro: `Não é possível reativar este atendimento porque o paciente já possui outra consulta ativa ou concluída na especialidade ${existente.especialidade}.`,
+        },
+        409
+      );
+    }
+  }
+
   const agora = new Date().toISOString();
-  const [atendimento] = await db
-    .update(atendimentos)
-    .set({
-      status,
-      atualizadoEm: agora,
-      ...(status === StatusAtendimento.AGENDADO || status === StatusAtendimento.CONFIRMADO
-        ? { entradaFilaEm: agora }
-        : {}),
-    })
-    .where(eq(atendimentos.id, id))
-    .returning({ id: atendimentos.id, status: atendimentos.status, atualizadoEm: atendimentos.atualizadoEm });
+  let atendimento;
+  try {
+    [atendimento] = await db
+      .update(atendimentos)
+      .set({
+        status,
+        atualizadoEm: agora,
+        ...(status === StatusAtendimento.AGENDADO || status === StatusAtendimento.CONFIRMADO
+          ? { entradaFilaEm: agora }
+          : {}),
+      })
+      .where(eq(atendimentos.id, id))
+      .returning({ id: atendimentos.id, status: atendimentos.status, atualizadoEm: atendimentos.atualizadoEm });
+  } catch (erro) {
+    if (String(erro).toLowerCase().includes('unique')) {
+      return c.json(
+        {
+          erro: `Não é possível reativar este atendimento porque o paciente já possui outra consulta ativa ou concluída na especialidade ${existente.especialidade}.`,
+        },
+        409
+      );
+    }
+    throw erro;
+  }
 
   await registrarAuditoria(db, {
     userId: usuario.userId,
@@ -1098,6 +1188,7 @@ rotasAtendimento.get('/:id', async (c) => {
  */
 rotasAtendimento.get('/', zValidator('query', filtroAtendimentoSchema), async (c) => {
   const filtros = c.req.valid('query');
+  const usuario = c.get('usuario');
   const db = getDb(c.env.DB);
   const condicoes = [];
 

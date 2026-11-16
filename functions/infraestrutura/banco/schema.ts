@@ -116,6 +116,9 @@ export const atendimentos = sqliteTable('atendimentos', {
   criadoEm: text('criado_em').default(sql`CURRENT_TIMESTAMP`),
   atualizadoEm: text('atualizado_em').default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
+  uniqueIndex('idx_atendimentos_paciente_especialidade_ativa')
+    .on(table.pacienteId, table.especialidade)
+    .where(sql`status != 'CANCELADO'`),
   index('idx_atendimentos_paciente_especialidade')
     .on(table.pacienteId, table.especialidade),
   index('idx_atendimentos_paciente').on(table.pacienteId),
