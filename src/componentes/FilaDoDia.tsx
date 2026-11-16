@@ -17,6 +17,7 @@ import { Clock3, RotateCcw, CalendarDays, ClipboardCheck, Play, Plus, Ban, FileT
 import { Botao } from './Botao.tsx';
 import { ModalTriagem, type ItemPacienteTriagem, type ItemProfissionalTriagem } from './ModalTriagem.tsx';
 import { ModalIniciarAtendimento, type DadosAtendimento } from './ModalIniciarAtendimento.tsx';
+import { ToastAviso } from './ui/ToastAviso.tsx';
 import type { ItemAtendimentoLista } from './Atendimentos.tsx';
 import { requisicaoApi } from '../servicos/api.ts';
 
@@ -135,6 +136,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
   const [confirmandoPresencaId, setConfirmandoPresencaId] = useState<string | null>(null);
   const [confirmandoReativacaoId, setConfirmandoReativacaoId] = useState<string | null>(null);
   const [confirmandoFinalizacaoId, setConfirmandoFinalizacaoId] = useState<string | null>(null);
+  const [reativacaoBloqueadaIds, setReativacaoBloqueadaIds] = useState<Set<string>>(() => new Set());
   const [erroOperacao, setErroOperacao] = useState<string | null>(null);
 
   const [filaLocal, setFilaLocal] = useState<ItemFila[]>([]);
@@ -517,6 +519,9 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
     setConfirmandoReativacaoId(null);
     setErroOperacao(null);
 
+    const marcarComoBloqueado = () =>
+      setReativacaoBloqueadaIds((prev) => new Set(prev).add(id));
+
     const alvo = fila.find((f) => f.id === id);
     if (alvo?.pacienteId) {
       const conflitoLocal =
@@ -536,6 +541,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         );
 
       if (conflitoLocal) {
+        marcarComoBloqueado();
         setErroOperacao(
           `Não é possível reativar este atendimento porque o paciente já possui outra consulta ativa ou concluída na especialidade ${alvo.especialidade}.`
         );
@@ -546,7 +552,11 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
     try {
       await alternarStatus(id, 'AGUARDANDO');
     } catch (erro) {
-      setErroOperacao(erro instanceof Error ? erro.message : 'Não foi possível reativar o atendimento.');
+      const msg = erro instanceof Error ? erro.message : 'Não foi possível reativar o atendimento.';
+      if (/outra consulta|especialidade|reativar/i.test(msg)) {
+        marcarComoBloqueado();
+      }
+      setErroOperacao(msg);
     }
   };
 
@@ -652,12 +662,10 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
         fixo={true}
       />
 
-      {erroOperacao && (
-        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700" role="alert">
-          <span>{erroOperacao}</span>
-          <button type="button" onClick={() => setErroOperacao(null)} className="font-bold hover:text-rose-900">Fechar</button>
-        </div>
-      )}
+      <ToastAviso
+        mensagem={erroOperacao}
+        aoFechar={() => setErroOperacao(null)}
+      />
 
       {/* ─── Tabela da Fila de Presença com Filtros Excel ─────────────────── */}
       <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-0">
@@ -1237,7 +1245,7 @@ export const FilaDoDia: FC<FilaDoDiaProps> = ({
                         {item.status === 'CANCELADO' && (
                           <div className="relative inline-flex items-center gap-2">
                             <span className="text-[11px] font-semibold text-rose-500 italic">Cancelado</span>
-                            {ehAdmin && (
+                            {ehAdmin && !reativacaoBloqueadaIds.has(item.id) && (
                               <>
                                 <button
                                   type="button"

@@ -28,6 +28,7 @@ import { requisicaoApi } from '../servicos/api.ts';
 import { CardHoverPaciente } from './CardHoverPaciente.tsx';
 import { type ItemPaciente, calcularIdade, censurarCpf } from './TabelaPacientes.tsx';
 import { formatarConselhoERegistro } from './FilaDoDia.tsx';
+import { ToastAviso } from './ui/ToastAviso.tsx';
 
 export interface ItemAtendimentoLista {
   id: string;
@@ -117,6 +118,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   const [confirmandoPresencaId, setConfirmandoPresencaId] = useState<string | null>(null);
   const [confirmandoReativacaoId, setConfirmandoReativacaoId] = useState<string | null>(null);
   const [confirmandoFinalizacaoId, setConfirmandoFinalizacaoId] = useState<string | null>(null);
+  const [reativacaoBloqueadaIds, setReativacaoBloqueadaIds] = useState<Set<string>>(() => new Set());
   const [erroOperacao, setErroOperacao] = useState<string | null>(null);
 
   useEffect(() => {
@@ -882,21 +884,10 @@ export const Atendimentos: FC<AtendimentosProps> = ({
         fixo={true}
       />
 
-      {erroOperacao && (
-        <div
-          role="alert"
-          className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold animate-fade-in"
-        >
-          <span>{erroOperacao}</span>
-          <button
-            type="button"
-            onClick={() => setErroOperacao(null)}
-            className="px-2 py-0.5 rounded-lg text-[11px] font-bold text-rose-700 hover:bg-rose-100 cursor-pointer"
-          >
-            Fechar
-          </button>
-        </div>
-      )}
+      <ToastAviso
+        mensagem={erroOperacao}
+        aoFechar={() => setErroOperacao(null)}
+      />
 
       {/* ─── Tabela de Registros com Filtros Excel ────────────────────────── */}
       <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-0">
@@ -1469,7 +1460,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                         {item.status === 'CANCELADO' && (
                           <div className="relative inline-flex items-center gap-2">
                             <span className="text-[11px] font-semibold text-rose-500 italic">Cancelado</span>
-                            {ehAdmin && (
+                            {ehAdmin && !reativacaoBloqueadaIds.has(item.id) && (
                               <>
                                 <button
                                   type="button"
@@ -1501,6 +1492,8 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                                         onClick={async () => {
                                           setConfirmandoReativacaoId(null);
                                           setErroOperacao(null);
+                                          const marcarComoBloqueado = () =>
+                                            setReativacaoBloqueadaIds((prev) => new Set(prev).add(item.id));
                                           const conflitoLocal = atendimentos.some(
                                             (a) =>
                                               a.id !== item.id &&
@@ -1509,6 +1502,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                                               a.status !== StatusAtendimento.CANCELADO
                                           );
                                           if (conflitoLocal) {
+                                            marcarComoBloqueado();
                                             setErroOperacao(
                                               `Não é possível reativar este atendimento porque o paciente já possui outra consulta ativa ou concluída na especialidade ${item.especialidade}.`
                                             );
@@ -1518,11 +1512,14 @@ export const Atendimentos: FC<AtendimentosProps> = ({
                                             await handleAlterarStatus(item.id, StatusAtendimento.CONFIRMADO);
                                             aoSincronizar?.();
                                           } catch (erro) {
-                                            setErroOperacao(
+                                            const msg =
                                               erro instanceof Error
                                                 ? erro.message
-                                                : 'Não foi possível reativar este atendimento.'
-                                            );
+                                                : 'Não foi possível reativar este atendimento.';
+                                            if (/outra consulta|especialidade|reativar/i.test(msg)) {
+                                              marcarComoBloqueado();
+                                            }
+                                            setErroOperacao(msg);
                                           }
                                         }}
                                         className="px-2.5 py-1 text-[11px] bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors font-bold shadow-xs cursor-pointer"
