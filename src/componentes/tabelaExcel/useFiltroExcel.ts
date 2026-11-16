@@ -143,13 +143,13 @@ export function useFiltroExcel<T>({
         }
       });
 
-      const lista: ItemValorFiltro[] = Array.from(contagemValores.entries()).map(
-        ([valorChave, { rotulo, contagem }]) => ({
+      const lista: ItemValorFiltro[] = Array.from(contagemValores.entries())
+        .filter(([, { contagem }]) => contagem > 0)
+        .map(([valorChave, { rotulo, contagem }]) => ({
           valorChave,
           rotuloExibicao: rotulo,
           contagem,
-        })
-      );
+        }));
 
       // Ordena alfabeticamente os valores únicos
       lista.sort((a, b) => {
