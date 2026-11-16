@@ -321,6 +321,28 @@ async function verificarConflitoEspecialidadeAtiva(
 }
 
 /**
+ * Verifica se um erro (incluindo wrappers DrizzleQueryError com `.cause`) representa violação de constraint UNIQUE no D1/SQLite.
+ */
+function ehErroUniqueConstraint(erro: unknown): boolean {
+  let atual: unknown = erro;
+  for (let profundidade = 0; profundidade < 5 && atual; profundidade += 1) {
+    const mensagem =
+      atual instanceof Error
+        ? atual.message
+        : typeof atual === 'string'
+          ? atual
+          : '';
+    if (/unique/i.test(mensagem)) {
+      return true;
+    }
+    atual = typeof atual === 'object' && atual !== null && 'cause' in atual
+      ? (atual as { cause?: unknown }).cause
+      : null;
+  }
+  return false;
+}
+
+/**
  * PATCH /atendimentos/:id
  * Atualiza campos do atendimento (resumo/prontuário, procedimentos, status, profissional).
  */
@@ -457,7 +479,7 @@ rotasAtendimento.patch('/:id', zValidator('json', atualizarAtendimentoSchema), a
       .where(eq(atendimentos.id, id))
       .returning();
   } catch (erro) {
-    if (String(erro).toLowerCase().includes('unique')) {
+    if (ehErroUniqueConstraint(erro)) {
       return c.json(
         {
           erro: `Não é possível atualizar este atendimento porque o paciente já possui outra consulta ativa ou concluída na especialidade ${atendimentoExistente.especialidade}.`,
@@ -570,7 +592,7 @@ rotasAtendimento.patch('/:id/status', zValidator('json', atualizarStatusSchema),
       .where(eq(atendimentos.id, id))
       .returning({ id: atendimentos.id, status: atendimentos.status, atualizadoEm: atendimentos.atualizadoEm });
   } catch (erro) {
-    if (String(erro).toLowerCase().includes('unique')) {
+    if (ehErroUniqueConstraint(erro)) {
       return c.json(
         {
           erro: `Não é possível reativar este atendimento porque o paciente já possui outra consulta ativa ou concluída na especialidade ${existente.especialidade}.`,
