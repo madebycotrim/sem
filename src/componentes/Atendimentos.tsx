@@ -663,6 +663,10 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   }, [filtrosColuna, aoMudarFiltrosServidor, opcoesEscolas.length, opcoesProfissionais.length, opcoesEspecialidades.length, opcoesStatus.length]);
 
   const [paginaLocal, setPaginaLocal] = useState(1);
+  useEffect(() => {
+    setPaginaLocal(1);
+  }, [busca, statusFiltro, dataInicio, dataFim, filtrosColuna]);
+
   const itensCalculados = useItensPorPaginaInteligente(310, 48, 6, 12);
   const itensPorPagina = itensPorPaginaServidor || itensCalculados;
   const usandoPaginacaoServidor = typeof totalPaginasServidor === 'number' && (totalPaginasServidor > 1 || totalRegistrosServidor !== undefined);
@@ -671,7 +675,7 @@ export const Atendimentos: FC<AtendimentosProps> = ({
   const totalPaginas = usaServidor
     ? (totalPaginasServidor ?? 1)
     : usandoPaginacaoServidor && !temAlgumFiltroAtivo
-    ? totalPaginasServidor
+    ? (totalPaginasServidor ?? 1)
     : Math.max(1, Math.ceil(dadosFiltrados.length / itensPorPagina));
 
   const totalRegistros = usaServidor

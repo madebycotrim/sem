@@ -1,33 +1,6 @@
-import { requisicaoApi } from './api.ts';
-
 /**
- * Serviço de consulta de CPF por meio da API autenticada do sistema.
- * 
- * Inclui consumo inteligente de API:
- * - Validação matemática prévia por dígitos verificadores (Regra Oficial da Receita Federal)
- * - Cache efêmero em memória para evitar requisições duplicadas
- * - Rate Limiter (máximo 6 consultas/minuto)
- * - Trava de Cota Mensal (máximo 100 consultas/mês)
+ * Utilitários locais de validação, formatação e mascaramento de CPF (LGPD).
  */
-
-export interface RespostaApiCpfBruta {
-  code: number;
-  data?: {
-    cpf: string;
-    nome: string;
-    genero: 'M' | 'F' | 'I';
-    data_nascimento: string;
-  };
-  message?: string;
-}
-
-export interface DadosPessoaCpf {
-  cpf: string;
-  cpfFormatado: string;
-  nome: string;
-  genero: 'Masculino' | 'Feminino' | 'Outro' | 'Não informado';
-  dataNascimento: string; // YYYY-MM-DD
-}
 
 
 /**
@@ -105,61 +78,5 @@ export function mascararCpf(cpf?: string | null): string {
     return `${limpo.slice(0, 3)}.***.***-${limpo.slice(3, 5)}`;
   }
   return str;
-}
-
-/**
- * Obtém a chave configurada no ambiente de execução.
- */
-export function obterChaveApiCpf(): string {
-  return (import.meta.env.VITE_APICPF_KEY || '').trim();
-}
-
-/**
- * A chave não é persistida no navegador (mantida para compatibilidade).
- */
-export function salvarChaveApiCpf(_chave: string): void {
-  // No-op em produção
-}
-
-/**
- * Retorna as estatísticas de uso mensal da API (mantida para compatibilidade).
- */
-export function obterUsoMensalCpf(): { usado: number; limite: number } {
-  return { usado: 0, limite: 100 };
-}
-
-/**
- * Limpa cache de CPFs (mantida para compatibilidade com testes).
- */
-export function limparCacheCpf(): void {
-  // No-op em produção: nenhum dado é retido em cache
-}
-
-/**
- * Consulta de CPF:
- * 1. Valida matematicamente o CPF antes de qualquer ação (zero custo se inválido).
- * 2. Faz a requisição autenticada ao backend (/api/v1/cpf) sem retenção de cache local.
- *
- * @param cpf CPF com ou sem pontuação (11 dígitos)
- * @param _chaveApi Opcional (a chave é gerenciada de forma segura pelo backend)
- * @returns Dados estruturados da pessoa física
- * @throws Error com mensagem amigável em caso de erro de consulta
- */
-export async function consultarCpf(cpf: string, _chaveApi?: string): Promise<DadosPessoaCpf> {
-  const cpfLimpo = cpf.replace(/\D/g, '');
-
-  if (!cpfLimpo || cpfLimpo.length !== 11) {
-    throw new Error('O CPF deve conter exatamente 11 dígitos numéricos.');
-  }
-
-  // Validação matemática oficial antes de qualquer consumo
-  if (!validarCpfMatematicamente(cpfLimpo)) {
-    throw new Error('CPF inválido. Os dígitos verificadores não conferem.');
-  }
-
-  return requisicaoApi<DadosPessoaCpf>('/cpf', {
-    metodo: 'POST',
-    corpo: { cpf: cpfLimpo },
-  });
 }
 

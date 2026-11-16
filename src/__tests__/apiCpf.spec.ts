@@ -1,9 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   formatarCpf,
   validarCpfMatematicamente,
-  consultarCpf,
-  limparCacheCpf,
   normalizarCpf,
 } from '../servicos/apiCpf.ts';
 
@@ -12,16 +10,7 @@ const CPF_VALIDO_1 = '52998224725'; // D1=2, D2=5
 const CPF_VALIDO_2 = '11144477735'; // D1=3, D2=5
 const CPF_VALIDO_3 = '00000000191'; // D1=9, D2=1
 
-describe('Serviço de Consulta Inteligente de CPF (apicpf.com)', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    limparCacheCpf();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    limparCacheCpf();
-  });
+describe('Utilitários Locais de CPF', () => {
 
   describe('validarCpfMatematicamente', () => {
     it('deve validar CPFs matematicamente corretos', () => {
@@ -72,67 +61,6 @@ describe('Serviço de Consulta Inteligente de CPF (apicpf.com)', () => {
       expect(normalizarCpf('529.982.247-25')).toBe('52998224725');
       expect(normalizarCpf('52998224725')).toBe('52998224725');
       expect(normalizarCpf('529 982 247 25')).toBe('52998224725');
-    });
-  });
-
-  describe('consultarCpf com Consumo Inteligente', () => {
-    it('deve rejeitar e NÃO chamar a API se o CPF for matematicamente inválido', async () => {
-      const mockFetch = vi.fn();
-      global.fetch = mockFetch;
-
-      await expect(consultarCpf('12345678900', 'minha_chave')).rejects.toThrow(
-        'CPF inválido. Os dígitos verificadores não conferem.'
-      );
-
-      // Garante que o fetch NÃO foi chamado, economizando cota
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it('deve rejeitar se o CPF não tiver 11 dígitos', async () => {
-      const mockFetch = vi.fn();
-      global.fetch = mockFetch;
-
-      await expect(consultarCpf('123', 'minha_chave')).rejects.toThrow(
-        'O CPF deve conter exatamente 11 dígitos numéricos.'
-      );
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it('deve consultar e retornar dados com sucesso para CPF matematicamente válido', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        status: 200,
-        ok: true,
-        json: async () => ({ cpf: CPF_VALIDO_1, cpfFormatado: '529.982.247-25', nome: 'GABRIEL HENRIQUE SANTOS', genero: 'Masculino', dataNascimento: '2012-05-14' }),
-      });
-      global.fetch = mockFetch;
-
-      const resultado = await consultarCpf(CPF_VALIDO_1, 'minha_chave');
-
-      expect(resultado).toEqual({
-        cpf: CPF_VALIDO_1,
-        cpfFormatado: '529.982.247-25',
-        nome: 'GABRIEL HENRIQUE SANTOS',
-        genero: 'Masculino',
-        dataNascimento: '2012-05-14',
-      });
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-    });
-
-    it('deve consultar a API interna em cada solicitação', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        status: 200,
-        ok: true,
-        json: async () => ({ cpf: CPF_VALIDO_2, cpfFormatado: '111.444.777-35', nome: 'MARIA EDUARDA COSTA', genero: 'Feminino', dataNascimento: '2014-08-20' }),
-      });
-      global.fetch = mockFetch;
-
-      const res1 = await consultarCpf(CPF_VALIDO_2, 'minha_chave');
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-      expect(res1.nome).toBe('MARIA EDUARDA COSTA');
-
-      const res2 = await consultarCpf(CPF_VALIDO_2, 'minha_chave');
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-      expect(res2.nome).toBe('MARIA EDUARDA COSTA');
     });
   });
 });

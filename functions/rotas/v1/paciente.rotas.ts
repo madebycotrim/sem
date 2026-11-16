@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { criarPacienteSchema, atualizarPacienteSchema } from '../../../compartilhado/index.js';
 import { getDb, type AppDatabase } from '../../infraestrutura/banco/drizzle.js';
-import { pacientes, escolasLocais, consentimentos } from '../../infraestrutura/banco/schema.js';
+import { pacientes, escolasLocais, consentimentos, atendimentos } from '../../infraestrutura/banco/schema.js';
 import { eq, and, desc, count, ne, isNull, inArray, or, sql } from 'drizzle-orm';
 import {
   criptografarPii,
@@ -231,13 +231,26 @@ rotasPaciente.get('/', async (c) => {
           orderBy: [desc(consentimentos.criadoEm)],
           limit: 1,
         },
-        atendimentos: {
-          columns: { id: true },
-        },
       },
     }),
     db.select({ total: count() }).from(pacientes).where(whereClause),
   ]);
+
+  const idsPacientesPagina = pacientesList.map((p) => p.id);
+  const mapaContagemAtendimentos = new Map<string, number>();
+  if (idsPacientesPagina.length > 0) {
+    const contagens = await db
+      .select({
+        pacienteId: atendimentos.pacienteId,
+        total: count(),
+      })
+      .from(atendimentos)
+      .where(inArray(atendimentos.pacienteId, idsPacientesPagina))
+      .groupBy(atendimentos.pacienteId);
+    for (const row of contagens) {
+      if (row.pacienteId) mapaContagemAtendimentos.set(row.pacienteId, Number(row.total) || 0);
+    }
+  }
 
   const total = totalResult[0]?.total ?? 0;
   const kekHex = c.env.KEK_HEX;
@@ -269,7 +282,7 @@ rotasPaciente.get('/', async (c) => {
           sexo: pii.sexo ?? undefined,
           turma: p.turma,
           escolaLocal: p.escolaLocal?.nome ?? 'Desconhecida',
-          atendimentosCount: p.atendimentos?.length ?? 0,
+          atendimentosCount: mapaContagemAtendimentos.get(p.id) ?? 0,
           termoConsentimentoStatus: (p.consentimentos[0]?.dataConsentimento && !p.consentimentos[0]?.consentimentoDispensado)
             ? 'ACEITO'
             : 'PENDENTE',
@@ -284,7 +297,7 @@ rotasPaciente.get('/', async (c) => {
           telefone: null,
           turma: p.turma,
           escolaLocal: p.escolaLocal?.nome ?? 'Desconhecida',
-          atendimentosCount: p.atendimentos?.length ?? 0,
+          atendimentosCount: mapaContagemAtendimentos.get(p.id) ?? 0,
           termoConsentimentoStatus: 'PENDENTE',
           criadoEm: p.criadoEm,
         };

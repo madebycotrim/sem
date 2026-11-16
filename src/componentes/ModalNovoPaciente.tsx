@@ -4,19 +4,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import DOMPurify from 'dompurify';
 import {
-  AlertTriangle,
   CircleAlert,
-  CircleCheck,
-  LoaderCircle,
-  Pencil,
   UsersRound,
 } from 'lucide-react';
 import type { ItemPaciente } from './TabelaPacientes.tsx';
 import {
-  consultarCpf,
   formatarCpf,
   validarCpfMatematicamente,
-  obterChaveApiCpf,
 } from '../servicos/apiCpf.ts';
 import { formatarTelefone } from '../utilitarios/mascaras.ts';
 import {
@@ -141,13 +135,6 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
   const [salvando, setSalvando] = useState(false);
   const [erroGeral, setErroGeral] = useState<string | null>(null);
 
-  // Estados da Consulta Automática Inteligente de CPF
-  const [consultandoCpf, setConsultandoCpf] = useState(false);
-  const [cpfConsultado, setCpfConsultado] = useState('');
-  const [erroConsultaCpf, setErroConsultaCpf] = useState<string | null>(null);
-  const [sucessoConsultaCpf, setSucessoConsultaCpf] = useState<string | null>(null);
-  const [camposBloqueadosPorCpf, setCamposBloqueadosPorCpf] = useState(false);
-
   const {
     register,
     handleSubmit,
@@ -203,8 +190,6 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
   useEffect(() => {
     if (aberto) {
       setErroGeral(null);
-      setErroConsultaCpf(null);
-      setSucessoConsultaCpf(null);
 
       if (pacienteParaEditar) {
         const { anoEscolar, turma } = extrairAnoETurma(pacienteParaEditar.turma);
@@ -225,8 +210,6 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
         setValue('telefone', formatarTelefone(pacienteParaEditar.telefone || ''), { shouldValidate: true });
         setValue('anoEscolar', anoEscolar, { shouldValidate: true });
         setValue('turma', turma, { shouldValidate: true });
-        setCpfConsultado((pacienteParaEditar.cpf || '').replace(/\D/g, ''));
-        setCamposBloqueadosPorCpf(false);
       } else {
         const escolaPadrao = instituicaoPadrao;
         reset({
@@ -240,8 +223,6 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           anoEscolar: '',
           turma: '',
         });
-        setCpfConsultado('');
-        setCamposBloqueadosPorCpf(false);
       }
     }
   }, [aberto, pacienteParaEditar, instituicaoPadrao, setValue, reset]);
@@ -249,63 +230,14 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
   useEffect(() => {
     if (!aberto) return;
     const limpo = (cpfAtual || '').replace(/\D/g, '');
-
-    if (limpo.length < 11) {
-      setErroConsultaCpf(null);
-      return;
-    }
-
-    if (limpo.length === 11 && limpo !== cpfConsultado) {
+    if (limpo.length === 11) {
       if (!validarCpfMatematicamente(limpo)) {
-        setCpfConsultado(limpo);
-        setErroConsultaCpf('CPF inválido. Os dígitos verificadores não conferem.');
         setError('cpf', { type: 'manual', message: 'CPF inválido (dígitos verificadores incorretos)' });
-        return;
+      } else {
+        clearErrors('cpf');
       }
-
-      clearErrors('cpf');
-
-      let cancelado = false;
-      const timer = setTimeout(async () => {
-        setConsultandoCpf(true);
-        setErroConsultaCpf(null);
-        setSucessoConsultaCpf(null);
-
-        try {
-          const chave = obterChaveApiCpf();
-          const pessoa = await consultarCpf(limpo, chave);
-          if (cancelado) return;
-
-          setValue('nomeCompleto', pessoa.nome, { shouldValidate: true });
-          setValue('dataNascimento', pessoa.dataNascimento, { shouldValidate: true });
-          setValue('sexo', normalizarSexo(pessoa.genero), { shouldValidate: true });
-          setValue('cpf', pessoa.cpfFormatado, { shouldValidate: true });
-          setCpfConsultado(limpo);
-          setCamposBloqueadosPorCpf(true);
-
-          setSucessoConsultaCpf(`Dados de ${pessoa.nome.split(' ')[0]} localizados e preenchidos automaticamente!`);
-          setTimeout(() => {
-            if (!cancelado) setSucessoConsultaCpf(null);
-          }, 4000);
-        } catch (err: any) {
-          if (cancelado) return;
-          setCpfConsultado(limpo);
-          const msg = err?.message || 'Falha ao consultar CPF.';
-          setErroConsultaCpf(msg);
-          setTimeout(() => {
-            if (!cancelado) setErroConsultaCpf(null);
-          }, 5000);
-        } finally {
-          if (!cancelado) setConsultandoCpf(false);
-        }
-      }, 600);
-
-      return () => {
-        cancelado = true;
-        clearTimeout(timer);
-      };
     }
-  }, [cpfAtual, cpfConsultado, aberto, setValue, setError, clearErrors]);
+  }, [cpfAtual, aberto, setError, clearErrors]);
 
   const resetarFormulario = () => {
     const escolaPadrao = instituicaoPadrao;
@@ -320,15 +252,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
       anoEscolar: '',
       turma: '',
     });
-    setCpfConsultado('');
     setErroGeral(null);
-    setErroConsultaCpf(null);
-    setSucessoConsultaCpf(null);
-    setCamposBloqueadosPorCpf(false);
-  };
-
-  const liberarCamposAutomaticos = () => {
-    setCamposBloqueadosPorCpf(false);
   };
 
   const onSubmit = async (dados: FormNovoPaciente) => {
@@ -409,86 +333,41 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
             <div className="md:col-span-6">
               <ModalCampo rotulo="Nome completo" obrigatorio erro={errors.nomeCompleto?.message}>
-                <div className="relative">
-                  <input
-                    type="text"
-                    {...register('nomeCompleto')}
-                    placeholder="EX: JOAO DA SILVA"
-                    disabled={camposBloqueadosPorCpf}
-                    className={`${ESTILO_INPUT_MODAL} uppercase ${camposBloqueadosPorCpf ? 'pr-11' : ''}`}
-                  />
-                  {camposBloqueadosPorCpf && (
-                    <button
-                      type="button"
-                      onClick={liberarCamposAutomaticos}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-                      aria-label="Liberar edição dos dados preenchidos automaticamente pelo CPF"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
+                <input
+                  type="text"
+                  {...register('nomeCompleto')}
+                  placeholder="EX: JOAO DA SILVA"
+                  className={`${ESTILO_INPUT_MODAL} uppercase`}
+                />
               </ModalCampo>
             </div>
 
             <div className="md:col-span-3">
               <ModalCampo rotulo="CPF" obrigatorio erro={errors.cpf?.message}>
-                <div className="relative">
-                  <input
-                    type="text"
-                    {...register('cpf')}
-                    value={cpfAtual ?? ''}
-                    onChange={(e) => {
-                      const formatado = formatarCpf(e.target.value);
-                      e.target.value = formatado;
-                      setValue('cpf', formatado, { shouldValidate: true, shouldDirty: true });
-                    }}
-                    placeholder="000.000.000-00"
-                    maxLength={14}
-                    inputMode="numeric"
-                    className={`${ESTILO_INPUT_MODAL} font-mono pr-9`}
-                  />
-                  {consultandoCpf && (
-                    <div className="absolute right-3 top-2.5 flex items-center text-blue-600">
-                      <LoaderCircle className="w-4 h-4 animate-spin" />
-                    </div>
-                  )}
-                </div>
+                <input
+                  type="text"
+                  {...register('cpf')}
+                  value={cpfAtual ?? ''}
+                  onChange={(e) => {
+                    const formatado = formatarCpf(e.target.value);
+                    e.target.value = formatado;
+                    setValue('cpf', formatado, { shouldValidate: true, shouldDirty: true });
+                  }}
+                  placeholder="000.000.000-00"
+                  maxLength={14}
+                  inputMode="numeric"
+                  className={`${ESTILO_INPUT_MODAL} font-mono`}
+                />
               </ModalCampo>
-              {erroConsultaCpf && (
-                <div className="mt-1 text-[11px] font-medium text-amber-600 leading-tight flex items-start gap-1 animate-fade-in">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                  <span>{erroConsultaCpf}</span>
-                </div>
-              )}
-              {sucessoConsultaCpf && (
-                <div className="mt-1 text-[11px] font-medium text-emerald-600 leading-tight flex items-start gap-1 animate-fade-in">
-                  <CircleCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                  <span>{sucessoConsultaCpf}</span>
-                </div>
-              )}
             </div>
 
             <div className="md:col-span-3">
               <ModalCampo rotulo="Data Nascimento" obrigatorio erro={errors.dataNascimento?.message}>
-                <div className="relative">
-                  <input
-                    type="date"
-                    {...register('dataNascimento')}
-                    disabled={camposBloqueadosPorCpf}
-                    className={`${ESTILO_INPUT_MODAL} ${camposBloqueadosPorCpf ? 'pr-11' : ''}`}
-                  />
-                  {camposBloqueadosPorCpf && (
-                    <button
-                      type="button"
-                      onClick={liberarCamposAutomaticos}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-                      aria-label="Liberar edição da data de nascimento preenchida automaticamente pelo CPF"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
+                <input
+                  type="date"
+                  {...register('dataNascimento')}
+                  className={ESTILO_INPUT_MODAL}
+                />
               </ModalCampo>
             </div>
           </div>
@@ -496,37 +375,23 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           {/* Sexo e Telefone */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <ModalCampo rotulo="Sexo" obrigatorio erro={errors.sexo?.message}>
-              <div className="relative">
-                <SelectModal
-                  name={registroSexo.name}
-                  ref={registroSexo.ref}
-                  value={sexoAtual}
-                  onBlur={registroSexo.onBlur}
-                  onChange={(evento) => {
-                    const valor = typeof evento === 'string' ? evento : evento?.target?.value;
-                    setValue('sexo', normalizarSexo(valor), { shouldValidate: true, shouldDirty: true });
-                  }}
-                  placeholder="Selecione o sexo"
-                  disabled={camposBloqueadosPorCpf}
-                  opcoes={[
-                    { valor: 'Masculino', rotulo: 'Masculino' },
-                    { valor: 'Feminino', rotulo: 'Feminino' },
-                    { valor: 'Outro', rotulo: 'Outro' },
-                    { valor: 'Não informado', rotulo: 'Não informado' },
-                  ]}
-                  className={camposBloqueadosPorCpf ? 'pr-10' : ''}
-                />
-                {camposBloqueadosPorCpf && (
-                  <button
-                    type="button"
-                    onClick={liberarCamposAutomaticos}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-                    aria-label="Liberar edição do sexo preenchido automaticamente pelo CPF"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+              <SelectModal
+                name={registroSexo.name}
+                ref={registroSexo.ref}
+                value={sexoAtual}
+                onBlur={registroSexo.onBlur}
+                onChange={(evento) => {
+                  const valor = typeof evento === 'string' ? evento : evento?.target?.value;
+                  setValue('sexo', normalizarSexo(valor), { shouldValidate: true, shouldDirty: true });
+                }}
+                placeholder="Selecione o sexo"
+                opcoes={[
+                  { valor: 'Masculino', rotulo: 'Masculino' },
+                  { valor: 'Feminino', rotulo: 'Feminino' },
+                  { valor: 'Outro', rotulo: 'Outro' },
+                  { valor: 'Não informado', rotulo: 'Não informado' },
+                ]}
+              />
             </ModalCampo>
 
             <ModalCampo rotulo="Telefone" obrigatorio erro={errors.telefone?.message}>

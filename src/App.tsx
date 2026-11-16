@@ -15,7 +15,7 @@ import { Login } from './paginas/Login.tsx';
 import { TimeoutSessao } from './componentes/TimeoutSessao.tsx';
 import { DrawerHistoricoPaciente } from './componentes/DrawerHistoricoPaciente.tsx';
 import { ModalAlterarSenha } from './componentes/ModalAlterarSenha.tsx';
-import { PainelAnalitico } from './paginas/PainelAnalitico.tsx';
+import { PainelAnalitico, limparCacheAnalitico } from './paginas/PainelAnalitico.tsx';
 import { Relatorios } from './componentes/Relatorios.tsx';
 import { ConsoleBootstrap } from './componentes/ConsoleBootstrap.tsx';
 import { ModalImportarPlanilha } from './componentes/ModalImportarPlanilha.tsx';
@@ -289,6 +289,7 @@ export function App() {
   }, [escolasGlobais]);
 
   const limparNavegacaoAoDeslogar = () => {
+    limparCacheAnalitico();
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
     setSecaoAtiva('dashboard');
     setUsuarioLogado(null);

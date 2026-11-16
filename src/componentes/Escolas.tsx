@@ -133,11 +133,12 @@ export const Escolas: FC<EscolasProps> = ({
   const [escolaEmEdicao, setEscolaEmEdicao] = useState<EscolaPolo | null>(null);
   const [escolaParaExcluir, setEscolaParaExcluir] = useState<EscolaPolo | null>(null);
   const [excluindo, setExcluindo] = useState(false);
+  const [erroArquivamento, setErroArquivamento] = useState<string | null>(null);
   const [menuOpcoesAbertoId, setMenuOpcoesAbertoId] = useState<string | null>(null);
 
   const filtradas = escolas.filter((e) =>
-    e.nome.toLowerCase().includes(busca.toLowerCase()) ||
-    e.regiao.toLowerCase().includes(busca.toLowerCase())
+    String(e.nome ?? '').toLowerCase().includes(busca.toLowerCase()) ||
+    String(e.regiao ?? '').toLowerCase().includes(busca.toLowerCase())
   );
 
   return (
@@ -422,7 +423,12 @@ export const Escolas: FC<EscolasProps> = ({
       {/* Modal de Confirmação de Arquivamento */}
       <Modal
         aberto={!!escolaParaExcluir}
-        aoFechar={() => setEscolaParaExcluir(null)}
+        aoFechar={() => {
+          if (!excluindo) {
+            setEscolaParaExcluir(null);
+            setErroArquivamento(null);
+          }
+        }}
         titulo="Arquivar Instituição"
         subtitulo={escolaParaExcluir ? `Tem certeza que deseja arquivar "${escolaParaExcluir.nome}"?` : ''}
         tamanho="sm"
@@ -434,7 +440,11 @@ export const Escolas: FC<EscolasProps> = ({
             <BotaoModal
               variante="secundario"
               rotulo="Cancelar"
-              aoClicar={() => setEscolaParaExcluir(null)}
+              desabilitado={excluindo}
+              aoClicar={() => {
+                setEscolaParaExcluir(null);
+                setErroArquivamento(null);
+              }}
             />
             <BotaoModal
               variante="perigo"
@@ -443,6 +453,7 @@ export const Escolas: FC<EscolasProps> = ({
               aoClicar={async () => {
                 if (!escolaParaExcluir) return;
                 setExcluindo(true);
+                setErroArquivamento(null);
                 try {
                   await requisicaoApi(`/escolas/${escolaParaExcluir.id}`, { metodo: 'DELETE' });
                   if (escolaAtivaId === escolaParaExcluir.id) {
@@ -450,8 +461,9 @@ export const Escolas: FC<EscolasProps> = ({
                   }
                   aoRecarregarEscolas();
                   setEscolaParaExcluir(null);
-                } catch (erro) {
+                } catch (erro: any) {
                   console.error('Erro ao arquivar instituição:', erro);
+                  setErroArquivamento(erro?.message || 'Não foi possível arquivar a instituição. Tente novamente.');
                 } finally {
                   setExcluindo(false);
                 }
@@ -463,6 +475,11 @@ export const Escolas: FC<EscolasProps> = ({
         <p className="text-xs text-slate-500 font-medium">
           A instituição será ocultada das listagens para evitar novos vínculos, mas todos os registros de estudantes e atendimentos já realizados serão mantidos de forma segura no sistema.
         </p>
+        {erroArquivamento && (
+          <p className="mt-3 text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
+            {erroArquivamento}
+          </p>
+        )}
       </Modal>
     </div>
   );

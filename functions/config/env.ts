@@ -34,8 +34,6 @@ const envSchema = z.object({
 
   MFA_ISSUER: z.string().default('Catraki SEM'),
 
-  APICPF_KEY: z.string().min(1).optional(),
-
   DB: z.any().optional(), // Cloudflare D1 Database binding
   ASSETS: z.any().optional(), // Cloudflare Pages static assets binding
   AI: z.any().optional(), // Cloudflare Workers AI binding

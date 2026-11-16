@@ -129,6 +129,10 @@ let cacheDadosAnaliticos: {
   totalConsentimentosPendentes?: number;
 } | null = null;
 
+export function limparCacheAnalitico(): void {
+  cacheDadosAnaliticos = null;
+}
+
 export const PainelAnalitico: FC<PainelAnaliticoProps> = ({
   atendimentos: _atendimentosProp,
   pacientes,

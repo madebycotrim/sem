@@ -21,11 +21,6 @@ export default defineConfig({
         target: 'http://127.0.0.1:8787',
         changeOrigin: true,
       },
-      '/api-cpf-proxy': {
-        target: 'https://apicpf.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api-cpf-proxy/, ''),
-      },
     },
   },
   build: {

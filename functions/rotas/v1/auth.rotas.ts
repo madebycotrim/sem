@@ -286,7 +286,6 @@ rotasAuth.post(
 
     return c.json({
       mensagem: 'MFA verificado com sucesso.',
-      token: novoToken,
     });
   }
 );
