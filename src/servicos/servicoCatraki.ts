@@ -78,41 +78,72 @@ export async function verificarAutorizacoesEmLote(
   const cpfsUnicos = Array.from(new Set(cpfsValidos));
 
   try {
+    // Tenta primeiro o proxy autenticado do próprio backend (que injeta CATRAKI_API_KEY com segurança)
+    if (typeof window !== 'undefined') {
+      const controllerProxy = new AbortController();
+      const timeoutProxy = setTimeout(() => controllerProxy.abort(), 9000);
+      try {
+        const respProxy = await fetch('/api/v1/consentimentos/verificar-lote', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ cpfs: cpfsUnicos }),
+          signal: controllerProxy.signal,
+        });
+        if (respProxy.ok) {
+          const dadosProxy = (await respProxy.json()) as RespostaBatchCheckCatraki;
+          if (dadosProxy?.success) {
+            return dadosProxy;
+          }
+        }
+      } catch {
+        // Segue para tentativa direta caso proxy não esteja disponível
+      } finally {
+        clearTimeout(timeoutProxy);
+      }
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
 
-    const resposta = await fetch(`${CATRAKI_API_BASE}/public/batch-check`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({ cpfs: cpfsUnicos }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!resposta.ok) {
-      // Fallback para /check-bulk se batch-check falhar
-      const respostaBulk = await fetch(`${CATRAKI_API_BASE}/public/check-bulk`, {
+    try {
+      const resposta = await fetch(`${CATRAKI_API_BASE}/public/batch-check`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
         body: JSON.stringify({ cpfs: cpfsUnicos }),
+        signal: controller.signal,
       });
 
-      if (respostaBulk.ok) {
-        return (await respostaBulk.json()) as RespostaBatchCheckCatraki;
+      if (!resposta.ok) {
+        // Fallback para /check-bulk se batch-check falhar
+        const respostaBulk = await fetch(`${CATRAKI_API_BASE}/public/check-bulk`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({ cpfs: cpfsUnicos }),
+          signal: controller.signal,
+        });
+
+        if (respostaBulk.ok) {
+          return (await respostaBulk.json()) as RespostaBatchCheckCatraki;
+        }
+
+        throw new Error(`Falha na API Catraki (${resposta.status})`);
       }
 
-      throw new Error(`Falha na API Catraki (${resposta.status})`);
+      const dados = (await resposta.json()) as RespostaBatchCheckCatraki;
+      return dados;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const dados = (await resposta.json()) as RespostaBatchCheckCatraki;
-    return dados;
   } catch (erro: any) {
     console.warn('[CATRAKI_AUTO_SYNC_FALLBACK]', erro?.message || erro);
     // Em caso de offline ou falha de rede temporária, retorna objeto seguro

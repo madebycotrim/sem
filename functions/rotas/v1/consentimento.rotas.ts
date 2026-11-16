@@ -14,15 +14,90 @@ export const rotasConsentimento = new Hono<{ Bindings: Bindings; Variables: AppV
 rotasConsentimento.use('*', middlewareAutenticacao, autorizarPerfis(['BOOTSTRAP', 'ADMIN', 'TRIAGEM_RECEPCAO', 'PROFISSIONAL_SAUDE']));
 
 const itemAutorizacaoCatrakiSchema = z.object({
-  cpf: z.string().optional(),
-  pacienteId: z.string().optional(),
+  cpf: z.string().nullable().optional(),
+  pacienteId: z.string().nullable().optional(),
   authorized: z.boolean(),
-  validationCode: z.string().optional(),
-  signedAt: z.string().optional(),
-  signerName: z.string().optional(),
-  documentId: z.string().optional(),
-  isRevoked: z.boolean().optional(),
+  validationCode: z.string().nullable().optional(),
+  signedAt: z.string().nullable().optional(),
+  signerName: z.string().nullable().optional(),
+  documentId: z.string().nullable().optional(),
+  isRevoked: z.boolean().nullable().optional(),
 });
+
+const verificarLoteCatrakiSchema = z.object({
+  cpfs: z.array(z.string()).min(1).max(500),
+});
+
+/**
+ * POST /consentimentos/verificar-lote
+ * Proxy autenticado no servidor para consultar autorizações no Catraki sem expor a chave de API no navegador.
+ */
+rotasConsentimento.post(
+  '/verificar-lote',
+  zValidator('json', verificarLoteCatrakiSchema),
+  async (c) => {
+    const { cpfs } = c.req.valid('json');
+    const cpfsLimpos = Array.from(
+      new Set(cpfs.map((cpf) => cpf.replace(/\D/g, '')).filter((cpf) => cpf.length === 11))
+    );
+
+    if (cpfsLimpos.length === 0) {
+      return c.json({ success: true, results: {}, count: 0 });
+    }
+
+    const baseUrl = (c.env.CATRAKI_API_URL || 'https://catraki---sesi.pages.dev/api').replace(/\/$/, '');
+    const apiKey = c.env.CATRAKI_API_KEY?.trim();
+
+    if (!apiKey) {
+      return c.json(
+        {
+          success: false,
+          erro: 'CATRAKI_API_KEY não configurada no servidor.',
+          results: {},
+        },
+        503
+      );
+    }
+
+    try {
+      const resposta = await fetch(`${baseUrl}/public/batch-check`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-API-KEY': apiKey,
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ cpfs: cpfsLimpos }),
+        signal: AbortSignal.timeout(8000),
+      });
+
+      const dados = (await resposta.json().catch(() => null)) as Record<string, unknown> | null;
+      if (!resposta.ok || !dados) {
+        return c.json(
+          {
+            success: false,
+            erro: (dados?.error as string) || `Erro ao consultar Catraki (HTTP ${resposta.status}).`,
+            results: {},
+          },
+          502
+        );
+      }
+
+      return c.json(dados);
+    } catch (erro) {
+      console.error('Erro ao consultar API Catraki via proxy:', erro);
+      return c.json(
+        {
+          success: false,
+          erro: 'Timeout ou falha de comunicação com a API Catraki.',
+          results: {},
+        },
+        504
+      );
+    }
+  }
+);
 
 const sincronizarCatrakiSchema = z.object({
   autorizacoes: z.array(itemAutorizacaoCatrakiSchema),

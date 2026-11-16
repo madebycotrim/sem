@@ -845,7 +845,7 @@ export function App() {
       montado = false;
       clearInterval(intervalo);
     };
-  }, [chaveCpfsPacientes, gatilhoSincronizarCatraki]);
+  }, [autenticado, chaveCpfsPacientes, gatilhoSincronizarCatraki]);
 
   const handleExcluirPaciente = async (paciente: ItemPaciente) => {
     try {
