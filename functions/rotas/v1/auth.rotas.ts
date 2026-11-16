@@ -223,6 +223,26 @@ rotasAuth.post(
     })
     .where(eq(usuarios.id, usuario.id));
 
+  // Revogar token atual e emitir novo JWT com novo JTI após alteração de senha
+  if (usuarioLogado.jti && usuarioLogado.exp) {
+    await db.insert(tokensRevogados).values({
+      jti: usuarioLogado.jti,
+      expiraEm: new Date(usuarioLogado.exp * 1000).toISOString(),
+    }).onConflictDoNothing();
+  }
+
+  const novoJti = crypto.randomUUID();
+  const novoPayload = {
+    userId: usuario.id,
+    email: usuario.email,
+    perfil: usuario.perfil,
+    ...(usuarioLogado.mfaVerificado ? { mfaVerificado: true } : {}),
+    jti: novoJti,
+    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 8,
+  };
+  const novoToken = await sign(novoPayload, c.env.JWT_SECRET);
+  setCookie(c, 'token', novoToken, obterOpcoesCookie(c));
+
   return c.json({ mensagem: 'Senha alterada com sucesso.' });
 });
 
@@ -237,6 +257,21 @@ rotasAuth.post(
   async (c) => {
     const body = c.req.valid('json');
     const usuarioLogado = c.get('usuario');
+    const ip = ipDaRequisicao(c);
+    const chaveMfa = `mfa:${usuarioLogado.email}`;
+
+    const bloqueio = await verificarBloqueioLogin(c.env.DB, chaveMfa, ip);
+    if (bloqueio.bloqueado) {
+      c.header('Retry-After', String(bloqueio.retryAfterSegundos));
+      return c.json(
+        {
+          erro: 'Muitas tentativas de código MFA inválidas. Tente novamente em alguns minutos.',
+          codigo: 'MFA_BLOQUEADO',
+        },
+        429
+      );
+    }
+
     const db = getDb(c.env.DB);
 
     const usuario = await db.query.usuarios.findFirst({
@@ -258,8 +293,11 @@ rotasAuth.post(
 
     const delta = totp.validate({ token: body.token, window: 1 });
     if (delta === null) {
+      await registrarTentativaLogin(c.env.DB, chaveMfa, ip, false);
       return c.json({ erro: 'Código MFA inválido ou expirado.' }, 401);
     }
+
+    await registrarTentativaLogin(c.env.DB, chaveMfa, ip, true);
 
     // Revogar token anterior (sem MFA verificado) se tiver JTI
     if (usuarioLogado.jti && usuarioLogado.exp) {

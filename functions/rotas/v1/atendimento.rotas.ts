@@ -112,6 +112,20 @@ rotasAtendimento.post(
     }
 
     const profissionalId = profissional.id;
+    const ehAdminOuBootstrap = usuario.perfil === 'ADMIN' || usuario.perfil === 'BOOTSTRAP';
+
+    if (
+      (dados.status === StatusAtendimento.EM_ATENDIMENTO || dados.status === StatusAtendimento.CONCLUIDO) &&
+      !ehAdminOuBootstrap &&
+      profissionalId !== usuario.userId
+    ) {
+      return c.json(
+        {
+          erro: 'Apenas o próprio profissional responsável ou um administrador pode registrar um atendimento já iniciado ou concluído.',
+        },
+        403
+      );
+    }
 
     // Regra estrita: um paciente/CPF não pode ter mais de uma consulta na mesma especialidade
     const consultaExistente = await db.query.atendimentos.findFirst({
@@ -119,7 +133,7 @@ rotasAtendimento.post(
         eq(atendimentos.pacienteId, dados.pacienteId),
         eq(atendimentos.especialidade, dados.especialidade)
       ),
-      columns: { id: true, status: true, resumo: true, especialidade: true },
+      columns: { id: true, status: true, resumo: true, especialidade: true, usuarioId: true },
     });
 
     const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '127.0.0.1';
@@ -133,6 +147,19 @@ rotasAtendimento.post(
           {
             erro: `O paciente já possui uma consulta concluída na especialidade ${dados.especialidade}. Não é permitido cadastrar mais de uma consulta na mesma especialidade para o mesmo CPF/aluno.`,
             consultaExistenteId: consultaExistente.id,
+          },
+          409
+        );
+      }
+
+      if (
+        consultaExistente.status === StatusAtendimento.EM_ATENDIMENTO &&
+        !ehAdminOuBootstrap &&
+        consultaExistente.usuarioId !== usuario.userId
+      ) {
+        return c.json(
+          {
+            erro: 'Este paciente já está em atendimento com outro profissional nesta especialidade.',
           },
           409
         );
@@ -297,6 +324,55 @@ rotasAtendimento.patch('/:id', zValidator('json', atualizarAtendimentoSchema), a
     );
   }
 
+  const ehAdminOuBootstrap = usuario.perfil === 'ADMIN' || usuario.perfil === 'BOOTSTRAP';
+  const emFaseClinicaOuFinalizado =
+    atendimentoExistente.status !== StatusAtendimento.AGENDADO &&
+    atendimentoExistente.status !== StatusAtendimento.CONFIRMADO;
+
+  // Impede sequestro de propriedade (ownership hijacking) para contornar sigilo clínico
+  if (
+    dados.usuarioId !== undefined &&
+    dados.usuarioId !== atendimentoExistente.usuarioId &&
+    emFaseClinicaOuFinalizado
+  ) {
+    return c.json(
+      {
+        erro: 'Não é permitido alterar o profissional responsável após o início ou conclusão do atendimento.',
+      },
+      403
+    );
+  }
+
+  // Apenas admin/bootstrap ou o profissional responsável pode iniciar/finalizar atendimento
+  if (
+    (dados.status === StatusAtendimento.EM_ATENDIMENTO || dados.status === StatusAtendimento.CONCLUIDO) &&
+    !ehAdminOuBootstrap &&
+    atendimentoExistente.usuarioId !== usuario.userId
+  ) {
+    return c.json(
+      {
+        erro: 'Apenas o profissional responsável ou um administrador pode iniciar ou finalizar este atendimento.',
+      },
+      403
+    );
+  }
+
+  // Apenas admin/bootstrap pode reabrir ou cancelar atendimento já finalizado/cancelado
+  if (
+    dados.status !== undefined &&
+    dados.status !== atendimentoExistente.status &&
+    (atendimentoExistente.status === StatusAtendimento.CONCLUIDO ||
+      atendimentoExistente.status === StatusAtendimento.CANCELADO) &&
+    !ehAdminOuBootstrap
+  ) {
+    return c.json(
+      {
+        erro: 'Apenas administradores podem alterar o status de um atendimento já finalizado ou cancelado.',
+      },
+      403
+    );
+  }
+
   const camposParaAtualizar: Record<string, unknown> = {
     atualizadoEm: new Date().toISOString(),
   };
@@ -370,10 +446,37 @@ rotasAtendimento.patch('/:id/status', zValidator('json', atualizarStatusSchema),
   const { status } = c.req.valid('json');
   const existente = await db.query.atendimentos.findFirst({
     where: eq(atendimentos.id, id),
-    columns: { status: true },
+    columns: { status: true, usuarioId: true },
   });
   if (!existente) {
     return c.json({ erro: 'Atendimento não encontrado.' }, 404);
+  }
+
+  const ehAdminOuBootstrap = usuario.perfil === 'ADMIN' || usuario.perfil === 'BOOTSTRAP';
+  if (
+    (status === StatusAtendimento.EM_ATENDIMENTO || status === StatusAtendimento.CONCLUIDO) &&
+    !ehAdminOuBootstrap &&
+    existente.usuarioId !== usuario.userId
+  ) {
+    return c.json(
+      {
+        erro: 'Apenas o profissional responsável ou um administrador pode iniciar ou finalizar este atendimento.',
+      },
+      403
+    );
+  }
+
+  if (
+    status !== existente.status &&
+    (existente.status === StatusAtendimento.CONCLUIDO || existente.status === StatusAtendimento.CANCELADO) &&
+    !ehAdminOuBootstrap
+  ) {
+    return c.json(
+      {
+        erro: 'Apenas administradores podem alterar o status de um atendimento já finalizado ou cancelado.',
+      },
+      403
+    );
   }
   const agora = new Date().toISOString();
   const [atendimento] = await db
@@ -965,6 +1068,7 @@ rotasAtendimento.get('/resumo-dia', async (c) => {
  */
 rotasAtendimento.get('/:id', async (c) => {
   const db = getDb(c.env.DB);
+  const usuario = c.get('usuario');
   const id = c.req.param('id');
   const atendimento = await db.query.atendimentos.findFirst({
     where: eq(atendimentos.id, id),
@@ -978,7 +1082,14 @@ rotasAtendimento.get('/:id', async (c) => {
     return c.json({ erro: 'Atendimento não encontrado.' }, 404);
   }
 
-  return c.json(atendimento);
+  const podeVerClinico = podeVisualizarConteudoClinico(usuario, atendimento);
+
+  return c.json({
+    ...atendimento,
+    resumo: podeVerClinico ? atendimento.resumo : null,
+    procedimentos: podeVerClinico ? atendimento.procedimentos : null,
+    sigiloRestrito: !podeVerClinico,
+  });
 });
 
 /**
