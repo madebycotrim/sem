@@ -86,6 +86,13 @@ export async function requisicaoApi<T = unknown>(
         }
 
         // Não fazer retry em erros de validação/autenticação (4xx)
+        if (resposta.status === 401 && typeof window !== 'undefined') {
+          const rotasAuthPublicas = ['/auth/login', '/auth/me', '/auth/mfa/verificar', '/auth/alterar-senha'];
+          if (!rotasAuthPublicas.some((r) => rota.startsWith(r))) {
+            window.dispatchEvent(new CustomEvent('catraki:sessao-expirada'));
+          }
+        }
+
         if (resposta.status >= 400 && resposta.status < 500) {
           const detalhes = erroBody.detalhes
             ? Object.values(erroBody.detalhes).flat().join(' ')

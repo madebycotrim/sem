@@ -309,6 +309,14 @@ export function App() {
     setResumoDiaDashboard(null);
   };
 
+  useEffect(() => {
+    const aoExpirarSessao = () => {
+      limparNavegacaoAoDeslogar();
+    };
+    window.addEventListener('catraki:sessao-expirada', aoExpirarSessao);
+    return () => window.removeEventListener('catraki:sessao-expirada', aoExpirarSessao);
+  }, []);
+
   const deslogar = async () => {
     try {
       await requisicaoApi('/auth/logout', { metodo: 'POST' });
