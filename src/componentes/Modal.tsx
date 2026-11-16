@@ -149,10 +149,13 @@ export const Modal: FC<ModalProps> = ({
   contentClassName = 'px-6 py-6',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const mouseDownNoBackdropRef = useRef(false);
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+  const [pulsarConfirmacao, setPulsarConfirmacao] = useState(false);
 
   const executarFechamentoEReset = () => {
     setConfirmandoDescarte(false);
+    setPulsarConfirmacao(false);
     if (containerRef.current) {
       const formularios = containerRef.current.querySelectorAll('form');
       formularios.forEach((f) => f.reset());
@@ -162,7 +165,12 @@ export const Modal: FC<ModalProps> = ({
   };
 
   const tentarFechar = () => {
-    if (confirmarAoFechar && temDadosPreenchidos && !confirmandoDescarte) {
+    if (confirmarAoFechar && temDadosPreenchidos) {
+      if (confirmandoDescarte) {
+        setPulsarConfirmacao(true);
+        setTimeout(() => setPulsarConfirmacao(false), 300);
+        return;
+      }
       setConfirmandoDescarte(true);
       return;
     }
@@ -172,6 +180,7 @@ export const Modal: FC<ModalProps> = ({
   useEffect(() => {
     if (!aberto) {
       setConfirmandoDescarte(false);
+      setPulsarConfirmacao(false);
       return;
     }
     const aoPressionarTecla = (evento: KeyboardEvent) => {
@@ -197,9 +206,30 @@ export const Modal: FC<ModalProps> = ({
         className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/40 backdrop-blur-[2px] animate-fade-in font-sans"
         role="dialog"
         aria-modal="true"
-        onClick={tentarFechar}
+        onMouseDown={(evento) => {
+          mouseDownNoBackdropRef.current = evento.target === evento.currentTarget;
+        }}
+        onClick={(evento) => {
+          if (mouseDownNoBackdropRef.current && evento.target === evento.currentTarget) {
+            tentarFechar();
+          }
+          mouseDownNoBackdropRef.current = false;
+        }}
       >
-        <div className="min-h-full flex items-center justify-center p-3 sm:p-4 py-4 sm:py-6">
+        <div
+          className="min-h-full flex items-center justify-center p-3 sm:p-4 py-4 sm:py-6"
+          onMouseDown={(evento) => {
+            if (evento.target === evento.currentTarget) {
+              mouseDownNoBackdropRef.current = true;
+            }
+          }}
+          onClick={(evento) => {
+            if (mouseDownNoBackdropRef.current && evento.target === evento.currentTarget) {
+              tentarFechar();
+            }
+            mouseDownNoBackdropRef.current = false;
+          }}
+        >
           <div
             ref={containerRef}
             className={`w-full ${larguraClasse} max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] bg-white rounded-[28px] shadow-[0_28px_80px_rgba(15,23,42,0.18)] border border-slate-200/80 flex flex-col animate-slide-up relative overflow-hidden ${className}`}
@@ -255,35 +285,44 @@ export const Modal: FC<ModalProps> = ({
           {/* ─── 4. Confirmação de Descarte de Alterações ─────────────────── */}
           {confirmandoDescarte && (
             <div
-              className="absolute inset-0 z-40 bg-slate-950/35 backdrop-blur-[2px] flex items-center justify-center p-4 animate-fade-in"
-              onClick={(evento) => evento.stopPropagation()}
+              className="absolute inset-0 z-40 bg-slate-950/45 backdrop-blur-[3px] flex items-center justify-center p-4 animate-fade-in"
+              onClick={(evento) => {
+                evento.stopPropagation();
+                if (evento.target === evento.currentTarget) {
+                  setPulsarConfirmacao(true);
+                  setTimeout(() => setPulsarConfirmacao(false), 300);
+                }
+              }}
             >
               <div
                 role="alertdialog"
                 aria-modal="true"
                 aria-labelledby="modal-descarte-titulo"
                 aria-describedby="modal-descarte-descricao"
-                className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 space-y-4 animate-slide-up"
+                className={`w-full max-w-[390px] bg-white rounded-[24px] border border-slate-200/90 shadow-[0_24px_64px_rgba(15,23,42,0.22)] p-6 space-y-5 animate-slide-up transition-transform duration-150 ${
+                  pulsarConfirmacao ? 'scale-[1.02] ring-4 ring-amber-200/70' : 'scale-100'
+                }`}
               >
-                <div className="flex items-start gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shrink-0">
+                <div className="flex items-start gap-4">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100/80 border border-amber-200/90 text-amber-600 flex items-center justify-center shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
                     <TriangleAlert className="w-5 h-5" />
                   </div>
-                  <div>
-                    <h3 id="modal-descarte-titulo" className="text-[15px] font-bold text-slate-800">
+                  <div className="min-w-0">
+                    <h3 id="modal-descarte-titulo" className="text-[15.5px] font-extrabold text-slate-900 tracking-[-0.01em]">
                       Descartar alterações?
                     </h3>
-                    <p id="modal-descarte-descricao" className="mt-1 text-[12.5px] text-slate-500 leading-relaxed">
-                      Existem informações preenchidas que ainda não foram salvas. Se sair agora, os dados serão perdidos.
+                    <p id="modal-descarte-descricao" className="mt-1.5 text-[12.5px] text-slate-500 leading-relaxed">
+                      Você possui dados não salvos neste formulário. Se sair agora, todas as informações preenchidas serão perdidas.
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center justify-end gap-2.5 pt-2">
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
                   <Botao
                     type="button"
                     variante="secundario"
                     tamanho="sm"
                     formato="pilula"
+                    autoFocus
                     onClick={() => setConfirmandoDescarte(false)}
                   >
                     Continuar editando
@@ -295,7 +334,7 @@ export const Modal: FC<ModalProps> = ({
                     formato="pilula"
                     onClick={executarFechamentoEReset}
                   >
-                    Descartar
+                    Sim, descartar
                   </Botao>
                 </div>
               </div>

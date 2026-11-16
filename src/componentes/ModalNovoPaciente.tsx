@@ -143,7 +143,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
     reset,
     setError,
     clearErrors,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<FormNovoPaciente>({
     resolver: zodResolver(formNovoPacienteSchema),
     defaultValues: {
@@ -282,6 +282,7 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
       aberto={aberto}
       aoFechar={aoFechar}
       aoResetar={resetarFormulario}
+      temDadosPreenchidos={isDirty}
       titulo={pacienteParaEditar ? 'Editar Dados do Paciente' : 'Cadastrar um Novo Paciente'}
       subtitulo={
         pacienteParaEditar
@@ -295,7 +296,6 @@ export const ModalNovoPaciente: FC<ModalNovoPacienteProps> = ({
           <BotaoModal
             variante="secundario"
             rotulo="Cancelar"
-            aoClicar={aoFechar}
           />
           <BotaoModal
             tipo="submit"

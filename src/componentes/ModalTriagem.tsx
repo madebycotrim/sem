@@ -316,12 +316,6 @@ export const ModalTriagem: FC<ModalTriagemProps> = ({
     <Modal
       aberto={aberto}
       aoFechar={aoFechar}
-      temDadosPreenchidos={Boolean(
-        pacienteSelecionadoId ||
-        instituicaoSelecionadaId ||
-        profissionalSelecionadoId ||
-        instituicaoPendenteId
-      )}
       titulo="Triagem & Check-in de Paciente"
       subtitulo="Selecione o paciente e o profissional responsável para adicionar à fila do dia."
       tamanho="lg"

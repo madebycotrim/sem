@@ -105,7 +105,7 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
     setValue,
     watch,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<FormNovoUsuario>({
     resolver: zodResolver(formNovoUsuarioSchema),
     defaultValues: {
@@ -253,6 +253,7 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
       aberto={aberto}
       aoFechar={aoFechar}
       aoResetar={resetarFormulario}
+      temDadosPreenchidos={isDirty}
       titulo={usuarioParaEditar ? 'Editar Profissional' : 'Convidar Novo Profissional'}
       subtitulo={
         usuarioParaEditar
@@ -266,7 +267,6 @@ export const ModalNovoUsuario: FC<ModalNovoUsuarioProps> = ({
           <BotaoModal
             variante="secundario"
             rotulo="Cancelar"
-            aoClicar={aoFechar}
           />
           <BotaoModal
             tipo="submit"
