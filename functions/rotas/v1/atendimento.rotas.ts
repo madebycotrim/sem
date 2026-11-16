@@ -226,10 +226,10 @@ rotasAtendimento.post(
       }).returning();
       atendimento = novoAtendimento;
     } catch (erro) {
-      if (String(erro).toLowerCase().includes('unique')) {
+      if (ehErroUniqueConstraint(erro)) {
         return c.json(
           {
-            erro: `Já existe uma consulta registrada para este paciente na especialidade ${dados.especialidade}. Não é permitido mais de uma consulta na mesma especialidade para o mesmo CPF/aluno.`,
+            erro: `Já existe uma consulta ativa ou concluída para este paciente na especialidade ${dados.especialidade}.`,
           },
           409
         );

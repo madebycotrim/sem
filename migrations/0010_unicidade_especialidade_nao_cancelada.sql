@@ -1,3 +1,6 @@
+-- Remove o índice antigo que bloqueava inclusive consultas canceladas.
+DROP INDEX IF EXISTS "atendimentos_paciente_especialidade_key";
+
 -- Garante unicidade estrita no banco para (paciente_id, especialidade) apenas enquanto não estiver CANCELADO.
 -- Permite agendar nova consulta na mesma especialidade após cancelamento, mas bloqueia duplicidades
 -- inclusive em condições de corrida ou tentativas simultâneas de reativação.
